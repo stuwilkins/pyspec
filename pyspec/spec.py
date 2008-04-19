@@ -189,6 +189,7 @@ class SpecDataFile:
 		
 		self.file = open(self.filename, 'r')
 		rval = []
+		n = 0
 		for i in items:
 			if self.scandata.has_key(i) is False:
 				if __verbose__:
@@ -258,6 +259,10 @@ class SpecDataFile:
 				
 class SpecScan:
 	def __init__(self, specfile, item, setkeys = True):
+		self.data = array([])
+		return read(self, specfile, item, setkeys)
+
+	def read(self, specfile, item, setkeys):	
 		"""
 		Read scan data from SpecData class and set variables
 		to all the data contained in the scan
@@ -323,7 +328,6 @@ class SpecScan:
 		line = specfile._getLine()
 		self.header = self.header + line
 		
-		self.data = array([])
 		print "---- %s" % line.strip()
 		
 		while (line[0:2] != "#S") & (line != "") & (line[0:4] != "# CM"):
@@ -363,6 +367,11 @@ class SpecScan:
 
 		return None
 	
+	def concatenate(self, a):
+		return
+	def bin(self, a):
+		return
+
 	def plot(self, 	xcol = None, ycol = None, mcol = None, 
 					norm = True, doplot = True, errors = True,
 					fmt = 'ro', new = False, xint = 200, yint = 200,
@@ -585,7 +594,7 @@ to be able to use it.
 		# Plot the data
 		if doplot:
 			if new:
-				figure()
+				pylab.figure()
 				
 			hold(False)
 			
@@ -609,16 +618,20 @@ to be able to use it.
 					xlabel(self.scan.cols[xcol])
 					ylabel(self.scan.cols[x2col])
 			else:
+				
 				if errors:
-					self.plt = errorbar(	self.plotx, self.ploty, yerr=self.plote, 
+					hold(True) # Needed for errorbar plots
+					self.plt = errorbar(	self.plotx, self.ploty, self.plote, 
 										ecolor = 'red', fmt = fmt)
 				else:
-					self.plt = plotit(self.plotx, self.ploty, fmt = fmt)
+					self.plt = plot(self.plotx, self.ploty, fmt = fmt)
+				
 				grid(True)
 				
 				if not notitles:
 					xlabel(self.scan.cols[xcol])
 					ylabel(yl)
+				
 				xlim((min(self.plotx), max(self.plotx)))
 			
 			if not notitles:
