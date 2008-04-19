@@ -198,9 +198,13 @@ class SpecDataFile:
 				self.scandata[i] = SpecScan(self, i, setkeys)
 			rval.append(self.scandata[i]) 
 		
+		if len(rval) > 1:
+			for i in range(len(rval)-1):
+				rval[0].concatenate(rval[i+1])
+			rval = [rval[0]]
 		self.file.close()
 		
-		if len(items) == 1:
+		if len(rval) == 1:
 			return rval[0]
 		else:
 			return rval
@@ -258,11 +262,7 @@ class SpecDataFile:
 		return results
 				
 class SpecScan:
-	def __init__(self, specfile, item, setkeys = True):
-		self.data = array([])
-		return read(self, specfile, item, setkeys)
-
-	def read(self, specfile, item, setkeys):	
+	def __init__(self, specfile, item, setkeys = True):	
 		"""
 		Read scan data from SpecData class and set variables
 		to all the data contained in the scan
@@ -274,6 +274,7 @@ class SpecScan:
 		self.datafile = specfile
 		self.scandata = SpecData()
 		self.scanplot = None
+		self.setkeys = setkeys
 		
 		line = specfile._getLine()
 		
@@ -291,6 +292,7 @@ class SpecScan:
 		
 		x = 0
 		self.values = {}
+		self.data = array([])
 		
 		line = specfile._getLine()
 		self.header = self.header + line
@@ -358,7 +360,7 @@ class SpecScan:
 
 		# Now set the variables into the scan class from the data
 		
-		if setkeys:
+		if self.setkeys:
 			for i in self.scandata.values.keys():
 				if __verbose__ & 0x02:
 					print "oooo Setting variable %s" % i
@@ -368,7 +370,18 @@ class SpecScan:
 		return None
 	
 	def concatenate(self, a):
-		return
+		# Could put check in here for cols matching ?!?
+		
+		self.header = self.header + a.header
+
+		self.data = vstack((self.data, a.data))
+		print self.data
+		for i in range(len(self.cols)):
+			self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
+		if self.setkeys:
+			for i in self.scandata.values.keys():
+				setattr(self,i , self.scandata.values[i])
+		return self
 	def bin(self, a):
 		return
 
