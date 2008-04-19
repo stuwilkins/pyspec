@@ -50,10 +50,10 @@ from scipy import *
 from pylab import *
 from fit import fit
 
-__version__ = "$Revision: 7 $"
+__version__ = "$Revision$"
 __author__ = "Stuart B. Wilkins <swilkins@bnl.gov>"
-__date__ = "$LastChangedDate: 2007-12-02 17:00:59 -0500 (Sun, 02 Dec 2007) $"
-__id__ = "$Id: spec.py 29 2007-12-13 16:04:13Z swilkins $"
+__date__ = "$LastChangedDate$"
+__id__ = "$Id$"
 __verbose__ = 0x01
 
 NotInFile = "Scan is not in Datafile"
