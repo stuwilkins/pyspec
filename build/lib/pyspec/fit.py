@@ -22,7 +22,6 @@ def fitdata(funcs = None, guess = None, ifix=None):
 	# Now plot the results
 	
 	hold(True)
-	
 	x, y = f.evalfitfunc(nxpts = 200)
 	print plot(x, y, 'b-')
 	
@@ -149,6 +148,11 @@ class fit:
 					k += 1
 				print "-------------------------------"
 				print
+
+			#hold(True)
+			#x, y = self.evalfitfunc(nxpts = 200)
+			#print plot(x, y, 'g-')
+
 		if self.optimizer == 'ODR':
 	
 			linear = Model(self.evalfunc)

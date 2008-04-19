@@ -326,7 +326,7 @@ class SpecScan:
 		self.data = array([])
 		print "---- %s" % line.strip()
 		
-		while (line[0:2] != "#S") & (line != ""):
+		while (line[0:2] != "#S") & (line != "") & (line[0:4] != "# CM"):
 			if line[0] != "#":
 				datum = array([])
 				d = line.strip().split()
