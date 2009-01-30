@@ -34,7 +34,7 @@ def magic_fitto(self,args):
 	f = f + "]"
 	
 	print "---- Fitting to %s" % f
-	api.ex("SPECPLOT.fit(s)" % f)
+	api.ex("SPECPLOT.fit(%s)" % f)
 	
 def magic_reload(self, args):
 	api = self.api
@@ -50,3 +50,5 @@ ip.expose_magic('prints', magic_prints)
 ip.expose_magic('fitto', magic_fitto)
 ip.expose_magic('updatespec', magic_reload)
 ip.expose_magic('header', magic_header)
+ip.ex('import pyspec.spec as spec')
+ip.ex('import pyspec.fitfuncs as fitfuncs')

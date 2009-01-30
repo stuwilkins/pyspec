@@ -48,6 +48,7 @@ from scipy.optimize import leastsq
 from numpy import *
 from scipy import *
 from pylab import *
+import matplotlib.pylab as pylab
 from fit import fit
 
 __version__ = "$Revision$"
@@ -107,6 +108,7 @@ class SpecDataFile:
 			
 		self.file.close()
 		return
+
 	def index(self):
 		"""
 		Index the datafile by storing the byte-offests for
@@ -590,7 +592,8 @@ class SpecPlot:
 				from scipy.delaunay import Triangulation
 			except ImportError:
 				try:
-					from scipy.sandbox.delaunay import Triangulation
+					from delaunay import Triangulation
+					#from scipy.sandbox.delaunay import Triangulation
 				except ImportError:
 					print """
 ********************                   ********************
@@ -677,7 +680,7 @@ to be able to use it.
 		texfile.write("\usepackage{graphicx}\n")
 		texfile.write("\\begin{document}\n")
 		texfile.write("\\begin{center}\n")
-		texfile.write("\includegraphics[width=0.6\columnwidth]{%s}\n" % fig)
+		texfile.write("\includegraphics[width=0.7\columnwidth]{%s}\n" % fig)
 		texfile.write("\end{center}\n")
 		texfile.write("\end{document}\n")
 
@@ -688,8 +691,7 @@ to be able to use it.
 		if printer is not None:
 			dvips_opts = "-P%s" % printer
 		
-		os.system("cd %s ; latex figure.tex ; dvips %s figure" % (tmpdir, dvips_opts))
-		
+		os.system("cd %s ; latex figure.tex ; dvips %s figure; lp figure.ps" % (tmpdir, dvips_opts))
 		os.system("rm -rfv %s" % tmpdir)
 
 	def fit(self, funcs, quiet = False):

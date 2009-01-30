@@ -284,3 +284,17 @@ def gauss(x, p, mode='eval'):
 		out = []
 
 	return out	
+
+def power(x, p, mode = 'eval'):
+	if mode == 'eval':
+		out = p[0] * pow(p[1], x)
+	elif mode == 'params':
+		out = ['A', 'B']
+	elif mode == 'name':
+		out = "Power"
+	elif mode == 'guess':
+		out = [1, 1]
+	else:
+		out = []
+
+	return out
