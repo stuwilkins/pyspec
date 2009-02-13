@@ -114,7 +114,7 @@ class SpecDataFile:
 		Index the datafile by storing the byte-offests for
 		all the scans (Lines beginning with '#S')
 		
-		usage: SpecData.index()
+		usage: SpecDataFile.index()
 		"""
 		self.file = open(self.filename, 'r')
 		
@@ -358,7 +358,7 @@ class SpecScan:
 		# Now set the motors
 		
 		for i in range(len(self.cols)):
-			 self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
+			self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
 
 		# Now set the variables into the scan class from the data
 		
@@ -377,13 +377,13 @@ class SpecScan:
 		self.header = self.header + a.header
 
 		self.data = vstack((self.data, a.data))
-		print self.data
 		for i in range(len(self.cols)):
 			self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
 		if self.setkeys:
 			for i in self.scandata.values.keys():
 				setattr(self,i , self.scandata.values[i])
 		return self
+
 	def bin(self, a):
 		return
 
@@ -485,7 +485,7 @@ class SpecPlot:
 		
 	def show(self, 	xcol = None, ycol = None, mcol = None, 
 					norm = True, doplot = True, errors = True,
-					fmt = 'ro', new = False, 
+					fmt = 'ro', new = True, 
 					xint = 200, yint = 200,
 					notitles = False, log = False):
 		"""
@@ -584,8 +584,6 @@ class SpecPlot:
 			plotit = semilogy
 		else:
 			plotit = plot
-
-		print plotit
 
 		if twod:
 			try:

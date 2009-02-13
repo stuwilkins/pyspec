@@ -23,7 +23,7 @@ def fitdata(funcs = None, guess = None, ifix=None):
 	
 	hold(True)
 	x, y = f.evalfitfunc(nxpts = 200)
-	print plot(x, y, 'b-')
+	plot(x, y, 'b-')
 	
 	return f
 
@@ -31,7 +31,7 @@ class fit:
 
 	def __init__(self, 	x = None, y = None, e = None,
 						funcs = None, guess = None, 
-						quiet = False, optimizer = 'ODR', ifix = None):
+						quiet = False, optimizer = 'leastsq', ifix = None):
 		
 		self.optimizer = optimizer
 		self.setFuncs(funcs)

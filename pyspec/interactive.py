@@ -8,7 +8,7 @@ def magic_loadspec(self, args):
 def magic_getspec(self,args):
 	api = self.api
 	api.ex("SPECSCAN = SPECFILE[%s]" % args)
-	api.ex("SPECPLOT = SPECSCAN.plot()")
+	#api.ex("SPECPLOT = SPECSCAN.plot()")
 	
 	# Now load variables
 	
@@ -16,7 +16,11 @@ def magic_getspec(self,args):
 	for i in specscan.scandata.values.keys():
 		foo = specscan.scandata.values[i]
 		eval("ip.user_ns.update(dict(%s=foo))" % i)
-		
+	
+def magic_plotspec(self, args):
+	api = self.api
+	api.ex("SPECPLOT = SPECSCAN.plot()")
+	
 def magic_prints(self,args):
 	api = self.api
 	api.ex("SPECPLOT.prints()")
@@ -50,5 +54,7 @@ ip.expose_magic('prints', magic_prints)
 ip.expose_magic('fitto', magic_fitto)
 ip.expose_magic('updatespec', magic_reload)
 ip.expose_magic('header', magic_header)
+ip.expose_magic('plotspec', magic_plotspec)
+
 ip.ex('import pyspec.spec as spec')
 ip.ex('import pyspec.fitfuncs as fitfuncs')

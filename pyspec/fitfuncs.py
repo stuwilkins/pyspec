@@ -161,6 +161,21 @@ def peakguess(x,y):
 
 	return out
 
+def critbeta(x, p, mode='eval'):
+        if mode == 'eval':
+                out = array([])
+                for i in x:
+                        if i < p[1]:
+                                out = hstack((out, p[0] * pow((1.0 - (i / p[1])), 2 * p[2])))
+                        else:
+                                out = hstack((out , 0.0))
+                        
+        elif mode == 'params':
+                out = ['I0', 'Tc', 'Beta']
+        elif mode == 'name':
+		out = "Crirical Beta"
+        return out
+
 def lor2a(x, p, mode='eval'):
 	if mode == 'eval':
 		out = ((sqrt(2)*p[2])/(pi*p[1]) / (1 + 0.5*((x - p[0])/p[1])**2)**2);
