@@ -3,10 +3,29 @@ from pylab import gca, hold, plot
 from scipy.optimize import leastsq
 from scipy.odr import Model, Data, ODR
 
+def fitdata(funcs, ax = None, *args, **kwargs):
+	"""Force fitting of a function to graphed data
 
-def fitdata(funcs = None, guess = None, ifix=None):
+	Parameters
+	----------
+	funcs    : [list] list of the fit functions
+	ax       : [axis] axis to fit (if none the current
+                   axis is used.
 	
-	l = gca().lines 
+	All the additional *args and **kwargs are passed onto
+	the fit class (see fit.__init__ for details)
+
+	Returns
+	-------
+
+	fit Object with result.
+	"""
+
+	if ax is None:
+		l = gca().lines
+	else:
+		l = ax.lines
+
 	if len(l) == 0:
 		print "No data on graph"
 		return None
@@ -14,9 +33,7 @@ def fitdata(funcs = None, guess = None, ifix=None):
 	xdata = l[0].get_xdata()
 	ydata = l[0].get_ydata()
 	
-	f = fit(x = xdata, y = ydata,
-			funcs = funcs, guess = guess, ifix = ifix)
-	
+	f = fit(x = xdata, y = ydata, funcs = funcs, *args, **kwargs)	
 	f.go()
 	
 	# Now plot the results
@@ -29,9 +46,10 @@ def fitdata(funcs = None, guess = None, ifix=None):
 
 class fit:
 
-	def __init__(self, 	x = None, y = None, e = None,
-						funcs = None, guess = None, 
-						quiet = False, optimizer = 'leastsq', ifix = None):
+	def __init__(self, x = None, y = None, e = None,
+		     funcs = None, guess = None, 
+		     quiet = False, optimizer = 'leastsq', 
+		     ifix = None):
 		
 		self.optimizer = optimizer
 		self.setFuncs(funcs)
@@ -51,11 +69,13 @@ class fit:
 			
 	def result(self):
 		return self.fit_result
-			
+
+	def resultDict(self):
+		return None
+	
 	def _residuals(self, p):
 		f = self.evalfunc(p)
 		return ravel(self.datay - f)
-		
 		
 	def _dfdp(self, p, y, x, func):
 		m=len(x)
@@ -81,7 +101,12 @@ class fit:
 		return prt
 
 	def evalfitfunc(self, nxpts = None, p = None, x = None, mode = 'eval'):
+		"""Evaluate the fit functions with the fesult of a fit
 		
+		Parameters
+		----------
+
+		"""
 		if x is None:
 			x = self.datax
 			
@@ -158,8 +183,8 @@ class fit:
 			linear = Model(self.evalfunc)
 			mydata = Data(self.datax, self.datay, 1)
 			myodr = ODR(mydata, linear, 
-						beta0=self.guess,  
-						maxit = 10000, ifixb=self.ifix)
+				    beta0=self.guess,  
+				    maxit = 10000, ifixb=self.ifix)
 			myoutput = myodr.run()
 			
 			self.guess = myoutput.beta
@@ -195,5 +220,44 @@ class fit:
 		self.fit_result = vstack((self.guess, self.stdev))
 		
 		return self.fit_result
+
+	def chiSquared(self, norm = True, dist = 'poisson'):
+		""" Return the chi^2 value for the fit
+
+		Calculate the chi-squared value for the fit. This is defined as
+
+		\Chi^2 = \Sum_N (x_{i,n} - x_{m,i})
+
+		Where the normalized chi^2 is given by
+
+		\Chi^2_{norm} = \Chi^2 / M
+
+		where M = N - P, where P is the number of parameters.
+
+		If dist is 'poisson' then the data is divided by the model answer.
+		i.e.
+
+		\Chi^2_{poisson} = \Sum_N ((x_{i,n} - x_{m,i}) /  x_{m,i})
 		
+		Parameters
+		----------
+		norm     : [bool] return normalized chi^2
+		dist     : [string] distribution
+
+		Returns
+		-------
+		chi^2 value
+
+		"""
 		
+		N = len(self.datax)
+		P = len(self.guess)
+		print "P =", P, " N =", N
+		self.chi2 = pow(self.evalfunc() - self.datay, 2)
+		if dist == 'poisson':
+			self.chi2 = self.chi2 / self.evalfunc()
+		self.chi2 = self.chi2.sum()
+		if norm:
+			self.chi2 = self.chi2 / (N - P)
+		
+		return self.chi2

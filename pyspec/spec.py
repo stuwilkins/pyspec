@@ -1,43 +1,56 @@
-"""
-Python module for handling of spec data files (pyspec).
+# Written by S. Wilkins
+# (c) Stuart Wilkins 2007, 2008, 2009
+#
+# SPEC is a Diffractometer control program from
+# Certified Scientific Software.
+# http://www.certif.com/
+#
+"""Python module for handling of spec data files (pyspec).
 
-Written by S. Wilkins
-(c) Stuart Wilkins 2007
+This module defines classes, objects and routines for reading SPEC datafiles
+into python classes. There are three main classes for the data, SpecDataFile, 
+SpecScan and SpecData and are arranged as follows:
 
+SpecDataFile, contains a single data file. The datafile is indexed upon
+initializing the class to allow for fast searching of large data files.
 
-SPEC is a Diffractometer control program from
-Certified Scientific Software.
-http://www.certif.com/
+To retrieve a scan from the datafile, an item is requested from the object. For
+example;
 
+    sd = SpecDataFile('data.01')
+    scan = sd[100]
 
-Example:
+The construct sd[100] will return scan 100 as a SpecScan object. By passing a range
+of integers, for example;
 
-	# Load datafile and index
-	
-	sd = SpecDataFile('fourc.01')		
-	
-	# Load scan #1000 into scan
-	
-	scan = sd[1000]				
-				
-	# Plot scan #1000
-	
-	scan.plot()		
-	
-	# Print (Hardcopy) scan #1000
-	
-	scan.plot().prints()				
-	
-	# Access to variables
-	
-	scan.data							
-	scan.values['TTH']					 
-	scan.TTH							
+    scans = sd[[100, 101]]
 
-	# Fit the current plot to a 
-	# functions lor2a and linear
-	scan.fit([lor2a, linear])			
-										
+these data will be concatenated into a single object. This is useful, for example,
+when two scans are used to take the data (one wide, one close) and you need to fit
+the data.
+
+The SpecScan object contains members for all motors and counters for the scan in
+question. These can be accessed in two main ways. For example, to obtain the 
+detector counts for the scan as an array;
+
+   Det = sd[1000].Detector
+
+or
+
+   scan = sd[1000]
+   Det = scan.Detector
+
+can be used. For situations where you need machine adjustable code, the construct
+
+   Det = scan.values['Detector']
+
+can be used, where the member 'values' is a python dictionary of all scan variables.
+In addition to the counters and motors, values defined in the header are also included.
+See the SpecScan class documentation for further information. 
+							
+Finally, the SpecScan class defines some helper routines for plotting, fitting etc. 
+which can be used to help in data analysis. See the documentation on the SpecScan class
+for more information.			
 										
 """
 
@@ -67,12 +80,34 @@ def removeIllegals(key):
 		key = "X" + key
 		
 	return key
+
+def splitSpecString(ips):
+	"""Split a spec string which is formated with two spaces"""
+
+	ops = []
+	for o in ips.split('  '):
+		if o != '':
+			ops.append(o.strip())
+
+	return ops
 	
 class SpecDataFile:
-	"""
-	DataFile class for handling spec data files
+	""" DataFile class for handling spec data files
+	
 	"""
 	def __init__(self,fn):
+		"""Initialize SpecDataFile
+
+		Params
+		------
+		fn : string
+		     Filename of spec file to open
+
+		Returns
+		-------
+		SpecDataFile object
+
+		"""
 		self.filename = fn
 		if __verbose__:
 			print "**** Opening specfile %s." % self.filename
@@ -86,14 +121,13 @@ class SpecDataFile:
 	
 	def readHeader(self):
 		"""
-		Read the spec header from the datafile by
-		scanning the datafile.
-		
+		Read the spec header from the datafile.
+
 		Currently supported header items:
 			'#O'	(Motor positions)
 		"""
 		
-		self.file = open(self.filename, 'r')
+		self.file = open(self.filename, 'rb')
 		
 		if __verbose__:
 			print "---- Reading Header."
@@ -103,20 +137,21 @@ class SpecDataFile:
 		line = self.file.readline()
 		while line[0:2] != "#S":
 			if line[0:2] == "#O":
-				self.motors = self.motors + line.strip()[4:].split()
+				#self.motors = self.motors + line.strip()[4:].split()
+				self.motors = self.motors + splitSpecString(line[4:])
 			line = self.file.readline()
 			
 		self.file.close()
 		return
 
 	def index(self):
-		"""
-		Index the datafile by storing the byte-offests for
+		"""Index the datafile 
+
+		This routine indexes and sorts the byte-offests for
 		all the scans (Lines beginning with '#S')
 		
-		usage: SpecDataFile.index()
 		"""
-		self.file = open(self.filename, 'r')
+		self.file = open(self.filename, 'rb')
 		
 		if __verbose__:
 			print "---- Indexing scan :       ",
@@ -144,11 +179,7 @@ class SpecDataFile:
 		return
 	
 	def getStats(self, head = "---- "):
-		"""
-		returns string with statistics on specfile
-		
-		usage SpecDataFile.showStats()
-		"""
+		""" Returns string with statistics on specfile."""
 		
 		string = ""
 		string = string + head + "Specfile contains %d scans\n" % len(self.findex)
@@ -158,29 +189,28 @@ class SpecDataFile:
 		return string
 		
 	def _moveto(self, item):
-		"""
-		Move to a location in the datafile for scan
-		"""
+		"""Move to a location in the datafile for scan"""
+		
 		if self.findex.has_key(item):
 			self.file.seek(self.findex[item])
 		else:
 			raise Exception("Scan %s is not in datafile ....." % item)
 			
 	def __getitem__( self, item):
-		""" 
-		Convinience routine to use [] to get scan
-		"""
+		"""Convinience routine to use [] to get scan"""
 		return self.getScan(item, setkeys = True)
 		
 	def getScan(self, item, setkeys = True):
-		"""
-		Get a scan from the data file and load it into the
+		"""Get a scan from the data file
+
+		This routine gets a scan from the data file and loads it into the
 		list of SpecData instances. 
 		
 		setting 'setkeys = True' will set attributes to the
 		specdata item of all the motors and counters
 		
-		returns the scandata instance
+		Returns the ScanData object corresponding to the scan requested.
+
 		"""
 		if type(item) == int:
 			items = [item]
@@ -189,7 +219,7 @@ class SpecDataFile:
 		else:
 			raise Exception("item can only be <int> or <list>")
 		
-		self.file = open(self.filename, 'r')
+		self.file = open(self.filename, 'rb')
 		rval = []
 		n = 0
 		for i in items:
@@ -212,12 +242,8 @@ class SpecDataFile:
 			return rval
 		
 	def _getLine(self):
-		"""
-		Read line from datafile
-		
-		usage   : _getLine()
-		returns : string of next line in datafile
-		"""
+		"""Read line from datafile"""
+	
 		line = self.file.readline()
 		if __verbose__ & 0x10:
 				print "xxxx %s" % line.strip()
@@ -264,11 +290,45 @@ class SpecDataFile:
 		return results
 				
 class SpecScan:
+	"""Class defining a SPEC scan
+
+	This class defines a single spec scan, or a collection of scans either binned or concatenated.
+	The class has members for the data and variables contained in the scan. If the optional 'setkeys'
+	is defined (see __init__) then the motor positions and variables will be set as class members. For
+	example, in a typical scan the motor position TTH can be accessed as a class member by SpecScan.TTH
+
+	This object has some standard members: 
+	
+	header     : [string]  Header of spec scan
+	values     : [dict]    All scan data variables (Motors and Counters)
+	data       : [array]   All scan data (cols = variables, rows = datum)
+	comments   : [string]  Comments inserted in scan
+	scandate   : [time]    Date of start of scan
+	
+	There are a number of special members. Wherever possible the following members are added to 
+	the class:
+
+	Qvec       : [array]   Q Vector
+	alphabeta  : [array]   array([alpha, beta])
+	wavelength : [float]   incident wavelength
+	omega      : [float]   omega ((TTH / 2) - TH)
+	azimuth    : [float]   azimuthal angle
+
+	"""
+	
 	def __init__(self, specfile, item, setkeys = True):	
-		"""
-		Read scan data from SpecData class and set variables
-		to all the data contained in the scan
-		
+		"""Read scan data from SpecFile
+
+		Initialize the SpecScan class from a SpecData instance.
+
+		Parameters
+		----------
+		specfile       : [SpecFile] Instance of a spec data file.
+		item           : [item]     Scan item.
+		setkeys        : [bool]     If true set items of the class
+		                            from all variables.
+
+
 		"""
 		
 		# Keep track of the datafile
@@ -320,13 +380,25 @@ class SpecScan:
 					self.scandate = strptime(line[2:].strip())
 				except:
 					self.scandate = None
-					
+			elif line[0:2] == "#G4":
+				try:
+					# Geometry data
+					pos = line.strip().split()
+					self.Qvec = array([float(line[1]), float(line[2]), float(line[3])])
+					self.alphabeta = array([float(line[5]), float(line[6])])
+					self.wavelength = float(line[4])
+					self.omega = float(line[7])
+					self.azimuth = float(line[8])
+				except:
+					print "Unable to read geometry information"
+
 			line = specfile._getLine()
 			self.header = self.header + line	
 					
 		if line[0:2] == "#L":
 			# Comment line just before data
-			self.cols = line.strip()[3:].split()
+			#self.cols = line[3:].strip().split()
+			self.cols = splitSpecString(line[3:])
 			print "---- %s" % line.strip()
 
 		line = specfile._getLine()
@@ -385,22 +457,16 @@ class SpecScan:
 		return self
 
 	def bin(self, a):
+		raise Exception("Not yet implemented")
 		return
 
-	def plot(self, 	xcol = None, ycol = None, mcol = None, 
-					norm = True, doplot = True, errors = True,
-					fmt = 'ro', new = False, xint = 200, yint = 200,
-					notitles = False, log = False):
-		"""
-		Plot the SpecScan using matplotlib
-		"""
+	def plot(self, 	*args, **kwargs):
+		"""Plot the SpecScan using matplotlib"""
+
 		if self.scanplot == None:
 			self.scanplot = SpecPlot(self)
 		
-		self.scanplot.show( xcol, ycol, mcol,
-							norm, doplot, errors, 
-							fmt, new, xint, yint,
-							notitles, log)
+		self.scanplot.show(*args, **kwargs)
 		return self.scanplot
 	
 	def fit(self, funcs, quiet = False):
@@ -413,19 +479,21 @@ class SpecScan:
 		else:
 			return self.scanplot.fit(funcs, quiet)
 		
-		
+	def __str__(self):
+		return self.show()
+
 	def show(self):
-		"""
-		Show statistics on scan
-		"""
-		print "Scan:"
-		print "\t%s" % self.scan
-		print "Datafile:"
-		print "\t%s" % self.datafile.file.name
-		self.scandata.show()
-		
+		"""Return string of statistics on SpecScan"""
+		p = ""
+		p = p + "Scan:\n"
+		p = p + "\t%s\n" % self.scan
+		p = p + "Datafile:\n"
+		p = p + "\t%s\n" % self.datafile.file.name
+		p = p + self.scandata.show()
+		return p
 		
 class SpecData:
+	"""Class defining the data contained in a scan"""
 	def __init__(self):
 		self.values = {}
 	def __call__(self, key):
@@ -441,41 +509,44 @@ class SpecData:
 			return self.values[key]
 		else:
 			return None
-			
-	def show(self, prefix = "", nperline = 6):
-		"""
-		Show statistics on data (motors, scalars)
 		
-		example   : SpecData.show()
-		"""
+	def __str__(self):
+		return self.show()
+
+	def show(self, prefix = "", nperline = 6):
+		"""Return string of statistics on data (motors, scalars)"""
 		
 		j = nperline
-		print prefix + "Motors:"
-		print prefix
+		p = ""
+		p = p + prefix + "Motors:\n"
+		p = p + prefix
 		for i in self.values.keys():
 			if self.values[i].shape == (1,):
-				print "%10s " % i,
+				p = p + "%10s " % i
 				j -= 1
 				if j == 0:
-					print prefix
+					p = p + "\n" + prefix
 					j = nperline
 		
 		if j != nperline:
-			print prefix
+			p = p + "\n" + prefix 
+
+		p = p + "\n"
 		
-		print prefix
-		print prefix + "Scan Variables:"
-		print prefix
+		p = p + prefix + "\n"
+		p = p + prefix + "Scan Variables:\n"
+		p = p + prefix + "\n"
 		j = nperline
 		for i in self.values.keys():
 			if self.values[i].shape != (1,):
-				print "%10s " % i,
+				p = p + "%10s " % i
 				j -= 1
 				if j == 0:
-					print prefix
+					p = p + "\n" + prefix
 					j = nperline
 		
-		return None
+		p = p + "\n"
+		return p
 		
 
 class SpecPlot:
@@ -488,8 +559,7 @@ class SpecPlot:
 					fmt = 'ro', new = True, 
 					xint = 200, yint = 200,
 					notitles = False, log = False):
-		"""
-		Plot and display the scan
+		"""Plot and display the scan
 		
 		'xcol', 'ycol' and 'mcol' can be either numbers (negative count from end)
 		or string values for the motor names
