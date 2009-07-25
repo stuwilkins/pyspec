@@ -48,7 +48,7 @@ class fit:
 
 	def __init__(self, x = None, y = None, e = None,
 		     funcs = None, guess = None, 
-		     quiet = False, optimizer = 'leastsq', 
+		     quiet = False, optimizer = 'ODR', 
 		     ifix = None):
 		
 		self.optimizer = optimizer
@@ -179,19 +179,24 @@ class fit:
 			#print plot(x, y, 'g-')
 
 		if self.optimizer == 'ODR':
-	
+
 			linear = Model(self.evalfunc)
 			mydata = Data(self.datax, self.datay, 1)
 			myodr = ODR(mydata, linear, 
-				    beta0=self.guess,  
-				    maxit = 10000, ifixb=self.ifix)
+				    beta0 = self.guess,  
+				    maxit = 10000, 
+				    ifixb=self.ifix)
+
 			myoutput = myodr.run()
 			
 			self.guess = myoutput.beta
 			self.stdev = myoutput.sd_beta
+
 		else:
-		
-			plsq = leastsq(self._residuals, self.guess, Dfun = None,  full_output = 1, factor = 0.1)
+			try:
+				plsq = leastsq(self._residuals, self.guess, Dfun = None,  full_output = 1, factor = 0.1)
+			except:
+				pass
 
 			self.guess = plsq[0]	# Make the stored guess the last value
 			self.stdev = sqrt(diag(plsq[1].T))
@@ -252,7 +257,6 @@ class fit:
 		
 		N = len(self.datax)
 		P = len(self.guess)
-		print "P =", P, " N =", N
 		self.chi2 = pow(self.evalfunc() - self.datay, 2)
 		if dist == 'poisson':
 			self.chi2 = self.chi2 / self.evalfunc()

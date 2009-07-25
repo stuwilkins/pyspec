@@ -58,6 +58,7 @@ import time
 import sys
 import os
 from scipy.optimize import leastsq
+import numpy
 from numpy import *
 from scipy import *
 from pylab import *
@@ -117,8 +118,24 @@ class SpecDataFile:
 		
 		self.scandata = {}
 		
+		self.mode = 'concat' # Set the default to concatenate multiple files
+
 		return
 	
+	def setMode(self, mode = 'concatenate'):
+		if mode == 'concatenate':
+			self.mode = 'concat'
+			print "**** Multiple scans will be concatenated."
+			return
+		elif mode == 'bin':
+			self.mode = 'bin'
+			print "**** Multiple scans will be binned."
+			return
+		else:
+			raise Exception("Unknown mode %s" % mode)
+
+		return
+
 	def readHeader(self):
 		"""
 		Read the spec header from the datafile.
@@ -199,6 +216,11 @@ class SpecDataFile:
 	def __getitem__( self, item):
 		"""Convinience routine to use [] to get scan"""
 		return self.getScan(item, setkeys = True)
+
+	def getAll(self, *args, **kwargs):
+		"""Read all scans into the object"""
+		for s in self.findex.keys():
+			self.getScan(s, *args, **kwargs)
 		
 	def getScan(self, item, setkeys = True):
 		"""Get a scan from the data file
@@ -213,11 +235,15 @@ class SpecDataFile:
 
 		"""
 		if type(item) == int:
-			items = [item]
+			items = (item,)
+		elif type(item) == float:
+			items = (int(item),)
 		elif type(item) == list:
+			items = tuple(item)
+		elif type(item) == tuple:
 			items = item
 		else:
-			raise Exception("item can only be <int> or <list>")
+			raise Exception("item can only be <int>, <float>, <list> or <tuple>")
 		
 		self.file = open(self.filename, 'rb')
 		rval = []
@@ -232,7 +258,12 @@ class SpecDataFile:
 		
 		if len(rval) > 1:
 			for i in range(len(rval)-1):
-				rval[0].concatenate(rval[i+1])
+				if self.mode == 'concat':
+					rval[0].concatenate(rval[i+1])
+				elif self.mode == 'bin':
+					rval[0].bin(rval[i+1])
+				else:
+					raise Exception("Unknown mode to deal with multiple scans.")
 			rval = [rval[0]]
 		self.file.close()
 		
@@ -390,7 +421,7 @@ class SpecScan:
 					self.omega = float(line[7])
 					self.azimuth = float(line[8])
 				except:
-					print "Unable to read geometry information"
+					print "Unable to read geometry information"	
 
 			line = specfile._getLine()
 			self.header = self.header + line	
@@ -428,37 +459,53 @@ class SpecScan:
 			line = specfile._getLine()
 			
 		# Now set the motors
-		
-		for i in range(len(self.cols)):
-			self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
-
-		# Now set the variables into the scan class from the data
-		
-		if self.setkeys:
-			for i in self.scandata.values.keys():
-				if __verbose__ & 0x02:
-					print "oooo Setting variable %s" % i
-				setattr(self,i , self.scandata.values[i])
-
+		self._setcols()
 
 		return None
 	
+	def _setcols(self):
+		if self.data.shape[0] > 0:
+			for i in range(len(self.cols)):
+				if len(self.data.shape) == 2:
+					self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
+				else:
+					self.scandata.setValue(removeIllegals(self.cols[i]), array([self.data[i]]))
+					
+		# Now set the variables into the scan class from the data
+					
+			if self.setkeys:
+				for i in self.scandata.values.keys():
+					if __verbose__ & 0x02:
+						print "oooo Setting variable %s" % i
+						setattr(self,i , self.scandata.values[i])
+				
+
 	def concatenate(self, a):
 		# Could put check in here for cols matching ?!?
 		
 		self.header = self.header + a.header
 
 		self.data = vstack((self.data, a.data))
-		for i in range(len(self.cols)):
-			self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
-		if self.setkeys:
-			for i in self.scandata.values.keys():
-				setattr(self,i , self.scandata.values[i])
-		return self
+		self._setcols()
 
 	def bin(self, a):
-		raise Exception("Not yet implemented")
-		return
+		"""Bin the scans together adding the column values
+
+		a is a SpecScan object of the file to bin.
+
+		Note:
+		This routine only bins the "data" portion of the scan. It returns the
+		origional scans motors etc. 
+
+		"""
+		# First check if scans are the same.
+		if self.cols != a.cols:
+			raise Exception("Scan column headers are not the same.")
+		self.header = self.header + a.header
+		self.data = self.data + a.data
+		self._setcols()
+		
+		return self
 
 	def plot(self, 	*args, **kwargs):
 		"""Plot the SpecScan using matplotlib"""
@@ -491,6 +538,28 @@ class SpecScan:
 		p = p + "\t%s\n" % self.datafile.file.name
 		p = p + self.scandata.show()
 		return p
+
+	def getYE(self, ycol = None, mcol = None):
+		"""Return an tuple of two arrays of y and e"""
+
+		if type(ycol) == str:
+			ycol = self.scan.cols.index(ycol)
+		if type(mcol) == str:
+			mcol = self.scan.cols.index(mcol)
+		if ycol == None:
+			ycol = -1
+		if mcol == None:
+			mcol = -2
+
+		y = self.data[:,ycol]
+		m = self.data[:,mcol]
+
+		e = sqrt(y) / y
+		y = y / m
+		e = e * y
+
+		return (y, e)
+
 		
 class SpecData:
 	"""Class defining the data contained in a scan"""
@@ -656,25 +725,9 @@ class SpecPlot:
 			plotit = plot
 
 		if twod:
-			try:
-				from scipy.delaunay import Triangulation
-			except ImportError:
-				try:
-					from delaunay import Triangulation
-					#from scipy.sandbox.delaunay import Triangulation
-				except ImportError:
-					print """
-********************                   ********************
-******************** ERROR ERROR ERROR ********************
-********************                   ********************
+			# Add check for matplotlib version
+			pass
 
-This module uses the delaunay routines to do interpolation
-you will have to enable this module and re-install scipy
-to be able to use it.
-3D plotting will be disabled."""
-					return
-	
-	
 		# Plot the data
 		if doplot:
 			if new:
@@ -683,17 +736,19 @@ to be able to use it.
 			hold(False)
 			
 			if twod:
-				
-				xi, yi = mgrid[min(self.plotx[:,0]):max(self.plotx[:,0]):complex(0, xint)
-							  ,min(self.plotx[:,1]):max(self.plotx[:,1]):complex(0, yint)]
+				xi = linspace(min(self.plotx[:,0]), max(self.plotx[:,0]), xint)
+				yi = linspace(min(self.plotx[:,1]), max(self.plotx[:,1]), yint)
 				print "---- xint = %d" % xint
 				print "---- yint = %d" % yint
-				
-				tri = Triangulation(self.plotx[:,0], self.plotx[:,1])
-				interp = tri.nn_interpolator(self.ploty)
-				zi = interp(xi,yi)
-				
-				pcolor(xi,yi,zi, shading = 'interp')
+				if log:
+					zi = griddata(self.plotx[:,0], self.plotx[:,1], numpy.log10(self.ploty), xi, yi)
+				else:
+					zi = griddata(self.plotx[:,0], self.plotx[:,1], self.ploty, xi, yi)
+				contour(xi,yi,zi, shading = 'interp')
+				if log:
+					colorbar(format=FormatStrFormatter('$10^{%d}$'))
+				else:
+					colorbar()
 				
 				xlim([min(self.plotx[:,0]), max(self.plotx[:,0])])
 				ylim([min(self.plotx[:,1]), max(self.plotx[:,1])])
