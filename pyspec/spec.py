@@ -123,6 +123,11 @@ class SpecDataFile:
 		return
 	
 	def setMode(self, mode = 'concatenate'):
+		"""Set the mdoe to deal with multiple scans
+
+		'mode' can be either 'concatenate' or 'bin'
+
+		"""
 		if mode == 'concatenate':
 			self.mode = 'concat'
 			print "**** Multiple scans will be concatenated."
@@ -261,7 +266,7 @@ class SpecDataFile:
 				if self.mode == 'concat':
 					rval[0].concatenate(rval[i+1])
 				elif self.mode == 'bin':
-					rval[0].bin(rval[i+1])
+					rval[0].bin(rval[i+1], binbreak = 'Seconds')
 				else:
 					raise Exception("Unknown mode to deal with multiple scans.")
 			rval = [rval[0]]
@@ -477,7 +482,7 @@ class SpecScan:
 				for i in self.scandata.values.keys():
 					if __verbose__ & 0x02:
 						print "oooo Setting variable %s" % i
-						setattr(self,i , self.scandata.values[i])
+					setattr(self,i , self.scandata.values[i])
 				
 
 	def concatenate(self, a):
@@ -488,7 +493,7 @@ class SpecScan:
 		self.data = vstack((self.data, a.data))
 		self._setcols()
 
-	def bin(self, a):
+	def bin(self, a, binbreak = None):
 		"""Bin the scans together adding the column values
 
 		a is a SpecScan object of the file to bin.
@@ -502,7 +507,20 @@ class SpecScan:
 		if self.cols != a.cols:
 			raise Exception("Scan column headers are not the same.")
 		self.header = self.header + a.header
-		self.data = self.data + a.data
+		if binbreak != None:
+			if binbreak in self.cols:
+				flag = False
+				for i in range(len(self.cols)):
+					if self.cols[i] == binbreak:
+						flag = True
+					if flag:
+						print self.cols[i]
+						print self.data[:,i], a.data[:,i]
+						self.data[:,i] = self.data[:,i] + a.data[:,i]
+			else:
+				raise Exception("'%s' is not a column of the datafile." % binbreak)
+		else:
+			self.data = self.data + a.data
 		self._setcols()
 		
 		return self

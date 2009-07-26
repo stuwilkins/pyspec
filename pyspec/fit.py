@@ -2,6 +2,7 @@ from scipy import *
 from pylab import gca, hold, plot
 from scipy.optimize import leastsq
 from scipy.odr import Model, Data, ODR
+import mpfit
 
 def fitdata(funcs, ax = None, *args, **kwargs):
 	"""Force fitting of a function to graphed data
@@ -45,11 +46,40 @@ def fitdata(funcs, ax = None, *args, **kwargs):
 	return f
 
 class fit:
+	"""General class to perform non-linear least squares fitting of data.
 
+	This class serves as a wrapper around various fit methods, requiring a standard 
+	function to allow for easy fitting of data.
+
+	Parameters:
+
+	x [array] : x data
+	y [array] : y data
+	e [array] : y error 
+	
+	funcs [list] : A list of functions to be fitted. These functions should be formed
+	like the standard fitting functions in the pyspec.fitfuncs.
+
+	guess [array] : Array of the same dimensions as the number of parameters containing
+	the initial guess. 
+
+	quiet [bool] : If True then don't print to the console any results.
+
+	ifix [array] : An array of the same dimension as the number of parameters containing
+	a 1 if the parameter is to be fixed.
+	
+	optimiser [string] : 'mpfit', 'leastsq', 'ODR'
+	
+	Set the optimizer used for the fit. 'mpfit' is the MPFIT python module included
+	in pyspec. 'leastsq' is the scipy leastsquares optimizer. 'ODR' is the Orthogonal 
+	Regresion from ODRPACK.
+
+	"""
 	def __init__(self, x = None, y = None, e = None,
 		     funcs = None, guess = None, 
-		     quiet = False, optimizer = 'ODR', 
-		     ifix = None):
+		     quiet = False, optimizer = 'mpfit', 
+		     ivary = None, ifix = None, 
+		     ilimited = None, ilimits = None):
 		
 		self.optimizer = optimizer
 		self.setFuncs(funcs)
@@ -58,6 +88,9 @@ class fit:
 		self.guess = guess
 		self.fit_result = None
 		self.ifix = ifix
+		self.ivary = ivary
+		self.ilimited = ilimited
+		self.ilimits = ilimits
 	
 	def setData(self, x, y, e):
 		self.datax = x
@@ -74,31 +107,26 @@ class fit:
 		return None
 	
 	def _residuals(self, p):
-		f = self.evalfunc(p)
+		"""Residuals function for scipy leastsq optimizer"""
+		f = self.evalfunc(_toFullParams(p))
 		return ravel(self.datay - f)
-		
-	def _dfdp(self, p, y, x, func):
-		m=len(x)
-		n=len(p)      #dimensions
-		ps=p
-		prt=zeros([m,n], dtype=float64)
-		delta=zeros(n, dtype=float64);        # initialise Jacobian to Zero
+	
+	def _residualsMPFIT(self, p, fjac = None):
+		"""Residuals function for MPFIT optimizer"""
+		f = self.evalfunc(_toFullParams(p))
+		return 0, ravel(self.datay - f)
 
-		for j in range(n):
-			delta[j]=p[j] * 0.01;    #cal delx=fract(dp)*param value(p)
-			print delta[j]
-			if p[j] == 0:
-				delta[j] = 0.01     #if param=0 delx=fraction
+	def _modelODR(self):
+		"""Model function for ODR"""
+		return self.evalfunc
+
+	def _toFullParams(p):
+		self.guess[self.ifix == 0] = p
+		return self.guess
 		
-			p[j] = ps[j] + delta[j]
-		
-			f1 = fitfunc(func, x, p)
-		
-			if delta[j] != 0:
-				prt[:,j] = (f1 - y) / delta[j]
-			p[j]=ps[j];
-		
-		return prt
+	def _toVaryParams(p):
+		fp = p[nonzero(p * self.ifix)]
+		return fp
 
 	def evalfitfunc(self, nxpts = None, p = None, x = None, mode = 'eval'):
 		"""Evaluate the fit functions with the fesult of a fit
@@ -136,27 +164,107 @@ class fit:
 		return f
 	
 	def fitguess(self, mode = 'guess'):
-		print self.funcs
-	
 		out = array([])
 		for i in range(len(self.funcs)):
 			gp = self.funcs[i](self.datax, self.datay, mode = mode)
 			out = concatenate((out, gp), 1)
 		return out
 
+	def _run_odr():
+		linear = Model(self._modelODR)
+		mydata = Data(self.datax, self.datay, 1)
+		myodr = ODR(mydata, linear, 
+			    beta0 = self.guess,  
+			    maxit = 10000)
+		
+		myoutput = myodr.run()
+		
+		self._result = myoutput.beta
+		self._stdev = myoutput.sd_beta
+		
+	def _run_mpfit():
+		# Make up the PARINFO list
+		
+		for i in range(len(self.guess)):
+			if self.ivary[i]:
+				self.ilimited[i] = array([1, 1])
+				v = self.ivary[i]/2
+				self.ilimits[i] = array([self.guess[i] - v, 
+							 self.guess[i] + v])
+			else:
+				self.ilimited[i] = array([0, 0])
+				self.ilimits[i] = array([0., 0.])
+
+		parinfo = []
+		for i in range(len(self.guess)):
+			pdict = {'value' : self.guess[i],
+				 'fixed' : 0, 
+				 'limited' : self.ilimited[i],
+				 'limits' : self.ilimits[i]}
+			parinfo.append(pdict)
+
+		m = mpfit.mpfit(self._residualsMPFIT, self._guess, 
+				parinfo = parinfo, quiet = 1)
+
+		self._result = m.params
+
+		if m.perror is not None:
+			self._stdev = m.perror
+		else:
+			self._stdev = zeros(len(self._guess))
+			
+		if m.covar is not None:
+			self.covar = m.covar
+			self.pcor = m.covar * 0.
+			for i in range(len(self._guess)):
+				for j in range(len(self._guess)):
+					self.pcor[i,j] = m.covar[i,j]/sqrt(m.covar[i,i]*m.covar[j,j])
+
+	def _run_leastsq():
+
+		plsq = leastsq(self._residuals, self._guess, Dfun = None,  full_output = 1, factor = 0.1)
+		self._result = plsq[0]	# Make the stored guess the last value
+		self._stdev = sqrt(diag(plsq[1].T))
+
+	def run(self):
+		self.go()
+
 	def go(self):
-	
-	
+		"""Start the fit"""
+
+		# Get the initial guess by calling the functions if we 
+		# have not supplied a guess.
+
 		if self.guess is None:
 			self.guess = self.fitguess()
-		if self.guess is 'graph':
+		elif self.guess is 'graph':
 			self.guess = self.fitguess('graphguess')
+		else:
+			raise Exception("Unknown guess method '%s'." % self.guess)
+
+		# Now we have the guess remove the fixed parameters from the fit
+
+		if self.ifix == None:
+			self.ifix = zeros(len(self.guess))
+		else:
+			# Limit fitting parameters to only thoes which are nessesary
+			self._params = self.params[nonzero(self.params * self.ifix)]
+
+		if self.ivary == None:
+			self.ivary = zeros(len(self.guess))
+
+		if self.ilimited == None:
+			self.ilimited = zeros((len(self.guess), 2), dtype = int)
+			self.ilimits = zeros((len(self.guess), 2))
 	
 		if self.quiet == False:
 			if self.optimizer == 'ODR':
 				print "Fitting with ODRPACK"
 				print "--------------------"
-			else:
+			elif self.optimizer == 'mpfit':
+				print "Fitting with MPFIT"
+				print "------------------"
+			elif self.optimizer == 'leastsq':
 				print "Fitting with 'scipy' leastsq"
 				print "----------------------------"
 			print 
@@ -174,34 +282,22 @@ class fit:
 				print "-------------------------------"
 				print
 
-			#hold(True)
-			#x, y = self.evalfitfunc(nxpts = 200)
-			#print plot(x, y, 'g-')
-
 		if self.optimizer == 'ODR':
-
-			linear = Model(self.evalfunc)
-			mydata = Data(self.datax, self.datay, 1)
-			myodr = ODR(mydata, linear, 
-				    beta0 = self.guess,  
-				    maxit = 10000, 
-				    ifixb=self.ifix)
-
-			myoutput = myodr.run()
-			
-			self.guess = myoutput.beta
-			self.stdev = myoutput.sd_beta
-
+			self._run_odr()
+		elif self.optimizer == 'mpfit':
+			self._run_mpfit()
+		elif self.optimizer == 'leastsq':
+			self._run_leastsq()
 		else:
-			try:
-				plsq = leastsq(self._residuals, self.guess, Dfun = None,  full_output = 1, factor = 0.1)
-			except:
-				pass
+			raise Exception("Unknown fitting optimizer '%s'" % self.optimizer)
 
-			self.guess = plsq[0]	# Make the stored guess the last value
-			self.stdev = sqrt(diag(plsq[1].T))
-			#stdev = ones(len(guess))
-	
+		# If we have fixed parameters then return the full parameters list
+		# and return the full list of errors
+
+		self.guess[self.ifix == 0] = self._result
+		self.stdev = zeros(len(self.guess))
+		self.stdev[self.ifix == 0] = self._stdev
+
 		if self.quiet == False:
 			print "Fit results to function(s)"
 			for i in range(len(self.funcs)):
@@ -220,7 +316,10 @@ class fit:
 			if self.optimizer == 'ODR':
 				for reason in myoutput.stopreason:
   					print 'ODR Stop = %s' % reason
-			#print plsq[3]
+			if self.optimizer == 'mpfit':
+				print 'MPFIT Status = %s' % m.statusNiceText[m.status]
+				print 'MPFIT Warning = %s' % m.errmsg
+				print 'MPFIT computed in %d iterations' % m.niter
 		
 		self.fit_result = vstack((self.guess, self.stdev))
 		
