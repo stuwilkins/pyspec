@@ -247,8 +247,10 @@ class SpecDataFile:
 			items = tuple(item)
 		elif type(item) == tuple:
 			items = item
+		elif type(item) == array:
+			items = item.toList()
 		else:
-			raise Exception("item can only be <int>, <float>, <list> or <tuple>")
+			raise Exception("item can only be <int>, <float>, <list>, <array> or <tuple>")
 		
 		self.file = open(self.filename, 'rb')
 		rval = []
@@ -416,15 +418,14 @@ class SpecScan:
 					self.scandate = strptime(line[2:].strip())
 				except:
 					self.scandate = None
-			elif line[0:2] == "#G4":
+			elif line[0:3] == "#G4":
 				try:
-					# Geometry data
-					pos = line.strip().split()
-					self.Qvec = array([float(line[1]), float(line[2]), float(line[3])])
-					self.alphabeta = array([float(line[5]), float(line[6])])
-					self.wavelength = float(line[4])
-					self.omega = float(line[7])
-					self.azimuth = float(line[8])
+					pos = line[3:].strip().split()
+					self.Qvec = array([float(pos[0]), float(pos[1]), float(pos[2])])
+					self.alphabeta = array([float(pos[4]), float(pos[5])])
+					self.wavelength = float(pos[3])
+					self.omega = float(pos[6])
+					self.azimuth = float(pos[7])
 				except:
 					print "Unable to read geometry information"	
 
@@ -514,8 +515,6 @@ class SpecScan:
 					if self.cols[i] == binbreak:
 						flag = True
 					if flag:
-						print self.cols[i]
-						print self.data[:,i], a.data[:,i]
 						self.data[:,i] = self.data[:,i] + a.data[:,i]
 			else:
 				raise Exception("'%s' is not a column of the datafile." % binbreak)
