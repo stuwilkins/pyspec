@@ -323,9 +323,9 @@ class fit:
 	       v = abs(self.ivary[i]/2)
 	       self.ilimits[i] = array([self.guess[i] - v, 
 					self.guess[i] + v])
-	    else:
-	       self.ilimited[i] = array([0, 0])
-	       self.ilimits[i] = array([0., 0.])
+	    #else:
+	    #   self.ilimited[i] = array([0, 0])
+	    #   self.ilimits[i] = array([0., 0.])
                                         
       parinfo = []
       for i in range(len(self.guess)):
@@ -512,7 +512,7 @@ class fit:
 	    p += "%-15s : % 6.4e : % 6.4e : % 6.4e :  %-6s    :" % (pnames[j], self.guess[k], self.result[k], self.stdev[k], yesno[int(self.ifix[k])])
 	    for n in range(2):
 	       if self.ilimited[k, n]:
-		  p += " %6.4e :" % self.ilimit[k,n]
+		  p += " %6.4e :" % self.ilimits[k,n]
 	       else:
 		  p += "  %-6s    :" % 'None'
 	    p += "\n"

@@ -644,7 +644,7 @@ class SpecPlot:
 					norm = True, doplot = True, errors = True,
 					fmt = 'ro', new = True, 
 					xint = 200, yint = 200,
-					notitles = False, log = False):
+					notitles = False, log = False, twodtype = 'contour'):
 		"""Plot and display the scan
 		
 		'xcol', 'ycol' and 'mcol' can be either numbers (negative count from end)
@@ -761,7 +761,10 @@ class SpecPlot:
 					zi = griddata(self.plotx[:,0], self.plotx[:,1], numpy.log10(self.ploty), xi, yi)
 				else:
 					zi = griddata(self.plotx[:,0], self.plotx[:,1], self.ploty, xi, yi)
-				contour(xi,yi,zi, shading = 'interp')
+				if twodtype == 'pcolor':
+					pcolor(xi, yi, zi)
+				else:
+					contour(xi,yi,zi)
 				if log:
 					colorbar(format=FormatStrFormatter('$10^{%d}$'))
 				else:
