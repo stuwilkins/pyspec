@@ -425,7 +425,7 @@ class fit:
       self.datax = x
       self.datay = y
       if e is None:
-	 self.datae = datay * 0 + 1.0
+	 self.datae = self.datay * 0 + 1.0
       else:
 	 self.datae = e
 	    
