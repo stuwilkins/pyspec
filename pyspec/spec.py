@@ -120,7 +120,13 @@ class SpecDataFile:
 		
 		self.mode = 'concat' # Set the default to concatenate multiple files
 
+		self.userFuncs = None # User function to run after "getScan"
+
 		return
+
+	def setUserFunc(self, f):
+		"""Set the user functions"""
+		self.userFuncs = [f]
 	
 	def setMode(self, mode = 'concatenate'):
 		"""Set the mdoe to deal with multiple scans
@@ -239,6 +245,7 @@ class SpecDataFile:
 		Returns the ScanData object corresponding to the scan requested.
 
 		"""
+		
 		if type(item) == int:
 			items = (item,)
 		elif type(item) == float:
@@ -247,8 +254,8 @@ class SpecDataFile:
 			items = tuple(item)
 		elif type(item) == tuple:
 			items = item
-		elif type(item) == array:
-			items = item.toList()
+		elif type(item) == numpy.ndarray:
+			items = item.tolist()
 		else:
 			raise Exception("item can only be <int>, <float>, <list>, <array> or <tuple>")
 		
@@ -272,12 +279,14 @@ class SpecDataFile:
 				else:
 					raise Exception("Unknown mode to deal with multiple scans.")
 			rval = [rval[0]]
+
 		self.file.close()
+
+		if self.userFuncs is not None:
+			for uF in self.userFuncs:
+				uF(rval[0])
 		
-		if len(rval) == 1:
-			return rval[0]
-		else:
-			return rval
+		return rval[0]
 		
 	def _getLine(self):
 		"""Read line from datafile"""
@@ -424,6 +433,7 @@ class SpecScan:
 					self.Qvec = array([float(pos[0]), float(pos[1]), float(pos[2])])
 					self.alphabeta = array([float(pos[4]), float(pos[5])])
 					self.wavelength = float(pos[3])
+					self.energy = 12398.4 / self.wavelength
 					self.omega = float(pos[6])
 					self.azimuth = float(pos[7])
 				except:
@@ -639,6 +649,7 @@ class SpecPlot:
 	def __init__(self, specscan):
 		self.scan = specscan
 		self.plt = None
+	
 		
 	def show(self, 	xcol = None, ycol = None, mcol = None, 
 					norm = True, doplot = True, errors = True,
@@ -660,6 +671,7 @@ class SpecPlot:
 		'xint = 200' will set the x size of the 2D grid to 200 pts
 		'yint = 200' will set the y size of the 2D grid to 200 pts
 		'log = True' will set the y axis to logscale
+		'twodtype = 'contout''
 		"""
 		
 		twod = False
