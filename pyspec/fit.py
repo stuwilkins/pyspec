@@ -326,9 +326,18 @@ def fitdata(funcs, ax = None, showguess = False, *args, **kwargs):
    if len(l) == 0:
       print "No data on graph"
       return None
-                
-   xdata = l[0].get_xdata()
-   ydata = l[0].get_ydata()
+
+   # If we have 3 lines .. error bar plot
+
+   if len(l) == 3:
+      a = array([l[0].get_ydata()[0], l[1].get_ydata()[0], l[2].get_ydata()[0]])
+      a = a.argsort()
+      n = a[1]
+   else:
+      n = 0
+          
+   xdata = l[n].get_xdata()
+   ydata = l[n].get_ydata()
         
    f = fit(x = xdata, y = ydata, funcs = funcs, *args, **kwargs)   
    f.go()
