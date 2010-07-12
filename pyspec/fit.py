@@ -371,7 +371,8 @@ class fit:
 		ifix = None, 
 		ilimited = None, ilimits = None,
 		xlimits = None, xlimitstype = 'world',
-                interactive = False):
+                interactive = False,
+                r2min = 0.0):
       """
       Parameters:
       -----------
@@ -389,12 +390,14 @@ class fit:
       xlimitstype [string]    : Either 'world' or 'index'
       optimiser [string]      : 'mpfit', 'leastsq', 'ODR'
       interactive             : True/False launch interactive fitting mode
+      r2min                   : If r^2 is less than this value, drop into interactive mode
         
       """
       self.optimizer = optimizer
       self.quiet = quiet
 
       self.fitInteractive = interactive
+      self.r2min = r2min
                 
       self.guess = self._checkForArray(guess)
       self.result = None
@@ -655,40 +658,39 @@ class fit:
             self.interactive()
 
          if self.fitInteractive:
-            print "Guess = ", self.guess
             self.interactive()
-         
-      # Now we have the guess remove the fixed parameters from the fit
-      
+
+   # Now we have the guess remove the fixed parameters from the fit
+
       if self.ifix is None:
-	 self.ifix = zeros(len(self.guess))
-	 self._guess = self.guess.copy()
+         self.ifix = zeros(len(self.guess))
+         self._guess = self.guess.copy()
       else:
-	 # Limit fitting parameters to only thoes which are nessesary
-	 self._guess = self.guess[nonzero(self.ifix == 0)].copy()
-	 
+         # Limit fitting parameters to only thoes which are nessesary
+         self._guess = self.guess[nonzero(self.ifix == 0)].copy()
+
       if self.ilimited is None:
-	 self._ilimited = zeros((len(self._guess), 2), dtype = int)
-	 self._ilimits = zeros((len(self._guess), 2))
+         self._ilimited = zeros((len(self._guess), 2), dtype = int)
+         self._ilimits = zeros((len(self._guess), 2))
       else:
          self._ilimited = self.ilimited[nonzero(self.ifix == 0)].copy()
          self._ilimits = self.ilimits[nonzero(self.ifix == 0)].copy()
 
       if self.optimizer == 'ODR':
-	 self._run_odr()
+         self._run_odr()
       elif self.optimizer == 'mpfit':
-	 self._run_mpfit()
+         self._run_mpfit()
       elif self.optimizer == 'leastsq':
-	 self._run_leastsq()
+         self._run_leastsq()
       else:
-	 raise Exception("Unknown fitting optimizer '%s'" % self.optimizer)
+         raise Exception("Unknown fitting optimizer '%s'" % self.optimizer)
 
       # If we have fixed parameters then return the full parameters list
       # and return the full list of errors
 
       self.result = self.guess.copy()
       self.result[nonzero(self.ifix == 0)] = self._result
-      
+
       self.ilimited = zeros((len(self.guess), 2), dtype = int)
       self.ilimited[nonzero(self.ifix == 0)] = self._ilimited
 
@@ -701,22 +703,22 @@ class fit:
       # Now deal with the covarience matrix
 
       if self.ifix.sum():
-	 self.covar = zeros((len(self.result), len(self.result)))
-	 ii = 0
-	 for i in range(len(self.stdev)):
-	    jj = 0
-	    for j in range(len(self.stdev)):
-	       if self.ifix[i] or self.ifix[j]:
-		  # We have a fixed paremeter
-		  self.covar[i,j] = 0.0
-	       else:
-		  # Non fixed
-		  self.covar[i,j] = self._covar[ii,jj]
-		  jj+=1
-	    if not self.ifix[i]:
-	       ii+=1
+         self.covar = zeros((len(self.result), len(self.result)))
+         ii = 0
+         for i in range(len(self.stdev)):
+            jj = 0
+            for j in range(len(self.stdev)):
+               if self.ifix[i] or self.ifix[j]:
+                  # We have a fixed paremeter
+                  self.covar[i,j] = 0.0
+               else:
+                  # Non fixed
+                  self.covar[i,j] = self._covar[ii,jj]
+                  jj+=1
+            if not self.ifix[i]:
+               ii+=1
       else:
-	 self.covar = self._covar
+         self.covar = self._covar
 
       ##
       ## Calculate some useful
@@ -725,18 +727,18 @@ class fit:
       # Correlation matrix 
       self.corr = self.covar * 0.0
       for i in range(len(self.corr)):
-	 for j in range(len(self.corr)):
-	    self.corr[i,j] = self.covar[i,j] / sqrt(self.covar[i,i] * self.covar[j,j])
+         for j in range(len(self.corr)):
+            self.corr[i,j] = self.covar[i,j] / sqrt(self.covar[i,i] * self.covar[j,j])
 
       # Chi^2
       self.chiSquared()
-      
+
       # R^2
       ssReg = pow(self.evalfunc() - self._datay, 2).sum()
       ymean = self._datay.sum() / len(self._datay)
       ssTot = pow(ymean - self._datay, 2).sum()
       self.r2 = 1.0 - (ssReg / ssTot)
-      
+
       # Make the dictionaryies
 
       self.resultsDict = self.makeDict(self.result)
@@ -744,9 +746,17 @@ class fit:
       # Print out the result to console
 
       if self.quiet == False:
-	 print self.textResult()
-                
-      self.fit_result = vstack((self.result, self.stdev))          
+         print self.textResult()
+
+      self.fit_result = vstack((self.result, self.stdev))  
+
+      # Here we can check for the r^2 and see if it is ok, 
+      # if not we can set the interactive bit and go again!
+
+      if not interactive:
+         if self.r2 < self.r2min:
+            self.interactive()
+
       return self.fit_result
 
    def makeDict(self, values):
