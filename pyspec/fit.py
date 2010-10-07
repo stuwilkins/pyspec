@@ -381,7 +381,7 @@ class fit:
 		ilimited = None, ilimits = None,
 		xlimits = None, xlimitstype = 'world',
                 interactive = False,
-                r2min = 0.0):
+                r2min = 0.0, debug = 0):
       """
       Parameters:
       -----------
@@ -402,6 +402,8 @@ class fit:
       r2min                   : If r^2 is less than this value, drop into interactive mode
         
       """
+      self.debug = debug
+
       self.optimizer = optimizer
       self.quiet = quiet
 
@@ -609,8 +611,12 @@ class fit:
                   'limits' : self._ilimits[i]}
          parinfo.append(pdict)
 
+      if debug:
+         quiet = 0
+      else:
+         quiet = 1
       m = mpfit.mpfit(self._residualsMPFIT, self._guess, 
-		      parinfo = parinfo, quiet = 1)
+		      parinfo = parinfo, quiet = quiet, debug = self.debug)
 
       self._result = m.params
 
