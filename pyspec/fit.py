@@ -620,10 +620,10 @@ class fit:
                   'limits' : self._ilimits[i]}
          parinfo.append(pdict)
 
-      if debug:
+      quiet = 1
+      if self.debug:
          quiet = 0
-      else:
-         quiet = 1
+      
       m = mpfit.mpfit(self._residualsMPFIT, self._guess, 
 		      parinfo = parinfo, quiet = quiet, debug = self.debug)
 
