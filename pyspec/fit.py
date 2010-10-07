@@ -39,6 +39,15 @@ errors = f.stdev
 
 """
 
+try:
+   import psyco
+   psyco.full(memory=100)
+   psyco.profile(0.05, memory=100)
+   psyco.profile(0.2)
+   print "Using PSYCO to speedup"
+except ImportError:
+   pass
+
 from scipy import *
 import pylab
 import cmd

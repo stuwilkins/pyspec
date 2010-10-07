@@ -789,13 +789,19 @@ class SpecPlot:
 					xlabel(self.scan.cols[xcol])
 					ylabel(self.scan.cols[x2col])
 			else:
-				
+				dy = max(self.ploty) - min(self.ploty)
+				print "dy = ", dy
+				mde = mean(self.plote)
+				print "mde = ", mde 
+				if (mde > dy) | isnan(mde) :
+					errors = False
+					print "---- Errorbars disabled due to large errors"
 				if errors:
 					hold(True) # Needed for errorbar plots
 					self.plt = errorbar(	self.plotx, self.ploty, self.plote, 
 										ecolor = 'red', fmt = fmt)
 				else:
-					self.plt = plot(self.plotx, self.ploty, fmt = fmt)
+					self.plt = plot(self.plotx, self.ploty, fmt)
 				
 				grid(True)
 				
