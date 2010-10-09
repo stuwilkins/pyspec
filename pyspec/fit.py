@@ -55,10 +55,23 @@ import cmd
 try:
    from scipy.odr import Model, Data, ODR
 except ImportError:
+   print "ERROR: NO scipy.odr package ... unable to use ODR regression module"
    pass
-
-import mpfit
-import levmar
+try:
+   from scipy.optimize import leastsq
+except ImportError:
+   print "ERROR: NO scipy.leastsq package ... unable to use leastsq regression module"
+   pass
+try:
+   import mpfit
+except ImportError:
+   print "ERROR: NO mpfit package ... unable to use MPFIT regression module"
+   pass
+try:
+   import levmar
+except ImportError:
+   print "ERROR: NO levmar package ... unable to use LEVMAR regression module"
+   pass
 
 class FitPlotCmd(cmd.Cmd):
     """Simple command processor for interactive fitting"""
@@ -651,11 +664,6 @@ class fit:
 
    def _run_leastsq(self):
       """Run a scipy leastsq regression"""
-      try:
-         from scipy.optimize import leastsq
-      except ImportError:
-         pass
-
       plsq = leastsq(self._residuals, self._guess, Dfun = None,  full_output = 1, factor = 0.1)
       self._result = plsq[0]  # Make the stored guess the last value
       self._stdev = sqrt(diag(plsq[1].T))
