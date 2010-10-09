@@ -58,6 +58,7 @@ except ImportError:
    pass
 
 import mpfit
+import levmar
 
 class FitPlotCmd(cmd.Cmd):
     """Simple command processor for interactive fitting"""
@@ -513,7 +514,14 @@ class fit:
    def _modelODR(self, p = None, x = None):
       """Model function for ODR"""
       return self.evalfunc(self._toFullParams(p), x = x)
-   
+
+   def _modelLEVMAR(self, p = None, x = None):
+      """Model function for LMDIF"""
+      f = ravel(self.evalfunc(self._toFullParams(p), x = x))
+      f = f.tolist()
+      f = map(float, tolist)
+      return f
+
    def _toFullParams(self, p):
       """Return the full parameter list
       
@@ -654,6 +662,14 @@ class fit:
       self._covar = plsq[1].T
       self._leastsq = plsq
 
+   def _run_levmar(self):
+      """Run a pylavmar regression"""
+      listdata = ravel(self._datay).tolist()
+      listdata = map(float, listdata)
+      initial = tuple(self._guess.tolist())
+      measurement = len(listdata)
+      iters, result = levmar.ddif(self._modelLEVMAR, initial, measurement, 5000, data = listdata)
+
 ##
 ## Run the optimization
 ##
@@ -706,6 +722,8 @@ class fit:
          self._run_mpfit()
       elif self.optimizer == 'leastsq':
          self._run_leastsq()
+      elif self.optimizer == 'levmar':
+         self._run_levmar()
       else:
          raise Exception("Unknown fitting optimizer '%s'" % self.optimizer)
 
