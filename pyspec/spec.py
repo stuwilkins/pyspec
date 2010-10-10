@@ -57,7 +57,6 @@ for more information.
 import time
 import sys
 import os
-from scipy.optimize import leastsq
 import numpy
 from numpy import *
 from scipy import *

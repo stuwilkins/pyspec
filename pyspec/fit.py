@@ -531,13 +531,14 @@ class fit:
 
    def _modelLEVMAR(self, p = None, extra = None, x = None):
       """Model function for LMDIF"""
-      print "p = ", p
-      print "x = ", x
-      print "extra = ", extra
+      #print "p = ", p, "\n\n"
+      #print "x = ", x, "\n\n"
+      #print "extra = ", extra, "\n\n"
       f = ravel(self.evalfunc(self._toFullParams(array(p)), x = array(x)))
       f = f.tolist()
       f = map(float, f)
-      print "f = ", f
+      #print "f = ", f, "\n\n"
+      #pylab.waitforbuttonpress()
       return f
 
    def _toFullParams(self, p):
@@ -677,13 +678,19 @@ class fit:
 
    def _run_levmar(self):
       """Run a pylavmar regression"""
-      listdata = ravel(self._datay).tolist()
+      listdata = ravel(self._datax).tolist()
       listdata = map(float, listdata)
       initial = tuple(self._guess.tolist())
-      measurement = initial
+      measurement = ravel(self._datay).tolist()
+      measurement = tuple(map(float, measurement))
       result, iterations, run_info = levmar.ddif(self._modelLEVMAR, initial, measurement, 5000, data = listdata)
-      print run_info
+      
+      print "Result = ", result
+      print "run_info = ", run_info
 
+      self._result = array(result)
+      self._stdev = zeros(len(result))
+      self._covar = zeros((len(result), len(result)))
 ##
 ## Run the optimization
 ##
