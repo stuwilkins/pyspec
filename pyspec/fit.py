@@ -39,14 +39,15 @@ errors = f.stdev
 
 """
 
-try:
-   import psyco
-   psyco.full(memory=100)
-   psyco.profile(0.05, memory=100)
-   psyco.profile(0.2)
-   print "Using PSYCO to speedup"
-except ImportError:
-   pass
+
+#try:
+#   import psyco
+#   psyco.full(memory=100)
+#   psyco.profile(0.05, memory=100)
+#   psyco.profile(0.2)
+#   print "Using PSYCO to speedup"
+#except ImportError:
+#   pass
 
 from scipy import *
 import pylab
@@ -528,11 +529,15 @@ class fit:
       """Model function for ODR"""
       return self.evalfunc(self._toFullParams(p), x = x)
 
-   def _modelLEVMAR(self, p = None, x = None):
+   def _modelLEVMAR(self, p = None, extra = None, x = None):
       """Model function for LMDIF"""
-      f = ravel(self.evalfunc(self._toFullParams(p), x = x))
+      print "p = ", p
+      print "x = ", x
+      print "extra = ", extra
+      f = ravel(self.evalfunc(self._toFullParams(array(p)), x = array(x)))
       f = f.tolist()
-      f = map(float, tolist)
+      f = map(float, f)
+      print "f = ", f
       return f
 
    def _toFullParams(self, p):
@@ -675,8 +680,9 @@ class fit:
       listdata = ravel(self._datay).tolist()
       listdata = map(float, listdata)
       initial = tuple(self._guess.tolist())
-      measurement = len(listdata)
-      iters, result = levmar.ddif(self._modelLEVMAR, initial, measurement, 5000, data = listdata)
+      measurement = initial
+      result, iterations, run_info = levmar.ddif(self._modelLEVMAR, initial, measurement, 5000, data = listdata)
+      print run_info
 
 ##
 ## Run the optimization
