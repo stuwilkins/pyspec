@@ -685,12 +685,14 @@ class fit:
       measurement = tuple(map(float, measurement))
       result, iterations, run_info = levmar.ddif(self._modelLEVMAR, initial, measurement, 5000, data = listdata)
       
-      print "Result = ", result
-      print "run_info = ", run_info
+      #print "Result = ", result
+      #print "run_info = ", run_info
 
       self._result = array(result)
       self._stdev = zeros(len(result))
       self._covar = zeros((len(result), len(result)))
+      self._levmar_run_info = run_info
+
 ##
 ## Run the optimization
 ##
@@ -909,6 +911,11 @@ class fit:
 	 p += 'MPFIT Status = %s\n' % self._mpfit.statusNiceText[self._mpfit.status]
 	 p += 'MPFIT Warning = %s\n' % self._mpfit.errmsg
 	 p += 'MPFIT computed in %d iterations\n' % self._mpfit.niter
+      if self.optimizer == 'levmar':
+         p += "\nLEVMAR Output :\n"
+         p += sep
+         for x in self._levmar_run_info.iteritems():
+            p += 'LEVMAR %-20s : %g\n' % x
       return p
 
    def chiSquared(self, norm = True, dist = 'poisson'):
