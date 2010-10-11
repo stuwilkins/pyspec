@@ -6,7 +6,7 @@
 
 	Modified to run numpy ... 2010 Stuart Wilkins <stuwilkins@mac.com>
  
-    $Id:$
+    $Id$
  
 */
 
