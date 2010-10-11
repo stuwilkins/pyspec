@@ -64,7 +64,7 @@ except ImportError:
    print "ERROR: NO scipy.leastsq package ... unable to use leastsq regression module"
    pass
 try:
-   import mpfit
+   import pyspec.mpfit
 except ImportError:
    print "ERROR: NO mpfit package ... unable to use MPFIT regression module"
    pass
