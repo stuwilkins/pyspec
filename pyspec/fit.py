@@ -70,6 +70,8 @@ except ImportError:
    pass
 try:
    import levmar
+   levmar.STOP_THRESHU = 1e-12
+   levmar.DIFF_DELTA = 1e-4
 except ImportError:
    print "ERROR: NO levmar package ... unable to use LEVMAR regression module"
    pass
@@ -534,7 +536,7 @@ class fit:
       #print "p = ", p, "\n\n"
       #print "x = ", x, "\n\n"
       #print "extra = ", extra, "\n\n"
-      f = ravel(self.evalfunc(self._toFullParams(array(p)), x = array(x)))
+      f = ravel(self.evalfunc(self._toFullParams(array(p)), x = self._datax))
       f = f.tolist()
       f = map(float, f)
       #print "f = ", f, "\n\n"
@@ -688,9 +690,13 @@ class fit:
       #print "Result = ", result
       #print "run_info = ", run_info
 
-      self._result = array(result)
-      self._stdev = zeros(len(result))
-      self._covar = zeros((len(result), len(result)))
+      if result is not None:
+         self._result = array(result)
+      else:
+         self._result = self._guess.copy()
+
+      self._stdev = zeros(len(self._result))
+      self._covar = zeros((len(self._result), len(self._result)))
       self._levmar_run_info = run_info
 
 ##
