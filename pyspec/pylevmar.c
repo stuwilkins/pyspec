@@ -15,32 +15,34 @@
 typedef struct _pylm_callback_data {
     PyObject *func;
     PyObject *jacf;
-    PyObject *data;
 } pylm_callback_data;
 
-void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n, 
-                    PyObject *data, int  jacobian) {
+void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n, int  jacobian) {
     int i;
-	PyObject *args = NULL;
-    
+	PyObject *args		= NULL;
+    PyObject *result	= NULL;
+	
 	// marshall parameters from c -> python
 	// construct numpy arrays from c 
 	
 	npy_intp dims_m[1] = {m};
 	npy_intp dims_n[1] = {n};
 	
+	for(i=0;i<m;i++){
+		fprintf(stderr, "p[%d] = %lf\n", i, p[i]);
+	}
     PyObject *estimate = PyArray_SimpleNewFromData(1, dims_m, PyArray_DOUBLE, p);
     PyObject *measurement = PyArray_SimpleNewFromData(1, dims_n , PyArray_DOUBLE, hx);
     
-    args = Py_BuildValue("(OOO)", estimate, measurement, data);
+    args = Py_BuildValue("(OO)", estimate, measurement);
 
     if (!args) {
         goto cleanup;
     }
 
     // call func
-    PyObject *result = PyObject_CallObject(func, args);
-    if (result == 0) {
+    result = PyObject_CallObject(func, args);
+    if (result == NULL) {
         PyErr_Print();
         goto cleanup;
     }
@@ -54,6 +56,7 @@ void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n,
     // marshall results from python -> c
     
 	npy_intp result_size = PyArray_DIM(result, 0);
+	//fprintf(stderr, "result_size = %d\n", (int)result_size);
 	
 	if ((!jacobian && (result_size == n)) ||
         (jacobian &&  (result_size == m*n))) {
@@ -61,6 +64,7 @@ void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n,
         for (i = 0; i < result_size; i++) {
             double *j = PyArray_GETPTR1(result, i);
 			hx[i] = *j;
+			//fprintf(stderr, "hx[%d] = %lf\n", i, hx[i]);
         }
 		
     } else {
@@ -78,16 +82,16 @@ void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n,
 }
 
 void _pylm_func_callback(double *p, double *hx, int m, int n, void *data) {
-    pylm_callback_data *pydata = (pylm_callback_data *)data;
+	pylm_callback_data *pydata = (pylm_callback_data *)data;
     if (pydata->func && PyCallable_Check(pydata->func)) {
-        _pylm_callback(pydata->func, p, hx, m, n, pydata->data, 0);
+        _pylm_callback(pydata->func, p, hx, m, n, 0);
     }
 }
 
 void _pylm_jacf_callback(double *p, double *hx, int m, int n, void *data) {
-    pylm_callback_data *pydata = (pylm_callback_data *)data;
+	pylm_callback_data *pydata = (pylm_callback_data *)data;
     if (pydata->jacf && PyCallable_Check(pydata->jacf)) {
-        _pylm_callback(pydata->jacf, p, hx, m, n, pydata->data, 1);
+        _pylm_callback(pydata->jacf, p, hx, m, n, 1);
     }
 }
 
@@ -123,15 +127,29 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
                       int jacobian, int bounds) {
     
     
-    PyObject *func = NULL, *jacf = NULL, *initial = NULL, *measurements = NULL;
-    PyObject *lower = NULL, *upper = NULL;
-    PyObject *opts = NULL, *covar = NULL, *data = NULL;
-    PyObject *retval = NULL, *info = NULL;
-
-    pylm_callback_data *pydata = NULL;
-    double *c_initial = NULL, *c_measurements = NULL, *c_opts = NULL;
-    double *c_lower = NULL, *c_upper = NULL;
-    int max_iter = 0, run_iter = 0, i = 0, m = 0, n = 0;
+    PyObject *func			= NULL;
+	PyObject *jacf			= NULL; 
+	PyObject *initial		= NULL,	*initial_npy		= NULL;
+	PyObject *measurements	= NULL, *measurements_npy	= NULL;
+    PyObject *lower			= NULL, *lower_npy			= NULL;
+	PyObject *upper			= NULL, *upper_npy			= NULL;
+	
+    PyObject *opts			= NULL, *opts_npy			= NULL;
+	PyObject *covar			= NULL;
+    PyObject *retval		= NULL;
+	PyObject *info			= NULL;
+	
+	pylm_callback_data *pydata = NULL;
+	
+    double *c_initial		= NULL;
+	double *c_measurements	= NULL;
+	double *c_opts			= NULL;
+    double *c_lower			= NULL;
+	double *c_upper			= NULL;
+	
+    int	   max_iter = 0;
+	int    run_iter = 0;
+	int    m = 0, n = 0, i = 0;
     double c_info[LM_INFO_SZ];
 	int nopts;
 
@@ -149,13 +167,13 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
             if (!PyArg_ParseTupleAndKeywords(args, kwds, argstring, kwlist,
                                              &func, &jacf, &initial,
                                              &measurements, &max_iter, 
-                                             &opts, &covar, &data))
+                                             &opts, &covar))
                 return NULL;
         } else {
             if (!PyArg_ParseTupleAndKeywords(args, kwds, argstring, kwlist,
                                              &func, &initial,
                                              &measurements, &max_iter, 
-                                             &opts, &covar, &data))
+                                             &opts, &covar))
                 return NULL;
         }
     } else {
@@ -163,13 +181,13 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
             if (!PyArg_ParseTupleAndKeywords(args, kwds, argstring, kwlist,
                                              &func, &jacf, &initial,
                                              &measurements, &lower, &upper, &max_iter, 
-                                             &opts, &covar, &data))
+                                             &opts, &covar))
                 return NULL;
         } else {
             if (!PyArg_ParseTupleAndKeywords(args, kwds, argstring, kwlist,
                                              &func, &initial,
                                              &measurements, &lower, &upper, &max_iter,
-                                             &opts, &covar, &data))
+                                             &opts, &covar))
                 return NULL;
         }
     }
@@ -204,77 +222,58 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
         return NULL;
     }
 
-    if (opts && !PySequence_Check(opts) && (PySequence_Size(opts) != nopts)) {
+    if (opts && !PyArray_Check(opts) && (PyArray_Size(opts) != nopts)) {
 		if (nopts == 4)
 			PyErr_SetString(PyExc_TypeError,
-							"opts must be a sequence/tuple of length 4.");
+							"opts must be a numpy vector of length 4.");
 		else
 			PyErr_SetString(PyExc_TypeError,
-							"opts must be a sequence/tuple of length 5.");
+							"opts must be a numpy vector of length 5.");
         return NULL;
     }
 
     // convert python types into C
-
+	
     pydata = PyMem_Malloc(sizeof(pydata));
-
     pydata->func = func;
     pydata->jacf = jacf;
 	
-    if (!data)
-        pydata->data = Py_None;
-    else
-        pydata->data = data;
-
-    Py_XINCREF(pydata->data);
-
-	PyObject *initial_npy = PyArray_FROMANY(initial, NPY_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
-	if(initial_npy == NULL)
-		goto cleanup;
-	PyObject *measurements_npy = PyArray_FROMANY(measurements, NPY_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
-	if(measurements_npy)
-		goto cleanum;
+	initial_npy = PyArray_FROMANY(initial, PyArray_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
+	//if(!initial_npy)
+	//	goto cleanup;
 	
-    m = PySequence_Size(initial);
-    n = PySequence_Size(measurements);
-
-	c_initial = (double *)PyArray_DATA(initial_npy);
-	c_measurements = (double *)PyArray_DATA(measurements_npy);
-	
-	if (!pydata || !c_initial || !c_measurements ||
-        (lower && !c_lower) || (upper && !c_upper)) {
-        PyErr_SetString(PyExc_MemoryError, "Unable to allocate memory");
-        return NULL;
-    }
+	measurements_npy = PyArray_FROMANY(measurements, PyArray_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
+	//if(!measurements_npy)
+	//	goto cleanum;
 	
 	m = PyArray_SIZE(initial_npy);
-	n = PyArray_DATA(measurements_npy);
+	n = PyArray_SIZE(measurements_npy);
+	//c_initial = PyMem_Malloc(sizeof(double) * m);
+	//for(i=0;i<m;i++){
+	//	c_initial[i] = *(double *)PyArray_GETPTR1(initial_npy, i);
+	//}
+	//c_measurements = PyMem_Malloc(sizeof(double) * n);
+	//for(i=0;i<n;i++){
+	//	c_measurements[i] = *(double *)PyArray_GETPTR1(measurements_npy, i);
+	//}
+    c_initial = (double *)PyArray_DATA(initial_npy);
+	c_measurements = (double *)PyArray_DATA(measurements_npy);
 	
-	if (lower)
-        c_lower = PyMem_Malloc(sizeof(double) * m);
-    if (upper)
-        c_upper = PyMem_Malloc(sizeof(double) * m);
-
-    if (lower)
-        for (i = 0; i < m; i++) {
-            PyObject *r = PySequence_GetItem(lower, i);
-            c_lower[i] = PyFloat_AsDouble(r);
-            Py_XDECREF(r);
-        }
-    if (upper)
-        for (i = 0; i < m; i++) {
-            PyObject *r = PySequence_GetItem(upper, i);
-            c_upper[i] = PyFloat_AsDouble(r);
-            Py_XDECREF(r);
-        }
+	
+	if (lower){
+		lower_npy = PyArray_FROMANY(lower, PyArray_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
+		c_lower = PyArray_DATA(lower_npy);
+		// check dims
+	}
+    if (upper){
+		upper_npy = PyArray_FROMANY(upper, PyArray_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
+        c_upper = PyArray_DATA(upper_npy);
+		// check dims
+	}
 
 	if (opts) {
-        c_opts = PyMem_Malloc(sizeof(double) * nopts);
-        for (i = 0; i < nopts; i++) {
-            PyObject *r = PySequence_GetItem(opts, i);
-            c_opts[i] = PyFloat_AsDouble(r);
-            Py_XDECREF(r);
-        }
+		opts_npy = PyArray_FROMANY(opts, PyArray_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
+        c_opts = PyArray_DATA(opts_npy);
     }
     
     // call func
@@ -282,8 +281,9 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
         if (jacobian) {
             run_iter =  dlevmar_der(_pylm_func_callback, _pylm_jacf_callback,
                                     c_initial, c_measurements, m, n,
-                                    max_iter, c_opts, c_info, NULL, NULL, pydata);
+									max_iter, c_opts, c_info, NULL, NULL, pydata);
         } else {
+			//fprintf(stderr, "Running dlevmar_dif\n");
             run_iter =  dlevmar_dif(_pylm_func_callback, c_initial, c_measurements,
                                     m, n, max_iter, c_opts, c_info, NULL, NULL, pydata);
         }
@@ -301,13 +301,11 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
     }
 
     // convert results back into python
+	
     if (run_iter > 0) {
-        retval = PyTuple_New(m);
-        for (i = 0; i < m; i++) {
-            PyTuple_SetItem(retval, i, PyFloat_FromDouble(c_initial[i]));
-        }
-    }
-    else {
+		npy_intp dims[1] = {m};
+		retval = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE, c_initial);
+    } else {
         retval = Py_None;
         Py_INCREF(Py_None);
     }
@@ -324,25 +322,15 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
                          "function_evaluations", c_info[7],
                          "jacobian_evaluations", c_info[8]);
 
-    if (c_measurements) {
-        PyMem_Free(c_measurements); c_measurements = NULL;
-    }
-    if (c_initial) {
-        PyMem_Free(c_initial); c_initial = NULL;
-    }
-    if (c_opts) {
-        PyMem_Free(c_opts); c_opts = NULL;
-    }
-    if (c_lower) {
-        PyMem_Free(c_lower); c_lower = NULL;
-    }
-    if (c_upper) {
-        PyMem_Free(c_upper); c_upper = NULL;
-    }
-    if (pydata) {
-        Py_XDECREF(pydata->data);
-        PyMem_Free(pydata); pydata = NULL;
-    }
+	//if (c_measurements) {
+	//PyMem_Free(c_measurements); c_measurements = NULL;
+    //}
+    //if (c_initial) {
+    //   PyMem_Free(c_initial); c_initial = NULL;
+    //}
+    //if (pydata) {
+    //    PyMem_Free(pydata); pydata = NULL;
+   //}
 
     return Py_BuildValue("(OiO)", retval, run_iter, info, NULL);
 }
@@ -350,9 +338,9 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
 static PyObject *
 pylm_dlevmar_der(PyObject *mod, PyObject *args, PyObject *kwds)
 {
-    char *argstring = "OOOOi|OOO";
+    char *argstring = "OOOOi|OO";
     char *kwlist[] = {"func", "jacf", "initial", "measurements",
-                      "max_iter", "opts", "covar", "data", 
+                      "max_iter", "opts", "covar", 
                       NULL};
     return _pylm_dlevmar_generic(mod, args, kwds, argstring, kwlist, 1, 0);
 }
@@ -360,19 +348,19 @@ pylm_dlevmar_der(PyObject *mod, PyObject *args, PyObject *kwds)
 static PyObject *
 pylm_dlevmar_dif(PyObject *mod, PyObject *args, PyObject *kwds)
 {
-    char *argstring = "OOOi|OOO";
+    char *argstring = "OOOi|OO";
     char *kwlist[] = {"func", "initial", "measurements", "max_iter",
-                      "opts", "covar", "data", NULL};
+                      "opts", "covar", NULL};
     return _pylm_dlevmar_generic(mod, args, kwds, argstring, kwlist, 0, 0);
 }
 
 static PyObject *
 pylm_dlevmar_bc_der(PyObject *mod, PyObject *args, PyObject *kwds)
 {
-    char *argstring = "OOOOOOi|OOO";
+    char *argstring = "OOOOOOi|OO";
     char *kwlist[] = {"func", "jacf", "initial", "measurements",
                       "lower", "upper",
-                      "max_iter", "opts", "covar", "data", 
+                      "max_iter", "opts", "covar", 
                       NULL};
     return _pylm_dlevmar_generic(mod, args, kwds, argstring, kwlist, 1, 1);
 }
@@ -380,29 +368,33 @@ pylm_dlevmar_bc_der(PyObject *mod, PyObject *args, PyObject *kwds)
 static PyObject *
 pylm_dlevmar_bc_dif(PyObject *mod, PyObject *args, PyObject *kwds)
 {
-    char *argstring = "OOOOOi|OOO";
+    char *argstring = "OOOOOi|OO";
     char *kwlist[] = {"func", "initial", "measurements",
                       "lower", "upper",
-                      "max_iter", "opts", "covar", "data", NULL};
+                      "max_iter", "opts", "covar", NULL};
     return _pylm_dlevmar_generic(mod, args, kwds, argstring, kwlist, 0, 1);
 }
 
 static PyObject *
 pylm_dlevmar_chkjac(PyObject *mod, PyObject *args, PyObject *kwds)
 {
-    PyObject *func = NULL, *jacf = NULL, *initial = NULL;
-    PyObject *data = NULL;
-    PyObject *retval = NULL;
+    PyObject *func		= NULL;
+	PyObject *jacf		= NULL;
+	PyObject *initial	= NULL;
+    PyObject *retval	= NULL;
 
     pylm_callback_data *pydata = NULL;
-    double *c_initial = NULL, *err = NULL;
+	
+    double *c_initial	= NULL;
+	double *err			= NULL;
+	
     int i = 0, m = 0, n = 0;
 
 
-    static char *kwlist[] = {"func", "jacf", "initial", "n", "data", NULL};
+    static char *kwlist[] = {"func", "jacf", "initial", "n", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOOi|O", kwlist,
-                                     &func, &jacf, &initial, &n, &data))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOOi", kwlist,
+                                     &func, &jacf, &initial, &n))
         return NULL;
                                      
     if (!PyCallable_Check(func)) {
@@ -433,8 +425,6 @@ pylm_dlevmar_chkjac(PyObject *mod, PyObject *args, PyObject *kwds)
 
     pydata->func = func;
     pydata->jacf = jacf;
-    pydata->data = data;
-    Py_INCREF(data);
 
     for (i = 0; i < m; i++) {
         PyObject *r = PySequence_GetItem(initial, i);
@@ -460,6 +450,5 @@ pylm_dlevmar_chkjac(PyObject *mod, PyObject *args, PyObject *kwds)
         PyMem_Free(pydata); pydata = NULL;
     }
 
-    Py_XDECREF(data);
     return retval;
 }

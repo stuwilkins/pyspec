@@ -73,7 +73,7 @@ static PyMethodDef pylm_functions[] = {
         (PyCFunction)pylm_dlevmar_der,
         METH_VARARGS|METH_KEYWORDS,
         "dlevmar_der(func, jacf, estimate, measurements, itmax,\n"
-        "            opts = None, covar = None, data = None)\n"
+        "            opts = None, covar = None)\n"
         "-> returns: (result, iterations, run_info)\n"
         "\n"
     },
@@ -82,7 +82,7 @@ static PyMethodDef pylm_functions[] = {
         (PyCFunction)pylm_dlevmar_dif,
         METH_VARARGS|METH_KEYWORDS,
         "dlevmar_der(func, estimate, measurements, itmax,\n"
-        "            opts = None, covar = None, data = None)\n"
+        "            opts = None, covar = None)\n"
         "-> returns: (result, iterations, run_info)\n"
         "\n"
     },
@@ -99,7 +99,7 @@ static PyMethodDef pylm_functions[] = {
         (PyCFunction)pylm_dlevmar_bc_dif,
         METH_VARARGS|METH_KEYWORDS,
         "dlevmar_bc_dif(func, estimate, measurements, lower, upper, itmax,\n"
-        "               opts = None, covar = None, data = None)\n"
+        "               opts = None, covar = None)\n"
         "-> returns: (result, iterations, run_info)\n"
         "\n"
     },
@@ -108,7 +108,7 @@ static PyMethodDef pylm_functions[] = {
         (PyCFunction)pylm_dlevmar_bc_der,
         METH_VARARGS|METH_KEYWORDS,
         "dlevmar_bc_der(func, estimate, measurements, lower, upper, itmax,\n"
-        "               opts = None, covar = None, data = None)\n"
+        "               opts = None, covar = None)\n"
         "-> returns: (result, iterations, run_info)\n"
         "\n"
     },

@@ -70,6 +70,7 @@ except ImportError:
    pass
 try:
    import pylevmar as levmar
+   print "LEVMAR = ", levmar
 except ImportError:
    print "ERROR: NO levmar package ... unable to use LEVMAR regression module"
    pass
@@ -529,13 +530,13 @@ class fit:
       """Model function for ODR"""
       return self.evalfunc(self._toFullParams(p), x = x)
 
-   def _modelLEVMAR(self, p = None, extra = None, x = None):
+   def _modelLEVMAR(self, estimate = None, measurement = None):
       """Model function for LMDIF"""
-      #print "p = ", p, "\n\n"
+      print "estimate = ", estimate, "\n\n"
       #print "x = ", x, "\n\n"
       #print "extra = ", extra, "\n\n"
-      f = ravel(self.evalfunc(self._toFullParams(array(p)), x = self._datax))
-      print "f = ", f, "\n\n"
+      f = ravel(self.evalfunc(self._toFullParams(estimate), x = self._datax))
+      #print "f = ", f, "\n\n"
       #pylab.waitforbuttonpress()
       return f
 
@@ -676,18 +677,13 @@ class fit:
 
    def _run_levmar(self):
       """Run a pylavmar regression"""
-      listdata = ravel(self._datax).tolist()
-      #listdata = map(float, listdata)
-      initial = self._guess
-      measurement = ravel(self._datay).tolist()
-      #measurement = tuple(map(float, measurement))
-      result, iterations, run_info = levmar.ddif(self._modelLEVMAR, initial, measurement, 5000, data = listdata)
+      result, iterations, run_info = levmar.ddif(self._modelLEVMAR, self._guess, ravel(self._datay), 200)
       
-      #print "Result = ", result
-      #print "run_info = ", run_info
+      print "Result = ", result
+      print "run_info = ", run_info
 
       if result is not None:
-         self._result = array(result)
+         self._result = result
       else:
          self._result = self._guess.copy()
 
