@@ -20,3 +20,21 @@
 # Part of the "pyspec" package
 #
 
+import numpy
+
+class CCDExperiment:
+    detectorSampleDistance = 100 #mm
+
+    def __init__():
+        return
+
+    def getTransformationMatrix():
+        return numpy.eye(3)
+
+class CCDTardis(CCDExperiment):
+    detectorSampleDistance = 300 # mm
+
+
+class CCDTransformation:
+    def __init__(ccd = None):
+        self.ccd = ccd
