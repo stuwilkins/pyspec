@@ -64,14 +64,12 @@ except ImportError:
    print "ERROR: NO scipy.leastsq package ... unable to use leastsq regression module"
    pass
 try:
-   import pyspec.mpfit
+   import pyspec.mpfit as mpfit
 except ImportError:
    print "ERROR: NO mpfit package ... unable to use MPFIT regression module"
    pass
 try:
-   import levmar
-   levmar.STOP_THRESHU = 1e-12
-   levmar.DIFF_DELTA = 1e-4
+   import pylevmar as levmar
 except ImportError:
    print "ERROR: NO levmar package ... unable to use LEVMAR regression module"
    pass
@@ -537,9 +535,7 @@ class fit:
       #print "x = ", x, "\n\n"
       #print "extra = ", extra, "\n\n"
       f = ravel(self.evalfunc(self._toFullParams(array(p)), x = self._datax))
-      f = f.tolist()
-      f = map(float, f)
-      #print "f = ", f, "\n\n"
+      print "f = ", f, "\n\n"
       #pylab.waitforbuttonpress()
       return f
 
@@ -681,10 +677,10 @@ class fit:
    def _run_levmar(self):
       """Run a pylavmar regression"""
       listdata = ravel(self._datax).tolist()
-      listdata = map(float, listdata)
-      initial = tuple(self._guess.tolist())
+      #listdata = map(float, listdata)
+      initial = self._guess
       measurement = ravel(self._datay).tolist()
-      measurement = tuple(map(float, measurement))
+      #measurement = tuple(map(float, measurement))
       result, iterations, run_info = levmar.ddif(self._modelLEVMAR, initial, measurement, 5000, data = listdata)
       
       #print "Result = ", result

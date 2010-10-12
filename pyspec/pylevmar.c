@@ -23,17 +23,14 @@ void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n,
     int i;
 	PyObject *args = NULL;
     
-	PyArrayObject *estimate = NULL, 
-	PyArrayObject *measurement = NULL;
-    
-    // marshall parameters from c -> python
+	// marshall parameters from c -> python
 	// construct numpy arrays from c 
 	
 	npy_intp dims_m[1] = {m};
-	npy_intp dims_n[1] = {array_size};
+	npy_intp dims_n[1] = {n};
 	
-    estimate = PyArray_SimpleNewFromData(1, dims_m, PyArray_DOUBLE, p);
-    measurement = PyArray_SimpleNewFromData(1, dims_n , PyArray_DOUBLE, hx);
+    PyObject *estimate = PyArray_SimpleNewFromData(1, dims_m, PyArray_DOUBLE, p);
+    PyObject *measurement = PyArray_SimpleNewFromData(1, dims_n , PyArray_DOUBLE, hx);
     
     args = Py_BuildValue("(OOO)", estimate, measurement, data);
 
@@ -42,23 +39,30 @@ void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n,
     }
 
     // call func
-    
-	PyArrayObject *result = NULL;
-    if ((result = PyObject_CallObject(func, args)) == 0) {
+    PyObject *result = PyObject_CallObject(func, args);
+    if (result == 0) {
         PyErr_Print();
         goto cleanup;
     }
+		
+	if(!PyArray_Check(result)){
+		PyErr_SetString(PyExc_TypeError, "Return value from callback "
+						"should be of numpy array type");
+		goto cleanup;		
+	}	
 
     // marshall results from python -> c
     
-	if ((!jacobian && (PySequence_Size(result) == n)) ||
-        (jacobian &&  (PySequence_Size(result) == m*n))) {
+	npy_intp result_size = PyArray_DIM(result, 0);
+	
+	if ((!jacobian && (result_size == n)) ||
+        (jacobian &&  (result_size == m*n))) {
 
-        for (i = 0; i < PySequence_Size(result); i++) {
-            PyObject *r = PySequence_GetItem(result, i);
-            hx[i] = PyFloat_AsDouble(r);
-            Py_DECREF(r);
+        for (i = 0; i < result_size; i++) {
+            double *j = PyArray_GETPTR1(result, i);
+			hx[i] = *j;
         }
+		
     } else {
         PyErr_SetString(PyExc_TypeError, "Return value from callback "
                         "should be same size as measurement");
@@ -96,8 +100,8 @@ void _pylm_jacf_callback(double *p, double *hx, int m, int n, void *data) {
 // Initialize python module 
 //
 
-void initlevmar() {
-    PyObject *mod = Py_InitModule3("levmar", pylm_functions, pylm_doc);
+void initpylevmar() {
+    PyObject *mod = Py_InitModule3("pylevmar", pylm_functions, pylm_doc);
 	
 	import_array();
     
@@ -176,13 +180,13 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
         return NULL;
     }
 
-    if (!PySequence_Check(initial)) {
-        PyErr_SetString(PyExc_TypeError, "initial must be a sequence type");
+    if (!PyArray_Check(initial)) {
+        PyErr_SetString(PyExc_TypeError, "initial must be a numpy array");
         return NULL;
     }
 
-    if (!PySequence_Check(measurements)) {
-        PyErr_SetString(PyExc_TypeError, "measurements must be a sequence type");
+    if (!PyArray_Check(measurements)) {
+        PyErr_SetString(PyExc_TypeError, "measurements must be a numpy array");
         return NULL;
     }
 
@@ -191,12 +195,12 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
         return NULL;
     }        
 
-    if (lower && !PySequence_Check(lower)) {
-        PyErr_SetString(PyExc_TypeError, "lower bounds must be a sequence type");
+    if (lower && !PyArray_Check(lower)) {
+        PyErr_SetString(PyExc_TypeError, "lower bounds must be a numpy array");
         return NULL;
     }
-    if (upper && !PySequence_Check(upper)) {
-        PyErr_SetString(PyExc_TypeError, "upper bounds must be a sequence type");
+    if (upper && !PyArray_Check(upper)) {
+        PyErr_SetString(PyExc_TypeError, "upper bounds must be a numpy array");
         return NULL;
     }
 
@@ -216,6 +220,7 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
 
     pydata->func = func;
     pydata->jacf = jacf;
+	
     if (!data)
         pydata->data = Py_None;
     else
@@ -223,28 +228,32 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
 
     Py_XINCREF(pydata->data);
 
+	PyObject *initial_npy = PyArray_FROMANY(initial, NPY_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
+	if(initial_npy == NULL)
+		goto cleanup;
+	PyObject *measurements_npy = PyArray_FROMANY(measurements, NPY_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
+	if(measurements_npy)
+		goto cleanum;
+	
     m = PySequence_Size(initial);
     n = PySequence_Size(measurements);
 
-    c_initial = PyMem_Malloc(sizeof(double) * m);
-    c_measurements = PyMem_Malloc(sizeof(double) * n); 
-
-    if (lower)
-        c_lower = PyMem_Malloc(sizeof(double) * m);
-    if (upper)
-        c_upper = PyMem_Malloc(sizeof(double) * m);
-
-    if (!pydata || !c_initial || !c_measurements ||
+	c_initial = (double *)PyArray_DATA(initial_npy);
+	c_measurements = (double *)PyArray_DATA(measurements_npy);
+	
+	if (!pydata || !c_initial || !c_measurements ||
         (lower && !c_lower) || (upper && !c_upper)) {
         PyErr_SetString(PyExc_MemoryError, "Unable to allocate memory");
         return NULL;
     }
-
-    for (i = 0; i < m; i++) {
-        PyObject *r = PySequence_GetItem(initial, i);
-        c_initial[i] = PyFloat_AsDouble(r);
-        Py_XDECREF(r);
-    }
+	
+	m = PyArray_SIZE(initial_npy);
+	n = PyArray_DATA(measurements_npy);
+	
+	if (lower)
+        c_lower = PyMem_Malloc(sizeof(double) * m);
+    if (upper)
+        c_upper = PyMem_Malloc(sizeof(double) * m);
 
     if (lower)
         for (i = 0; i < m; i++) {
@@ -259,13 +268,7 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
             Py_XDECREF(r);
         }
 
-    for (i = 0; i < n; i++) {
-        PyObject *r = PySequence_GetItem(measurements, i);
-        c_measurements[i] = PyFloat_AsDouble(r);
-        Py_XDECREF(r);
-    }
-
-    if (opts) {
+	if (opts) {
         c_opts = PyMem_Malloc(sizeof(double) * nopts);
         for (i = 0; i < nopts; i++) {
             PyObject *r = PySequence_GetItem(opts, i);

@@ -16,7 +16,7 @@
 #include "lm.h"
 
 #include <Python.h>
-#include <arrayobject.h>
+#include <numpy/arrayobject.h>
 #include "structmember.h"
 
 #ifndef Py_RETURN_NONE
