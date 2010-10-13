@@ -530,12 +530,13 @@ class fit:
       """Model function for ODR"""
       return self.evalfunc(self._toFullParams(p), x = x)
 
-   def _modelLEVMAR(self, estimate = None, measurement = None):
-      """Model function for LMDIF"""
+   def _modelLEVMAR(self, estimate = None, measurement = None, data = None):
+      """Model function for LEVMAR"""
       print "estimate = ", estimate, "\n\n"
       #print "x = ", x, "\n\n"
       #print "extra = ", extra, "\n\n"
       f = ravel(self.evalfunc(self._toFullParams(estimate), x = self._datax))
+      #f = f.tolist()
       #print "f = ", f, "\n\n"
       #pylab.waitforbuttonpress()
       return f
@@ -677,7 +678,9 @@ class fit:
 
    def _run_levmar(self):
       """Run a pylavmar regression"""
-      result, iterations, run_info = levmar.ddif(self._modelLEVMAR, self._guess, ravel(self._datay), 200)
+      result, iterations, run_info = levmar.ddif(self._modelLEVMAR, 
+                                                 self._guess, 
+                                                 ravel(self._datay), 10000)
       
       print "Result = ", result
       print "run_info = ", run_info
