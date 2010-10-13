@@ -35,7 +35,7 @@ def test2Dfit(fitType = None, verbose = False):
         func = [twodlin, twodgauss]
 
     times = []
-    for optimizer in ['leastsq', 'levmar', 'mpfit', 'odrpack']:
+    for optimizer in ['leastsq', 'levmar', 'mpfit']:
         f = fit.fit(x = conZ, y = conIm, funcs = func , guess = guess, 
                     debug = testDebug, optimizer = optimizer)
         t1 = time.time()
