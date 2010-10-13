@@ -4,18 +4,27 @@
 	Copyright (c) 2006. Alastair Tse <alastair@liquidx.net>
 	Copyright (c) 2008. Dustin Lang <dstndstn@gmail.com>
 
-	Modified to run numpy ... 2010 Stuart Wilkins <stuwilkins@mac.com>
+	Modified to run numpy ... (c) 2010 Stuart Wilkins <stuwilkins@mac.com>
+ 
+	This program is free software; you can redistribute it and/or
+	modify it under the terms of the GNU General Public License
+	as published by the Free Software Foundation; either version 2
+	of the License, or (at your option) any later version.
+ 
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+ 
+	You should have received a copy of the GNU General Public License
+	along with this program; if not, write to the Free Software
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  
     $Id$
  
 */
 
 #include "pylevmar.h"
-
-typedef struct _pylm_callback_data {
-    PyObject *func;
-    PyObject *jacf;
-} pylm_callback_data;
 
 void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n, int  jacobian) {
     int i;
@@ -106,12 +115,13 @@ void _pylm_jacf_callback(double *p, double *hx, int m, int n, void *data) {
 
 //
 // Initialize python module 
-//
+//
 
-void initpylevmar() {
+PyMODINIT_FUNC 
+initpylevmar(void) {
     PyObject *mod = Py_InitModule3("pylevmar", pylm_functions, pylm_doc);
 	
-	import_array();
+    import_array();
     
     PyModule_AddDoubleConstant(mod, "INIT_MU", LM_INIT_MU);
     PyModule_AddDoubleConstant(mod, "STOP_THRESHU", LM_STOP_THRESH);
