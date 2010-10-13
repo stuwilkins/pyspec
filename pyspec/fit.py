@@ -532,7 +532,7 @@ class fit:
 
    def _modelLEVMAR(self, estimate = None, measurement = None, data = None):
       """Model function for LEVMAR"""
-      print "estimate = ", estimate, "\n\n"
+      #print "estimate = ", estimate, "\n\n"
       #print "x = ", x, "\n\n"
       #print "extra = ", extra, "\n\n"
       f = ravel(self.evalfunc(self._toFullParams(estimate), x = self._datax))
@@ -681,9 +681,6 @@ class fit:
       result, iterations, run_info = levmar.ddif(self._modelLEVMAR, 
                                                  self._guess, 
                                                  ravel(self._datay), 10000)
-      
-      print "Result = ", result
-      print "run_info = ", run_info
 
       if result is not None:
          self._result = result
@@ -693,6 +690,7 @@ class fit:
       self._stdev = zeros(len(self._result))
       self._covar = zeros((len(self._result), len(self._result)))
       self._levmar_run_info = run_info
+      print "Finished LEVMAR"
 
 ##
 ## Run the optimization

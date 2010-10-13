@@ -37,16 +37,10 @@ void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n, int  ja
 	npy_intp dims_m[1] = {m};
 	npy_intp dims_n[1] = {n};
 	
-	for(i=0;i<m;i++){
-		fprintf(stderr, "p[%d] = %lf\n", i, p[i]);
-	}
     PyObject *estimate = PyArray_SimpleNewFromData(1, dims_m, PyArray_DOUBLE, p);
     PyObject *measurement = PyArray_SimpleNewFromData(1, dims_n , PyArray_DOUBLE, hx);
 	
-	fprintf(stderr, "*p = %p, *array = %p\n", &p[0], PyArray_DATA(estimate));
-    
     args = Py_BuildValue("(OO)", estimate, measurement);
-
     if (!args) {
         goto cleanup;
     }
@@ -68,7 +62,6 @@ void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n, int  ja
     // marshall results from python -> c
     
 	npy_intp result_size = PyArray_DIM(result, 0);
-	//fprintf(stderr, "result_size = %d\n", (int)result_size);
 	
 	if ((!jacobian && (result_size == n)) ||
         (jacobian &&  (result_size == m*n))) {
@@ -76,8 +69,7 @@ void _pylm_callback(PyObject *func, double *p, double *hx, int m, int n, int  ja
         for (i = 0; i < result_size; i++) {
             double *j = PyArray_GETPTR1(result, i);
 			hx[i] = *j;
-			fprintf(stderr, "hx[%d] = %lf\n", i, hx[i]);
-        }
+		}
 		
     } else {
         PyErr_SetString(PyExc_TypeError, 
@@ -117,8 +109,7 @@ void _pylm_jacf_callback(double *p, double *hx, int m, int n, void *data) {
 // Initialize python module 
 //
 
-PyMODINIT_FUNC 
-initpylevmar(void) {
+PyMODINIT_FUNC initpylevmar(void) {
     PyObject *mod = Py_InitModule3("pylevmar", pylm_functions, pylm_doc);
 	
     import_array();
@@ -163,8 +154,10 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
 	
     int	   max_iter = 0;
 	int    run_iter = 0;
-	int    m = 0, n = 0, i = 0;
+	int    m = 0, n = 0;
+	
     double c_info[LM_INFO_SZ];
+	
 	int nopts;
 
 	// If finite-difference approximate Jacobians are used, we
@@ -181,33 +174,38 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
             if (!PyArg_ParseTupleAndKeywords(args, kwds, argstring, kwlist,
                                              &func, &jacf, &initial,
                                              &measurements, &max_iter, 
-                                             &opts, &covar))
-                return NULL;
+                                             &opts, &covar)){
+				return NULL;	
+			}
         } else {
             if (!PyArg_ParseTupleAndKeywords(args, kwds, argstring, kwlist,
                                              &func, &initial,
                                              &measurements, &max_iter, 
-                                             &opts, &covar))
-                return NULL;
+                                             &opts, &covar)){
+				return NULL;
+			}
         }
     } else {
         if (jacobian) {
             if (!PyArg_ParseTupleAndKeywords(args, kwds, argstring, kwlist,
                                              &func, &jacf, &initial,
                                              &measurements, &lower, &upper, &max_iter, 
-                                             &opts, &covar))
+                                             &opts, &covar)){
                 return NULL;
+			}
         } else {
             if (!PyArg_ParseTupleAndKeywords(args, kwds, argstring, kwlist,
                                              &func, &initial,
                                              &measurements, &lower, &upper, &max_iter,
-                                             &opts, &covar))
-                return NULL;
+                                             &opts, &covar)){
+				return NULL;	
+			}
         }
     }
      
-    // check each var type
-   if (!PyCallable_Check(func)) {
+    // Check each variable type
+	
+    if (!PyCallable_Check(func)) {
         PyErr_SetString(PyExc_TypeError, "func must be a callable object");
         return NULL;
     }
@@ -237,67 +235,69 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
     }
 
     if (opts && !PyArray_Check(opts) && (PyArray_Size(opts) != nopts)) {
-		if (nopts == 4)
+		if (nopts == 4){
 			PyErr_SetString(PyExc_TypeError,
 							"opts must be a numpy vector of length 4.");
-		else
+		} else {
 			PyErr_SetString(PyExc_TypeError,
 							"opts must be a numpy vector of length 5.");
+		}
         return NULL;
     }
 
     // convert python types into C
 	
     pydata = PyMem_Malloc(sizeof(pydata));
+	if(!pydata){
+		PyErr_SetString(PyExc_RuntimeError,
+						"Error in allocating memory for data.");	
+		return NULL;	
+	}
     pydata->func = func;
     pydata->jacf = jacf;
 	
 	initial_npy = PyArray_FROMANY(initial, PyArray_DOUBLE, 0, 0, NPY_INOUT_ARRAY);
-	//if(!initial_npy)
-	//	goto cleanup;
-	
 	measurements_npy = PyArray_FROMANY(measurements, PyArray_DOUBLE, 0, 0, NPY_IN_ARRAY);
-	//if(!measurements_npy)
-	//	goto cleanum;
+	
+	if(!initial_npy || !measurements_npy){
+		// Cannot create array
+		PyErr_SetString(PyExc_RuntimeError,
+						"Error in creating arrays from input data.");	
+		Py_XDECREF(initial_npy);
+		Py_XDECREF(measurements_npy);
+		return NULL;
+	}
 	
 	m = PyArray_SIZE(initial_npy);
 	n = PyArray_SIZE(measurements_npy);
-	//c_initial = PyMem_Malloc(sizeof(double) * m);
-	//for(i=0;i<m;i++){
-	//	c_initial[i] = *(double *)PyArray_GETPTR1(initial_npy, i);
-	//}
-	//c_measurements = PyMem_Malloc(sizeof(double) * n);
-	//for(i=0;i<n;i++){
-	//	c_measurements[i] = *(double *)PyArray_GETPTR1(measurements_npy, i);
-	//}
     c_initial = (double *)PyArray_DATA(initial_npy);
 	c_measurements = (double *)PyArray_DATA(measurements_npy);
-	
 	
 	if (lower){
 		lower_npy = PyArray_FROMANY(lower, PyArray_DOUBLE, 0, 0, NPY_IN_ARRAY);
 		c_lower = PyArray_DATA(lower_npy);
-		// check dims
+		// TODO check dims
 	}
     if (upper){
 		upper_npy = PyArray_FROMANY(upper, PyArray_DOUBLE, 0, 0, NPY_IN_ARRAY);
         c_upper = PyArray_DATA(upper_npy);
-		// check dims
+		// TODO check dims
 	}
 
 	if (opts) {
 		opts_npy = PyArray_FROMANY(opts, PyArray_DOUBLE, 0, 0, NPY_IN_ARRAY);
         c_opts = PyArray_DATA(opts_npy);
+		// TODO check dims
     }
     
-    // call func
+    // call function to do the fitting
+	
     if (!bounds) {
         if (jacobian) {
             run_iter =  dlevmar_der(_pylm_func_callback, _pylm_jacf_callback,
                                     c_initial, c_measurements, m, n,
 									max_iter, c_opts, c_info, NULL, NULL, pydata);
         } else {
-			//fprintf(stderr, "Running dlevmar_dif\n");
             run_iter =  dlevmar_dif(_pylm_func_callback, c_initial, c_measurements,
                                     m, n, max_iter, c_opts, c_info, NULL, NULL, pydata);
         }
@@ -324,6 +324,10 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
         Py_INCREF(Py_None);
     }
 
+	if (pydata) {
+        PyMem_Free(pydata);
+    }	
+	
     // convert additional information into python
     info = Py_BuildValue("{s:d,s:d,s:d,s:d,s:d,s:d,s:d,s:d,s:d}",
                          "initial_e2", c_info[0],
@@ -335,18 +339,14 @@ _pylm_dlevmar_generic(PyObject *mod, PyObject *args, PyObject *kwds,
                          "termination", c_info[6],
                          "function_evaluations", c_info[7],
                          "jacobian_evaluations", c_info[8]);
+	
+	//Py_XDECREF(measurements_npy);
+	//Py_XDECREF(initial_npy);
+	//Py_XDECREF(lower_npy);
+	//Py_XDECREF(upper_npy);
+	//Py_XDECREF(opts_npy);
 
-	//if (c_measurements) {
-	//PyMem_Free(c_measurements); c_measurements = NULL;
-    //}
-    //if (c_initial) {
-    //   PyMem_Free(c_initial); c_initial = NULL;
-    //}
-    //if (pydata) {
-    //    PyMem_Free(pydata); pydata = NULL;
-   //}
-
-    return Py_BuildValue("(OiO)", retval, run_iter, info, NULL);
+	return Py_BuildValue("(OiO)", retval, run_iter, info, NULL);
 }
 
 static PyObject *

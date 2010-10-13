@@ -33,10 +33,6 @@
 #include <numpy/arrayobject.h>
 #include "structmember.h"
 
-#ifndef Py_RETURN_NONE
-#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
-#endif
-
 // Type definitions
 
 typedef struct _pylm_callback_data {
