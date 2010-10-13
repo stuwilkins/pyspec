@@ -1,8 +1,8 @@
 #
-# ccd.py (c) Stuart B. Wilkins 2010
+# transformations.py (c) Stuart B. Wilkins 2010
 #
-# $Id: fit.py 34 2010-10-11 16:33:34Z stuwilkins $
-# $HeadURL: https://pyspec.svn.sourceforge.net/svnroot/pyspec/trunk/pyspec/fit.py $
+# $Id$
+# $HeadURL$
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
