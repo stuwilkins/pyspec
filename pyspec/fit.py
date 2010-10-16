@@ -38,42 +38,28 @@ errors = f.stdev
 
 
 """
-
-
-#try:
-#   import psyco
-#   psyco.full(memory=100)
-#   psyco.profile(0.05, memory=100)
-#   psyco.profile(0.2)
-#   print "Using PSYCO to speedup"
-#except ImportError:
-#   pass
-
 from scipy import *
 import pylab
 import cmd
+import time
+import warnings
    
 try:
    from scipy.odr import Model, Data, ODR
 except ImportError:
-   print "ERROR: NO scipy.odr package ... unable to use ODR regression module"
-   pass
+   warnings.warn("NO scipy.odr package ... unable to use ODR regression module")
 try:
    from scipy.optimize import leastsq
 except ImportError:
-   print "ERROR: NO scipy.leastsq package ... unable to use leastsq regression module"
-   pass
+   warnings.warn("ERROR: NO scipy.leastsq package ... unable to use leastsq regression module")
 try:
    import pyspec.mpfit as mpfit
 except ImportError:
-   print "ERROR: NO mpfit package ... unable to use MPFIT regression module"
-   pass
+   warnings.warn("ERROR: NO mpfit package ... unable to use MPFIT regression module")
 try:
-   import pylevmar as levmar
-   print "LEVMAR = ", levmar
+   import pyspec.pylevmar as levmar
 except ImportError:
-   print "ERROR: NO levmar package ... unable to use LEVMAR regression module"
-   pass
+   warnings.warn("NO levmar package ... unable to use LEVMAR regression module")
 
 class FitPlotCmd(cmd.Cmd):
     """Simple command processor for interactive fitting"""
@@ -450,6 +436,9 @@ class fit:
                         
       self.xlimitstype = xlimitstype 
 	 
+      self._niter = 1
+      self._lastRunTime = None
+
       self.setFuncs(funcs)
       self.setData(x, y, e)
 
@@ -528,17 +517,11 @@ class fit:
 
    def _modelODR(self, p = None, x = None):
       """Model function for ODR"""
-      return self.evalfunc(self._toFullParams(p), x = x)
+      return(self.evalfunc(self._toFullParams(p), x = self._datax))
 
    def _modelLEVMAR(self, estimate = None, measurement = None, data = None):
       """Model function for LEVMAR"""
-      #print "estimate = ", estimate, "\n\n"
-      #print "x = ", x, "\n\n"
-      #print "extra = ", extra, "\n\n"
       f = ravel(self.evalfunc(self._toFullParams(estimate), x = self._datax))
-      #f = f.tolist()
-      #print "f = ", f, "\n\n"
-      #pylab.waitforbuttonpress()
       return f
 
    def _toFullParams(self, p):
@@ -623,7 +606,7 @@ class fit:
    def _run_odr(self):
       """Run an ODR regression"""
       linear = Model(self._modelODR)
-      mydata = Data(self._datax, self._datay, 1)
+      mydata = Data(ravel(self._datax), ravel(self._datay), 1)
       myodr = ODR(mydata, linear, 
 		  beta0 = self._guess,  
 		  maxit = 10000)
@@ -654,7 +637,9 @@ class fit:
       m = mpfit.mpfit(self._residualsMPFIT, self._guess, 
 		      parinfo = parinfo, quiet = quiet, debug = self.debug)
 
+      print m
       self._result = m.params
+      self._niter = m.niter
 
       if m.perror is not None:
 	 self._stdev = m.perror
@@ -675,20 +660,25 @@ class fit:
       self._stdev = sqrt(diag(plsq[1].T))
       self._covar = plsq[1].T
       self._leastsq = plsq
+      self._niter = plsq[2]['nfev']
 
    def _run_levmar(self):
       """Run a pylavmar regression"""
-      result, iterations, run_info = levmar.ddif(self._modelLEVMAR, 
-                                                 self._guess, 
-                                                 ravel(self._datay), 10000)
+      opts = array([1e-3, 1e-5, 1e-5, 1e-5, 1e-3])
+      result, covar, iterations, run_info = levmar.ddif(self._modelLEVMAR, 
+                                                        self._guess, 
+                                                        ravel(self._datay), 10000, opts = opts)
 
       if result is not None:
          self._result = result
+         self._covar = covar
+         self._stdev = sqrt(diag(covar))
       else:
          self._result = self._guess.copy()
+         self._stdev = zeros(len(self._result))
+         self._covar = zeros((len(self._result), len(self._result)))
 
-      self._stdev = zeros(len(self._result))
-      self._covar = zeros((len(self._result), len(self._result)))
+      self._niter = iterations
       self._levmar_run_info = run_info
       print "Finished LEVMAR"
 
@@ -738,6 +728,10 @@ class fit:
          self._ilimited = self.ilimited[nonzero(self.ifix == 0)].copy()
          self._ilimits = self.ilimits[nonzero(self.ifix == 0)].copy()
 
+      # Here we will time the run for informtion
+      t1 = time.time()
+      self._niter = 1
+
       if self.optimizer == 'ODR':
          self._run_odr()
       elif self.optimizer == 'mpfit':
@@ -748,6 +742,8 @@ class fit:
          self._run_levmar()
       else:
          raise Exception("Unknown fitting optimizer '%s'" % self.optimizer)
+
+      self._lastRunTime = time.time() - t1
 
       # If we have fixed parameters then return the full parameters list
       # and return the full list of errors
@@ -850,6 +846,9 @@ class fit:
       elif self.optimizer == 'leastsq':
 	 p += "Fitted with 'scipy' leastsq\n"
 	 p += "----------------------------\n"
+      elif self.optimizer == 'levmar':
+         p += "Fitted with 'pylevmar' LEVMAR module\n"
+	 p += "------------------------------------\n"
                 
       ## Put in here the x limits
 
@@ -915,6 +914,14 @@ class fit:
          p += sep
          for x in self._levmar_run_info.iteritems():
             p += 'LEVMAR %-20s : %g\n' % x
+
+      if self._lastRunTime is not None:
+         p += "\nRuntime\n"
+         p += sep
+         p += "Fitted in %d iterations\n" % self._niter
+         p += "Fit took %0.3f seconds (%0.3f sec per iteration)\n" % (self._lastRunTime, 
+                                                                    self._lastRunTime / self._niter)
+         p += sep
       return p
 
    def chiSquared(self, norm = True, dist = 'poisson'):

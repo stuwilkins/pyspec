@@ -48,5 +48,5 @@ def test2Dfit(fitType = None, verbose = False):
         print t
 
 if __name__ == "__main__":
-    test2Dfit(fitType = 'twodgausslin', verbose = False)
+    test2Dfit(fitType = 'twodgauss', verbose = False)
     print 'ready'
