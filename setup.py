@@ -11,13 +11,14 @@ import numpy as np
 #LIBLINUX = ['levmar', 'm', 'blas', 'lapack']
 #LIBMACOSX = ['levmar', 'm']
 
+print levmar
 ext_modules = []
 if options['build_levmar']:
     ext_modules.append(Extension('pyspec.pylevmar', ['src/pylevmar.c'],
                                  libraries = levmar['libraries'],
                                  extra_compile_args = ['-g'],
-                                 library_dirs = levmar.library_dirs,
-                                 include_dirs = levmar.include_dirs,
+                                 library_dirs = levmar['library_dirs'],
+                                 include_dirs = levmar['include_dirs'],
                                  depends = ['src/pylevmar.h']))
 
 setup(name='pyspec',

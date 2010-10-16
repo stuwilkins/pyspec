@@ -28,4 +28,4 @@ if os.path.exists("setup.cfg"):
 
     levmar = parseExtensionSetup('levmar', config, levmar)
     levmar['include_dirs'].append(np.get_include())
-
+    levmar['libraries'].append('levmar')

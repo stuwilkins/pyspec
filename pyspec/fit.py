@@ -664,10 +664,10 @@ class fit:
 
    def _run_levmar(self):
       """Run a pylavmar regression"""
-      opts = array([1e-3, 1e-5, 1e-5, 1e-5, 1e-3])
+      #opts = array([1e-3, 1e-5, 1e-5, 1e-5, 1e-3])
       result, covar, iterations, run_info = levmar.ddif(self._modelLEVMAR, 
                                                         self._guess, 
-                                                        ravel(self._datay), 10000, opts = opts)
+                                                        ravel(self._datay), 10000)
 
       if result is not None:
          self._result = result
