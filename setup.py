@@ -21,7 +21,7 @@ if options['build_levmar']:
                                  depends = ['src/pylevmar.h']))
 
 setup(name='pyspec',
-      version='0.1',
+      version='0.2',
       description='Python utilities for spec data analysis',
       author='Stuart Wilkins',
       author_email='stuwilkins@mac.com',
