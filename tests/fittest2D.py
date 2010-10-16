@@ -25,7 +25,7 @@ def test2Dfit(fitType = None, verbose = False):
     testDebug = 0
     testOptimizer = 'levmar'
     roi = [1, 325, 1, 335]
-    conIm = PrincetonSPEFile('ymn2o5_sep10_1_0409-0040_0000.spe')[0].astype(float64)
+    conIm = PrincetonSPEFile('testimage.spe')[0].astype(float32)
     conZ = array(meshgrid(arange(roi[0], roi[0] + roi[1]), arange(roi[2], roi[2] + roi[3])))
     if fitType == 'twodgauss':    
         guess = array([ conIm.max(), 162.5, 5, 167.5, 6])

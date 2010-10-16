@@ -1,21 +1,22 @@
 from pylab import *
 from pyspec import spec, fit, fitfuncs
+import time
 
 def fittest():
-    sf = spec.SpecDataFile('/Users/swilkins/Dropbox/Data/X1A2/oct09_2/Mn214_Surface/Mn214_Surface.01')
-    scan = sf[229]
-    #scan.plot()
-    #fit.fitdata(funcs = [fitfuncs.linear, fitfuncs.gauss],
-    #            #guess = array([10.0, 10.0, 10.0, 10.0, 10.0]),
-    #            optimizer = 'levmar')
-    
-    plot(scan.H, scan.Detector / scan.Monitor, 'ro')
-    f = fit.fit(x = scan.H, y = scan.Detector / scan.Monitor, 
-                funcs = [fitfuncs.linear, fitfuncs.gauss],
-                #guess = array([10.0, 10.0, 10.0, 10.0, 10.0]),
-                optimizer = 'levmar')
-    f.go()
-    plot(scan.H, f.evalfunc(x = scan.H))
+    data = loadtxt('testdata.dat')
 
+    times = []
+    for optimizer in ['leastsq', 'levmar', 'mpfit']:
+        f = fit.fit(x = data[:,0], y = data[:,1], 
+                    funcs = [fitfuncs.linear, fitfuncs.gauss],
+                    optimizer = optimizer)
+        t1 = time.time()
+        f.go()
+        t2 = time.time()
+        times.append('Optimizer %s took %0.3f s' % (optimizer, (t2-t1)))
+        
+    for t in times:
+        print t
+        
 if __name__ == '__main__':
     fittest()
