@@ -1,0 +1,19 @@
+#
+# PYSPEC setup.cfg file
+#
+# $Id: setup.cfg 41 2010-10-13 20:39:16Z stuwilkins $
+#
+[global]
+verbose=1
+
+# LEVMAR module
+[levmar]
+# Option to build pylevmar module
+build = True
+#
+# Paths for include and other modules
+#
+include_dirs = /usr/local/atlas/include:/usr/local/include
+library_dirs = /usr/local/atlas/lib:/usr/local/lib
+libraries = lapack, f77blas, cblas, atlas, gcc_s
+
