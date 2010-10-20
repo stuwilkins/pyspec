@@ -637,7 +637,6 @@ class fit:
       m = mpfit.mpfit(self._residualsMPFIT, self._guess, 
 		      parinfo = parinfo, quiet = quiet, debug = self.debug)
 
-      print m
       self._result = m.params
       self._niter = m.niter
 
