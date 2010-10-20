@@ -6,6 +6,10 @@
 [global]
 verbose=1
 
+
+[gridder]
+build = True
+
 # LEVMAR module
 [levmar]
 # Option to build pylevmar module

@@ -19,7 +19,7 @@
 #
 # Part of the "pyspec" package
 #
-import numpy and np
+import numpy as np
 import exceptions
 
 """
