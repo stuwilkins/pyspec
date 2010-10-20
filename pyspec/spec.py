@@ -95,13 +95,15 @@ class SpecDataFile:
 	""" DataFile class for handling spec data files
 	
 	"""
-	def __init__(self,fn):
+	def __init__(self,fn, ccdpath = None):
 		"""Initialize SpecDataFile
 
 		Params
 		------
 		fn : string
 		     Filename of spec file to open
+		ccdpath : string
+		     String containing path to CCD FILES.
 
 		Returns
 		-------
@@ -121,7 +123,12 @@ class SpecDataFile:
 
 		self.userFuncs = None # User function to run after "getScan"
 
+		self.ccdpath = ccdpath
+
 		return
+
+	def setCCDPath(self, path):
+		self.ccdpath = path
 
 	def setUserFunc(self, f):
 		"""Set the user functions"""
@@ -585,6 +592,33 @@ class SpecScan:
 		e = e * y
 
 		return (y, e)
+
+	def getCCDFilenames(self, path = None, dark = False):
+		"""Get the CCD Files for a spec scan.
+		if path is defined this will be appended to the images
+		if not then the path defined in the SpecDataFile ooject 
+		will be used. If dark is true then the darkimages are
+		returned"""
+		filenames = []
+		if dark:
+			_dark = "-DARK"
+		else:
+			_dark = ""
+
+		if path is not None:
+			_path = path
+		else:
+			_path = self.datafile.ccdpath
+
+		_datafile = self.datafile.filename.split(os.pathsep)
+
+		for i in range(self.data.shape[0]):
+			_f = "%s_%04d-%04d%s" % (_datafile[-1], self.scan, i, _dark)
+			filenames.append("%s%s" % (_path, os.pathsep, _f))
+
+		self.ccdFilenames = filenames
+
+		return filenames
 
 		
 class SpecData:
