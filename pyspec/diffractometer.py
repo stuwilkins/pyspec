@@ -67,7 +67,14 @@ class Diffractometer():
     This class provides various functions to perform calculations to
     and from the sample and instrument frames"""
 
-    def __init__(self, mode = 'sixc'):
+    # HC_OVER_E to convert from E to Lambda
+    hc_over_e = 12398.4
+    # transformation from sixc to tardis
+    sixcToTardis = np.array([ [ 0, 0, -1],
+                              [ 0, 1,  0],
+                              [ 1, 0,  0] ])
+
+    def __init__(self, mode = 'sixc', calcs = 7):
         """Initialize the class
         'mode' defines the type of diffractometer"""
         self.mode = mode
@@ -95,69 +102,57 @@ class Diffractometer():
             elif aa.len == 1:
                 self.settingAngles[:,i] = ones(maxlen) * aa
             elif aa is not None:
-                raise exceptions.ValueError("%s must be numpy array or ")
+                raise exceptions.ValueError("Values must be numpy array or scalar (float).")
             
         if mode == 'deg':
             self.settingAngles = self.settingAngles / 180.0 * pi
+
+    def setEnergy(self, energy):
+        """Set the energy (in eV) for calculations"""
+        self.waveLen = self.hc_over_e / energy
+
+    def setLambda(self, waveLen):
+        """Set the wavelength (in Angstroms) for calculations"""
+        self.waveLen = waveLen
+
+    def _calc_Qxyz(self):
+        """Calculate Reciprocal space from angles"""
+        # wave vector length in 1/A, energy in eV
+        kl = 2 * np.pi / waveLen 
+
+        # wave vector for all diffractometer angles zero
+        k0 = array([ 0, kl, 0]).T
+
+        # initial wave vector in theta-frame
+        ki = dot( rotX(-theta), dot( rotZ(-mu), k0 ) )
+
+        # final   wave vector in theta-frame
+        kf = dot( rotX(-theta+delta), dot( rotZ(gamma), k0 ) )
+
+        #   scattering vector in theta-frame
+        q  = kf - ki
+
+        self.Qxyz = q
+
+    def _calc_QPhi(self):
+        """QPhi frame"""
+
+        return
+
+    def _calc_HKL(self):
+        """Calc HKL values"""
+
+        return
+
+    def calc(self):
+        if self.calcs & 1:
+            _calc_Qxyz()
+        _calc_QPhi()
+
+        _calc_HKL()
         
 
-def thdelgam2Qxyz(theta, delta, gamma, waveLen = 2*pi,
-                  mu = 0.0, mode = 'deg', shortForm = True, verbose = False):
-
-    """
-    transformation of set (theta, delta, gamma) into (Qx, Qy, Qz)
-    in tardis sample frame (theta-frame)
-    tardis sample frame for theta = 0:
-    Qx, Qy, Qz along X, Y, Z, respectively
-
-    angles as arrays or float
-    all arrays have to have the same shape!
-    """
         
-    # for angels in degree
-    if mode == 'deg':
-        mu    = mu    / 180.0 * np.pi
-        theta = theta / 180.0 * np.pi
-        delta = delta / 180.0 * np.pi
-        gamma = gamma / 180.0 * np.pi
-
-    # wave vector length in 1/A, energy in eV
-    kl = 2 * np.pi / waveLen 
-
-    # wave vector for all diffractometer angles zero
-    k0 = array([ 0, kl, 0]).T
-
-    # initial wave vector in theta-frame
-    ki = dot( rotX(-theta), dot( rotZ(-mu), k0 ) )
-
-    # final   wave vector in theta-frame
-    kf = dot( rotX(-theta+delta), dot( rotZ(gamma), k0 ) )
-
-    #   scattering vector in theta-frame
-    q  = kf - ki
-
-    return q
-
-
-def Qxyz2Qsam(Qxyz, chi=0.0, phi=0.0, mode = 'deg', shortForm = False, choise = 'tardis', verbose = False):
-
-    """
-    transformation of (Qx, Qy, Qz) from the theta frame into the sample (phi) frame
-    in          'tardis' or 'sixc' choise
-    up        :    x           z
-    along beam:    y           y
-    right hand:    z           x
-    """
-
-    # transformation from sixc to tardis
-    Vts = array([ [ 0, 0, -1],
-                  [ 0, 1,  0],
-                  [ 1, 0,  0] ])
-
-    if mode == 'deg':
-        chi = chi / 180.0 * pi
-        phi = phi / 180.0 * pi
-
     # identity
     if   type(chi) == numpy.ndarray:
         ident = chi * 0.0 + 1.0
@@ -199,15 +194,7 @@ def Qxyz2Qsam(Qxyz, chi=0.0, phi=0.0, mode = 'deg', shortForm = False, choise = 
         print 'has been transformed into (Qx, Qy, Qz)_phi_%s = \n%s' % (choise, Qphi)
 
     return Qphi
-    
-
-def angle2Qsam(mu, theta, chi, phi, delta, gamma, energy = 640.0, mode = 'deg', shortForm = True, choise = 'sixc', verbose = False):
-
-    Qxyz = thdelgam2Qxyz(theta, delta, gamma, energy = energy, mu = mu, mode = mode, shortForm = shortForm, verbose = verbose)
-    Qsam = Qxyz2Qsam(Qxyz, chi = chi, phi = phi, mode = 'deg', shortForm = False, choise = choise, verbose = False)
-
-    return Qsam
-
+  
 
 ####################################
 #
@@ -429,3 +416,4 @@ if __name__ == "__main__":
     Delta     Theta       Chi       Phi        Mu     Gamma 
     39.9999   15.0000   30.0000   25.0000   10.0000    5.0000
     """
+
