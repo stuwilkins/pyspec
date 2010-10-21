@@ -1,5 +1,5 @@
 #
-# diffractometer.py (c) Stuart B. Wilkins 2010, Sven Partzsch 2010
+# diffractometer.py (c) Stuart B. Wilkins 2010 and (c) Sven Partzsch 2010
 #
 # $Id: fit.py 48 2010-10-16 18:05:14Z stuwilkins $
 # $HeadURL: https://pyspec.svn.sourceforge.net/svnroot/pyspec/trunk/pyspec/fit.py $
