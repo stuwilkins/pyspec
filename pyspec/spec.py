@@ -95,7 +95,7 @@ class SpecDataFile:
 	""" DataFile class for handling spec data files
 	
 	"""
-	def __init__(self,fn, ccdpath = None):
+	def __init__(self,fn, ccdpath = None, ccdtail = None):
 		"""Initialize SpecDataFile
 
 		Params
@@ -104,6 +104,8 @@ class SpecDataFile:
 		     Filename of spec file to open
 		ccdpath : string
 		     String containing path to CCD FILES.
+	        ccdtail : string
+		     String for the tail of ccd files
 
 		Returns
 		-------
@@ -124,11 +126,15 @@ class SpecDataFile:
 		self.userFuncs = None # User function to run after "getScan"
 
 		self.ccdpath = ccdpath
-
+		if ccdtail is not None:
+			self.ccdtail = ccdtail
+		else:
+			self.ccdtail = "_0000.spe"
 		return
 
-	def setCCDPath(self, path):
+	def setCCD(self, path = None, tail = None):
 		self.ccdpath = path
+		self.ccdtail = tail
 
 	def setUserFunc(self, f):
 		"""Set the user functions"""
@@ -408,6 +414,8 @@ class SpecScan:
 		x = 0
 		self.values = {}
 		self.data = array([])
+
+		self.UB = zeros((3,3))
 		
 		line = specfile._getLine()
 		self.header = self.header + line
@@ -443,7 +451,14 @@ class SpecScan:
 					self.omega = float(pos[6])
 					self.azimuth = float(pos[7])
 				except:
-					print "Unable to read geometry information"	
+					print "Unable to read geometry information"
+			elif line[0:3] == "#UB":
+				try:
+					m = int(line[3])
+					pos = line[4:].strip().split()
+					self.UB[m] = array([float(pos[0]), float(pos[1]), float(pos[2])])
+				except:
+					print "Unable to read UB matrix"
 
 			line = specfile._getLine()
 			self.header = self.header + line	
@@ -608,13 +623,16 @@ class SpecScan:
 		if path is not None:
 			_path = path
 		else:
-			_path = self.datafile.ccdpath
+			if self.datafile.ccdpath is not None:
+				_path = self.datafile.ccdpath + os.sep
+			else:
+				_path = ""
 
 		_datafile = self.datafile.filename.split(os.pathsep)
 
 		for i in range(self.data.shape[0]):
-			_f = "%s_%04d-%04d%s" % (_datafile[-1], self.scan, i, _dark)
-			filenames.append("%s%s" % (_path, os.pathsep, _f))
+			_f = "%s_%04d-%04d%s%s" % (_datafile[-1], self.scan, i, _dark, self.datafile.ccdtail)
+			filenames.append("%s%s" % (_path, _f))
 
 		self.ccdFilenames = filenames
 
