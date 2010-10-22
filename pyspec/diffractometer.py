@@ -23,7 +23,7 @@ import numpy as np
 import exceptions
 
 """
-tardis lab frame:
+used lab frame:
 Z up, Y along X-ray beam, X = Y x Z
 sample rotations
 mu    : along +Z     -> S'    (mu-frame)
@@ -35,31 +35,6 @@ mu    : along +Z     -> S'    (mu-frame)
 delta : along +X'    -> S*    (delta-frame)
 gamma : along +Z*    -> S**   (gamma-frame)
 """
-
-#
-# Rotation Matricies 
-#
-
-def rotX(alpha):
-    """Rotation matrix for a vector along X by angle alpha """
-    rotMatrix = np.array([[ 1,          0,           0],
-                          [ 0, cos(alpha), -sin(alpha)],
-                          [ 0, sin(alpha),  cos(alpha)]])
-    return rotMatrix
-
-def rotY(alpha):
-    """Rotation matrix for a vector along X by angle alpha """
-
-    rotMatrix = np.array([[ cos(alpha), 0, sin(alpha)],
-                          [          0, 1,          0],
-                          [-sin(alpha), 0, cos(alpha)]])
-    return rotMatrix
-
-def rotZ(alpha):
-    rotMatrix = np.array([[ cos(alpha), -sin(alpha), 0],
-                          [ sin(alpha),  cos(alpha), 0],
-                          [          0,           0, 1]])
-    return rotMatrix
 
 class Diffractometer():
     """Diffractometer class
@@ -74,18 +49,23 @@ class Diffractometer():
                               [ 0, 1,  0],
                               [ 1, 0,  0] ])
 
-    def __init__(self, mode = 'sixc', calcs = 7):
+    def __init__(self, mode = 'sixc'):
         """Initialize the class
         'mode' defines the type of diffractometer"""
         self.mode = mode
+        self.Qtheta = None
+
+    #
+    # set part
+    #
 
     def setAllAngles(self, angles, mode = 'deg'):
         """Sets angles for calculation.
         Angles are expected in spec 'sixc' order:
         Delta     Theta       Chi       Phi        Mu     Gamma"""
-        self.settingAngles = angles
+        self._settingAngles = angles
         if mode == 'deg':
-            self.settingAngles = self.settingAngles / 180.0 * pi
+            self._settingAngles = self._settingAngles / 180.0 * np.pi
 
     def setAngles(self, delta = None, theta = None, chi = None,
                   phi = None, mu = None, gamma = None, mode = 'deg'):
@@ -94,165 +74,125 @@ class Diffractometer():
         # Internally angles are stored in sixc (spec) order
         # Delta     Theta       Chi       Phi        Mu     Gamma
 
-        maxlen = array([theta.len, delta.len, gamma.len, mu.len, phi.len, chi.len]).max()
-        self.settingAngles = zeros((maxlen, 6))
+        maxlen = 1
+        #for aa in zip([delta, theta, chi, phi, mu, gamma], range(6)):
+        for aa in [delta, theta, chi, phi, mu, gamma]:
+            if type(aa) == np.ndarray:
+                if maxlen == 1:
+                    maxlen = aa.size
+                elif maxlen != aa.size:
+                    raise exceptions.ValueError("Values must be numpy array of same size or scalar (float).")
+                
+        #maxlen = np.array([theta.size, delta.size, gamma.size, mu.size, phi.size, chi.size]).max()
+        self._settingAngles = np.zeros((maxlen, 6))
         for aa, i in zip([delta, theta, chi, phi, mu, gamma], range(6)):
-            if aa.len == maxlen:
-                self.settingAngles[:,i] = aa
-            elif aa.len == 1:
-                self.settingAngles[:,i] = ones(maxlen) * aa
+            if type(aa) == float:
+                self._settingAngles[:,i] = np.ones(maxlen) * aa
+            else:
+                self._settingAngles[:,i] = aa
+               
+            """
+            if aa.size == maxlen:
+                self._settingAngles[:,i] = aa
+            elif aa.size == 1:
+                self._settingAngles[:,i] = ones(maxlen) * aa
             elif aa is not None:
                 raise exceptions.ValueError("Values must be numpy array or scalar (float).")
-            
+            """
         if mode == 'deg':
-            self.settingAngles = self.settingAngles / 180.0 * pi
+            self._settingAngles = self._settingAngles / 180.0 * np.pi
 
     def setEnergy(self, energy):
         """Set the energy (in eV) for calculations"""
-        self.waveLen = self.hc_over_e / energy
+        self._waveLen = self.hc_over_e / energy
 
     def setLambda(self, waveLen):
         """Set the wavelength (in Angstroms) for calculations"""
-        self.waveLen = waveLen
+        self._waveLen = waveLen
 
-    def _calc_Qxyz(self):
-        """Calculate Reciprocal space from angles"""
-        # wave vector length in 1/A, energy in eV
-        kl = 2 * np.pi / waveLen 
-
+    #
+    # calc part
+    #
+    
+    def _calc_QTheta(self):
+        """Calculate (Qx, Qy, Qz) set in theta-frame from angles"""
+        # wave vector length in 1/A
+        kl = 2 * np.pi / self._waveLen
         # wave vector for all diffractometer angles zero
-        k0 = array([ 0, kl, 0]).T
+        # k0 = [0, kl, 0]
 
+        # alias for used angles
+        mu    = self._settingAngles[:,4]
+        theta = self._settingAngles[:,1]
+        delta = self._settingAngles[:,0]
+        gamma = self._settingAngles[:,5]
+
+        ki = np.zeros((self._settingAngles.shape[0], 3))
+        kf = np.zeros(ki.shape)
+        
         # initial wave vector in theta-frame
-        ki = dot( rotX(-theta), dot( rotZ(-mu), k0 ) )
-
+        # ki'' = rotX(-theta)*rotZ(-mu)*k0
+        ki[:,0] =  np.sin(mu)              *kl
+        ki[:,1] =  np.cos(theta)*np.cos(mu)*kl
+        ki[:,2] = -np.sin(theta)*np.cos(mu)*kl
+        
         # final   wave vector in theta-frame
-        kf = dot( rotX(-theta+delta), dot( rotZ(gamma), k0 ) )
-
+        # kf'' = rotX(-theta+delta)*rotZ(gamma)*k0
+        kf[:,0] = -np.sin(gamma)                    *kl
+        kf[:,1] =  np.cos(delta-theta)*np.cos(gamma)*kl
+        kf[:,2] =  np.sin(delta-theta)*np.cos(gamma)*kl
+        
         #   scattering vector in theta-frame
         q  = kf - ki
 
-        self.Qxyz = q
-
-    def _calc_QPhi(self):
-        """QPhi frame"""
-
-        return
-
-    def _calc_HKL(self):
-        """Calc HKL values"""
-
-        return
+        self.QTheta = q
 
     def calc(self):
-        if self.calcs & 1:
-            _calc_Qxyz()
-        _calc_QPhi()
-
-        _calc_HKL()
+        self._calc_QTheta()
         
+    #
+    # get part
+    #
+    
+    def getQTheta(self):
+        """Return transformed coordinates"""
+        return self.QTheta
+    
+    def getQPhi(self):
+        """Calculate (Qx, Qy, Qz) set in phi-frame from (Qx, Qy, Qz) set in theta-frame"""
 
+        # alias for used angles
+        chi = self._settingAngles[:,2]
+        phi = self._settingAngles[:,3]
+        # alias for q-vector in theta-frame
+        QTh = self.QTheta
         
-    # identity
-    if   type(chi) == numpy.ndarray:
-        ident = chi * 0.0 + 1.0
-    elif type(phi) == numpy.ndarray:
-        ident = phi * 0.0 + 1.0
-    else:
-        ident = 1.0    
+        r11 =               np.cos(chi)
+        r12 =  0.0
+        r13 =              -np.sin(chi)
+        r21 =  np.sin(phi)* np.sin(chi)
+        r22 =  np.cos(phi)
+        r23 =  np.sin(phi)* np.cos(chi)
+        r31 =  np.cos(phi)* np.sin(chi)
+        r32 = -np.sin(phi)
+        r33 =  np.cos(phi)* np.cos(chi)
 
-    if shortForm == False:
-        Qphi = dot( rotMat(-phi, 'x'), dot( rotMat(-chi, 'y'), Qxyz ) )  
-        if choise == 'sixc':
-            Qphi = dot( Vts.T, Qphi )
-    else:
-        r11 = ident*          cos(chi)
-        r12 = ident* 0.0
-        r13 = ident*         -sin(chi)
-        r21 = ident* sin(phi)*sin(chi)
-        r22 = ident* cos(phi)
-        r23 = ident* sin(phi)*cos(chi)
-        r31 = ident* cos(phi)*sin(chi)
-        r32 = ident*-sin(phi)
-        r33 = ident* cos(phi)*cos(chi)
-
-        Qphi = concatenate(( array([ r11*Qxyz[0] + r12*Qxyz[1] + r13*Qxyz[2] ]) ,
-                             array([ r21*Qxyz[0] + r22*Qxyz[1] + r23*Qxyz[2] ]) ,
-                             array([ r31*Qxyz[0] + r32*Qxyz[1] + r33*Qxyz[2] ]) ))
-
-        if choise == 'sixc':
-            Qphi = concatenate(( array([ Vts[0,0]*Qphi[0] + Vts[1,0]*Qphi[1] + Vts[2,0]*Qphi[2] ]) ,
-                                 array([ Vts[0,1]*Qphi[0] + Vts[1,1]*Qphi[1] + Vts[2,1]*Qphi[2] ]) ,
-                                 array([ Vts[0,2]*Qphi[0] + Vts[1,2]*Qphi[1] + Vts[2,2]*Qphi[2] ]) ))
-
-    if verbose == True:
-        if mode == 'deg':
-            chi = chi * 180.0 / pi
-            phi = phi * 180.0 / pi
-        print '(chi, phi) = (%s, %s)' % (chi, phi)
-        print '(Qx, Qy, Qz) = \n%s' % (Qxyz)
-        print 'has been transformed into (Qx, Qy, Qz)_phi_%s = \n%s' % (choise, Qphi)
-
-    return Qphi
-  
-
-####################################
-#
-# visualization for test
-#
-####################################
-
-def k2Dshow(k, name = 'Q', conRoi = [1, 325, 1, 335]):
-
-    kabs = sqrt( k[0]**2 + k[1]**2 + k[2]**2 )
-    figure()
-    ax = subplot(1, 4, 1)
-    imshow(k[0])
-    ax.set_ylabel(name+'x')
-    ax = subplot(1, 4, 2)
-    imshow(k[1])
-    ax.set_ylabel(name+'y')
-    ax = subplot(1, 4, 3)
-    imshow(k[2])
-    ax.set_ylabel(name+'z')
-    ax = subplot(1, 4, 4)
-    imshow( kabs )
-    ax.set_ylabel('|'+name+'|')
-   
-    figure()
-    cutAlpha = [0, 45, 90, 135]
-    conCen   = [ 162.5, 167.5]
-    cutXY    = ['x', 'x', 'y', 'x']
-    for j in range(4):
-            
-        # xy-values, measured and fited values of j-th line cut
-        linX, linY = getLineXY(conRoi, conCen, cutAlpha[j])
-        linKx      = getSubSet(k[0],  conRoi, linX, linY, verbose = False)
-        linKy      = getSubSet(k[1],  conRoi, linX, linY, verbose = False)
-        linKz      = getSubSet(k[2],  conRoi, linX, linY, verbose = False)
-        linKabs    = getSubSet(kabs,  conRoi, linX, linY, verbose = False)
-       
-        # new subplot
-        ax = subplot( 2, 2, j+1)
+        QPhi = np.zeros(QTh.shape)
+        QPhi[:,0] = r11*QTh[:,0] + r12*QTh[:,1] + r13*QTh[:,2]
+        QPhi[:,1] = r21*QTh[:,0] + r22*QTh[:,1] + r23*QTh[:,2]
+        QPhi[:,2] = r31*QTh[:,0] + r32*QTh[:,1] + r33*QTh[:,2]
         
-        # plot value, and result of j-th line cut
-        if cutXY[j] == 'x':
-            ax.plot(linX, linKx  , '-bo', label=name+'x'  )
-            ax.plot(linX, linKy  , '-r^', label=name+'y'  )
-            ax.plot(linX, linKz  , '-gv', label=name+'z'  )
-            ax.plot(linX, linKabs, '-c*', label='|'+name+'|' )
-        else:
-            ax.plot(linY, linKx  , '-bo', label=name+'x'  )
-            ax.plot(linY, linKy  , '-r^', label=name+'y'  )
-            ax.plot(linY, linKz  , '-gv', label=name+'z'  )
-            ax.plot(linY, linKabs, '-c*', label='|'+name+'|' )
-        
-        # title and labels of j-th line cut
-        yLabel = 'alpha = %d' % (cutAlpha[j])
-        ax.set_ylabel(yLabel)
-        ax.set_xlabel(cutXY[j])
+        return QPhi
 
-        legend(loc='best')
+    def getQCart(self):
+        """Calculate (Qx, Qy, Qz) set in cartesian-frame from (Qx, Qy, Qz) set in theta-frame"""
+
+        return (np.dot( self.sixcToTardis.T, self.getQPhi().T ) ).T
+
+    def getQHKL(self):
+        """Calc HKL values from (Qx, Qy, Qz) set in theta-frame with UB-matrix"""
+
+        return (np.dot( self.UB_invers, self.getQCart().T ) ).T
 
 
 
@@ -264,17 +204,19 @@ def k2Dshow(k, name = 'Q', conRoi = [1, 325, 1, 335]):
 
 
 if __name__ == "__main__":
-
-    #rotM = rotMat(10, kind = 'x', mode = 'deg', verbose = True)
-
-    q = thdelgam2Qxyz( 10, 20, 1, waveLen = 2*pi, mu = 5, mode = 'deg', shortForm = True, verbose = True)
-    #q = thdelgam2Qxyz( array([5,10]), array([10,20]), array([0.5,1]), waveLen = 2*pi, mu = array([2.5,5]),
-    #                   mode = 'deg', shortForm = True, verbose = True)
-
-
+                
+    testDiff = Diffractometer()
+    testDiff.setAngles(delta=40, theta=15, chi = 30, phi = 25, mu = 10.0, gamma=5.0)
+    #testDiff.setLambda(2*np.pi)
+    testDiff.setEnergy(640)
+    testDiff.calc()
+    #print 'QTheta = \n%s' % (testDiff.getQTheta())
+    print 'QCart   = \n%s' % (testDiff.getQCart()  )
+    print 'Ready'
 
     ###########
     # comparison with sixc simulation mode, checked all six angles
+    # first with old spangleq.py and again for diffractometer class
     ###########
 
     """
