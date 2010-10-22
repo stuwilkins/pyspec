@@ -397,6 +397,11 @@ class SpecScan:
 		self.scanplot = None
 		self.setkeys = setkeys
 		
+		# Define the SIXC angles
+
+		self.sixcAngleNames = ['Delta', 'Theta', 'Chi',
+				       'Phi', 'Mu', 'Gamma']
+
 		line = specfile._getLine()
 		
 		if __verbose__:
@@ -555,6 +560,18 @@ class SpecScan:
 		
 		return self
 
+	def getSIXCAngles(self):
+		"""This function returns the SIXC angles
+		for the scan as a Nx6 array"""
+		self.sixcAngles = zeros((self.data.shape[0], 6))
+		for i, name in zip(range(6), self.sixcAngleNames):
+			v = self.scandata.get(name)
+			if v.size == 1:
+				v = ones(self.data.shape[0]) * v
+			self.sixcAngles[:,i] = v
+
+		return self.sixcAngles
+
 	def plot(self, 	*args, **kwargs):
 		"""Plot the SpecScan using matplotlib"""
 
@@ -628,7 +645,7 @@ class SpecScan:
 			else:
 				_path = ""
 
-		_datafile = self.datafile.filename.split(os.pathsep)
+		_datafile = self.datafile.filename.split(os.sep)
 
 		for i in range(self.data.shape[0]):
 			_f = "%s_%04d-%04d%s%s" % (_datafile[-1], self.scan, i, _dark, self.datafile.ccdtail)
