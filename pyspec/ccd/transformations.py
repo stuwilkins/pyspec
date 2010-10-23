@@ -21,7 +21,8 @@
 #
 
 import numpy as np
-from pyspec import spec, diffractometer
+from pyspec import spec
+from pyspec.diffractometer import Diffractometer
 from pyspec.ccd.PrincetonSPE import *
 
 #
@@ -108,7 +109,7 @@ class ImageProcessor():
         self.waveLen       = conScan.wavelength
         self.imFileNames   = conScan.getCCDFilenames()
         self.darkFileNames = conScan.getCCDFilenames(dark = 1)
-        self.settingAngles = conScan.getSIXCAngles
+        self.settingAngles = conScan.getSIXCAngles()
         self.intentNorm    = conScan.Ring
    
     def setConRoi(self, conRoi):
@@ -131,12 +132,12 @@ class ImageProcessor():
 
         # get dark image (first CCD image)
         darkMon  = self.intentNorm[0]
-        fileName = self.darkFileName[0]
+        fileName = self.darkFileNames[0]
         darkVal  = PrincetonSPEFile(fileName)[0].astype(numpy.float64)
         
         # get file name and read image of data point
         pointMon = self.intentNorm[imNum]
-        fileName = self.imFileName[imNum]
+        fileName = self.imFileNames[imNum]
         pointVal = PrincetonSPEFile(fileName)[0].astype(numpy.float64)
 
         # considered region of interest
@@ -173,8 +174,8 @@ class ImageProcessor():
         y0 = self.detY0
 
         # work in grad
-        delta = del0 - arctan( (y-y0)*pixDisY/detDis )/pi*180.0
-        gamma = gam0 - arctan( (x-x0)*pixDisX/detDis )/pi*180.0
+        delta = del0 - np.arctan( (y-y0)*pixDisY/detDis )/np.pi*180.0
+        gamma = gam0 - np.arctan( (x-x0)*pixDisX/detDis )/np.pi*180.0
     
         return delta, gamma
 
@@ -189,7 +190,6 @@ class ImageProcessor():
 
         # used mode
         mode = self.frameMode
-
         # angle alias
         delta = self.settingAngles[imNum, 0]
         theta = self.settingAngles[imNum, 1]
@@ -239,12 +239,13 @@ class ImageProcessor():
 
 if __name__ == "__main__":
 
-    sf   = spec.SpecDataFile('/home/tardis/spartzsch/2010_09_X1A2/ymn2o5_sep10_1', ccdbase = '/mounts/davros/nasshare/images/sept10')
+    sf   = spec.SpecDataFile('/home/tardis/spartzsch/2010_09_X1A2/ymn2o5_sep10_1', 
+			     ccdpath = '/mounts/davros/nasshare/images/sept10')
     scan = sf[244]
 
     testData = ImageProcessor()
     testData.setBins(4, 4)
     testData.setBySpec(scan)
     testData.setConRoi([1, 325, 1, 335])
-    testData.setFrameMode(self, 1)
+    testData.setFrameMode(1)
     print testData.processOneImage(40)
