@@ -1,33 +1,30 @@
 /* 
-
-	pyspec.gridder  
-        (c) 2010 Stuart Wilkins <stuwilkins@mac.com>
  
-        This program is free software; you can redistribute it and/or
-        modify it under the terms of the GNU General Public License
-        as published by the Free Software Foundation; either version 2
-        of the License, or (at your option) any later version.
+ pyspec.gridder  
+ (c) 2010 Stuart Wilkins <stuwilkins@mac.com>
  
-        This program is distributed in the hope that it will be useful,
-        but WITHOUT ANY WARRANTY; without even the implied warranty of
-        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-        GNU General Public License for more details.
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU General Public License
+ as published by the Free Software Foundation; either version 2
+ of the License, or (at your option) any later version.
  
-        You should have received a copy of the GNU General Public License
-        along with this program; if not, write to the Free Software
-        Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
  
-    $Id$
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  
-*/
+ $Id$
+ 
+ */
 
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <math.h>
-
-int c_grid1d(double *dout, unsigned long *nout, double *data, double grid_start, double grid_stop, int max_data, int n_grid);
-int c_grid2d(double *dout, unsigned long *nout, double *data, double *grid_start, double *grid_stop, int max_data, int *n_grid);
-unsigned long c_grid3d(double *dout, unsigned long *nout, double *data, double *grid_start, double *grid_stop, int max_data, int *n_grid);
+#include "gridder.h"
 
 static PyObject* gridder_3D(PyObject *self, PyObject *args){
 	PyObject *gridout = NULL, *Nout = NULL;
@@ -294,15 +291,8 @@ int c_grid1d(double *dout, unsigned long *nout, double *data, double grid_start,
 	return 0;
 }
 
-static PyMethodDef _gridderMethods[] = {
-	{"grid1d", gridder_1D, METH_VARARGS, ""},
-	{"grid2d", gridder_2D, METH_VARARGS, ""},
-	{"grid3d", gridder_3D, METH_VARARGS, ""},
-	{NULL, NULL, 0, NULL}     /* Sentinel - marks the end of this structure */
-};
-
 PyMODINIT_FUNC initgridder(void)  {
-	(void) Py_InitModule3("gridder", _gridderMethods, "");
+	(void) Py_InitModule3("gridder", _gridderMethods, _gridderDoc);
 	import_array();  // Must be present for NumPy.  Called first after above line.
 }
 

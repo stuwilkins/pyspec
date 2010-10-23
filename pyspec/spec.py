@@ -104,7 +104,7 @@ class SpecDataFile:
 		     Filename of spec file to open
 		ccdpath : string
 		     String containing path to CCD FILES.
-	        ccdtail : string
+		ccdtail : string
 		     String for the tail of ccd files
 
 		Returns
@@ -160,8 +160,7 @@ class SpecDataFile:
 		return
 
 	def readHeader(self):
-		"""
-		Read the spec header from the datafile.
+		"""Read the spec header from the datafile.
 
 		Currently supported header items:
 			'#O'	(Motor positions)
@@ -234,7 +233,14 @@ class SpecDataFile:
 		if self.findex.has_key(item):
 			self.file.seek(self.findex[item])
 		else:
-			raise Exception("Scan %s is not in datafile ....." % item)
+			# Try re-indexing the file here.
+			if __verbose__:
+				print "**** Re-indexing scan file\n"
+			self.index()
+			if self.findex.has_key(item):
+				self.file.seek(self.findex[item])
+			else:
+				raise Exception("Scan %s is not in datafile ....." % item)
 			
 	def __getitem__( self, item):
 		"""Convinience routine to use [] to get scan"""
