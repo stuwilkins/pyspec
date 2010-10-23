@@ -22,7 +22,7 @@
 
 import numpy as np
 from pyspec import spec, diffractometer
-from PrincetonSPE import *
+from pyspec.ccd.PrincetonSPE import *
 
 #
 # global help functions

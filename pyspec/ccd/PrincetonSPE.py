@@ -126,8 +126,6 @@ class PrincetonSPEFile():
         self.ThresholdMaxLive = self._readInt(64)
         self.ThresholdMax = self._readFloat(66)
         
-        
-        
     def _readDate(self):
         _date = self._readAtString(20, self.DATEMAX)
         _time = self._readAtString(172, self.TIMEMAX)
