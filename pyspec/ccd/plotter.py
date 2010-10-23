@@ -1,5 +1,5 @@
 #
-# plotter.py (c) Stuart B. Wilkins 2010
+# plotter.py (c) Stuart B. Wilkins 2010 and (c) Sven Partzsch
 #
 # $Id: transformations.py 40 2010-10-13 15:58:30Z stuwilkins $
 # $HeadURL: https://pyspec.svn.sourceforge.net/svnroot/pyspec/trunk/pyspec/ccd/transformations.py $
@@ -20,3 +20,56 @@
 # Part of the "pyspec" package
 #
 
+class plotGrid():
+    """Plot Grid Class
+
+    This class plots a given 1D/2D/3D grid
+    provides cuts and projections to lower the dimension"""
+
+    def __init__(self):
+        self.plotLim    = None
+        self.axesLabels = None
+
+    #
+    # set part
+    #
+
+    def setGrid(self, gridData):
+        """Set the grid data set
+        e.g. 2D grid: [[val00, val10,..., valN0],..., [val0M, val1M,.., valNM]]"""
+        self.gridData = gridData
+        self.gridSize = gridData.shape
+
+    def setGridVec(self, minBox, maxBox):
+        """Sets the vectors for each point of the grid by the minimum and maximum values"""
+        self.minBox   = minBox
+        self.maxBox   = maxBox
+        self.dVec     = (maxBox - minBox) / self.girdSize
+
+    def setPlotLim(self, lim):
+        self.plotLim = lim
+
+    def setAxesLabels(self, labels):
+        """Set the labels for the axes"""
+        self.axesLabels = labels
+
+    def plot2D(self, areaVal, fig = None, ax = None):
+        """Plots the 2D data set"""
+        if fig == None:
+            fig = figure()
+        if ax == None:
+            ax  = fig.subplot(111)
+        cax = ax.imshow(areaVal)
+        fig.colorbar(cax)
+
+
+
+
+####################################
+#
+# main program, for test
+#
+####################################
+
+
+if __name__ == "__main__":

@@ -24,6 +24,7 @@ import numpy as np
 from pyspec import spec
 from pyspec.diffractometer import Diffractometer
 from pyspec.ccd.PrincetonSPE import *
+import gridder
 
 #
 # global help functions
@@ -71,7 +72,10 @@ def getAreaXY(roi):
 class ImageProcessor():
     """Image Processor class
 
-    This class provides the processing of a spec scan with CCD-images at each point"""
+    This class provides the processing of single and sets of CCD-images
+    in more detail: each pixel is transformed into reciprocal space
+    the set of reciprocal vectors and intensities is gridded on a regular cuboid
+    the needed informations can be provided by a spec scan from the pyspec packed"""
 
     def __init__(self):
         # set parameters to configure the CCD setup
@@ -87,7 +91,10 @@ class ImageProcessor():
         # image treatment
         self.conRoi      = None
         self.frameMode   = 1
-        
+        self.setName     = 'Set #'
+        self.setNum      = 1
+        # gridder options
+        self.setGridOptions()
 
     #
     # set part
@@ -104,13 +111,15 @@ class ImageProcessor():
 
     def setBySpec(self, conScan):
         """get settings from the considered pyspec scan object
-        wavelength, filenames, angels"""
+        wavelength, filenames, angels, kind of set (scan)"""
 
         self.waveLen       = conScan.wavelength
         self.imFileNames   = conScan.getCCDFilenames()
         self.darkFileNames = conScan.getCCDFilenames(dark = 1)
         self.settingAngles = conScan.getSIXCAngles()
         self.intentNorm    = conScan.Ring
+        self.setName       = 'Scan #'
+        self.setNum        = conScan.scan
    
     def setConRoi(self, conRoi):
         """Sets the considered region of interest [xMin, xStep, yMin, yStep]"""
@@ -119,6 +128,15 @@ class ImageProcessor():
     def setFrameMode(self, mode):
         """modes of frames are: theta- (1), phi- (2), cartesian- (3) and hkl-frame (4)"""
         self.frameMode = mode
+
+    def setGridOptions(self, Qmin = None, Qmax = None, dQN = None):
+        """Sets the options for the gridding of the dataset
+        Size of the cuboid: Qmin, Qmax = [Qx, Qy, Qz]_min, max
+        Number of parts   : dQN = [Nqx, Nqy, Nqz]"""
+
+        self.Qmin = Qmin
+        self.Qmax = Qmax
+        self.dQN  = dQN
     
     #
     # help function part
@@ -128,7 +146,7 @@ class ImageProcessor():
         """Read in the considered region of interest of the image
         dark image subtraction and normalization by ring current"""
         
-        print 'Read image #%03d' % (imNum)
+        print '%s%d image #%03d: read image' % (self.setName, self.setNum, imNum)
 
         # get dark image (first CCD image)
         darkMon  = self.intentNorm[0]
@@ -204,6 +222,8 @@ class ImageProcessor():
         # (delta, gamma)-values at each pixel
         delPix, gamPix = self._XY2delgam(delta, gamma)        
 
+        print '%s%d image #%03d: get (Qx, Qy, Qz)' % (self.setName, self.setNum, imNum)
+        
         # diffractometer for angle to q calculations
         scanDiff = Diffractometer()
         scanDiff.setLambda(self.waveLen)
@@ -229,6 +249,61 @@ class ImageProcessor():
 
         return totIm
 
+    def processOneSet(self):
+        """Process full set of images (Qx, Qy, Qz, I)
+        modes of frames are: theta- (1), phi- (2), cartesian- (3) and hkl-frame (4)"""
+
+        print '\n%s%d: process to (Qx, Qy, Qz, I)' % (self.setName, self.setNum)
+
+        # prepare size of full dataset and get data of first scan
+        setSize  = self.settingAngles.shape[0]
+        totFirst = self.processOneImage(0)
+        imSize   = totFirst.shape[0]
+        npts     = setSize * imSize
+        totSet   = np.zeros((npts, 4))
+
+        # go through all images and get data sets
+        j = 0
+        k = imSize
+        totSet[j:k,:] = totFirst
+        for i in range(1, setSize):
+            j = j + imSize
+            k = k + imSize
+            totSet[j:k, :] = self.processOneImage(i)
+
+        return totSet
+
+    def makeGridData(self, totData):
+        """Grid the data set into a cuboid
+        Size of the cuboid: Qmin, Qmax = [Qx, Qy, Qz]_min, max
+        Number of parts   : dQN = [Nqx, Nqy, Nqz]"""
+
+        # prepare min, max,...
+        if self.Qmin == None:
+            self.Qmin = np.array([ totData[:,0].min(), totData[:,1].min(), totData[:,2].min() ])
+        if self.Qmax == None:
+            self.Qmax = np.array([ totData[:,0].max(), totData[:,1].max(), totData[:,2].max() ])
+        if self.dQN  == None:
+            self.dQN = [100, 100, 100]
+
+        # use alias for grid options
+        Qmin = self.Qmin
+        Qmax = self.Qmax
+        dQN  = self.dQN
+
+        # 3D grid of the data set 
+        gridData, gridOccu, gridOut = gridder.grid3d(totData, Qmin[0], Qmax[0], dQN[0], Qmin[1], Qmax[1], dQN[1], Qmin[2], Qmax[2], dQN[2])
+        if gridOut != 0:
+            print "Warning : There are %.2e points outside the grid (%.2e points in the grid)" % (gridOut, gridData.size - gridOut)
+        emptNb = (gridOccu == 0).sum()
+        if emptNb:
+            print "Warning : There are %.2e values zero in the grid" % emptNb
+
+        # mask the gridded data set
+        #gridData = ma.array(gridData / gridOccu, mask = (gridOccu == 0))
+    
+        return gridData, gridOccu, gridOut
+
 
 ####################################
 #
@@ -248,4 +323,6 @@ if __name__ == "__main__":
     testData.setBySpec(scan)
     testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(1)
-    print testData.processOneImage(40)
+    #print testData.processOneImage(40)
+    totSet = testData.processOneSet()
+    print testData.makeGridData(totSet)
