@@ -21,9 +21,11 @@
 #
 
 import numpy as np
-from pyspec import spec
-from pyspec.diffractometer import Diffractometer
-from pyspec.ccd.PrincetonSPE import *
+import matplotlib.pyplot as plt
+from   pyspec import spec
+from   pyspec.diffractometer import Diffractometer
+from   pyspec.ccd.PrincetonSPE import *
+from   pyspec.ccd.plotter import PlotGrid
 import gridder
 
 #
@@ -325,4 +327,10 @@ if __name__ == "__main__":
     testData.setFrameMode(1)
     #print testData.processOneImage(40)
     totSet = testData.processOneSet()
-    print testData.makeGridData(totSet)
+    testData, testOccu, testNo = testData.makeGridData(totSet)
+    testPlot = PlotGrid()
+    testPlot.setGrid(testData, testOccu)
+    testPlot.plot2DPro()
+    testPlot.plot1DPro()
+    plt.show()
+
