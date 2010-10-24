@@ -20,6 +20,7 @@
 # Part of the "pyspec" package
 #
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from   pyspec import spec
@@ -27,7 +28,47 @@ from   pyspec.diffractometer import Diffractometer
 from   pyspec.ccd.PrincetonSPE import *
 from   pyspec.ccd.plotter import PlotGrid
 import gridder
+from ConfigParser import ConfigParser
 
+class MyConfigParser(ConfigParser):
+    def readAllLocations(self, filename):
+        _f = os.path.split(filename)
+
+        if _f[0] == '':
+        
+            locations = []
+            if os.name is 'posix':
+                if os.environ.has_key('HOME'):
+                    locations.append(os.environ['HOME'] + os.path.sep + ".pyspec")
+                locations.append('/usr/local/pyspec/etc')
+                locations.append('/etc/pyspec')
+            
+            for l in locations:
+                if os.path.isfile(l):
+                    self.read(l)
+                    break
+        else:
+            self.read(l)
+            
+    def getWithDefault(self,section, option, default):
+        return Config.get(section, option, vars = { option : default })
+    def _getWithConvert(self,_conv_fcn, section, option, default):
+        try:
+            val = self.getWithDefault(section, option, default)
+        except:
+            raise Exception("Unable to read option %s from config file." % (option))
+        try:
+            val = _conv_fcn(val)
+        except:
+            raise Exception("Unable to convert option %s to correct datatype." % (option))
+        return val
+    def getFloat(self, *args, **kwargs):
+        self._getWithConvert(float, *args, **kwargs)
+    def getInt(self, *args, **kwargs):
+        self._getWithConvert(int, *args, **kwargs)
+    def getFloat(self, *args, **kwargs):
+        self._getWithConvert(float, *args, **kwargs)
+            
 #
 # global help functions
 #
@@ -79,9 +120,13 @@ class ImageProcessor():
     the set of reciprocal vectors and intensities is gridded on a regular cuboid
     the needed informations can be provided by a spec scan from the pyspec packed"""
 
-    def __init__(self):
+    def __init__(self, configfile = None, ccdname = 'CCD'):
         # set parameters to configure the CCD setup
         # detector distance 30cm and detector pixel size 20um
+
+        self.ccdName = ccdname
+        #self.readConfigFile(configfile)
+        
         self.detDis      = 300
         self.detPixSizeX = 0.020
         self.detPixSizeY = 0.020
@@ -93,11 +138,17 @@ class ImageProcessor():
         # image treatment
         self.conRoi      = None
         self.frameMode   = 1
-        self.setName     = 'Set #'
+	self.setName     = 'Set #'
         self.setNum      = 1
         # gridder options
         self.setGridOptions()
 
+
+    def readConfigFile(self, filename):
+        config = MyConfigParser()
+        config.read(filename)
+        config.get(self.ccdname, '', vars = {})
+        
     #
     # set part
     #
