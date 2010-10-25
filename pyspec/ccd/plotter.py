@@ -22,6 +22,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from   matplotlib.colors import LogNorm
 from   pyspec  import fit, fitfuncs
 
 class PlotGrid():
@@ -31,7 +32,15 @@ class PlotGrid():
     provides cuts and projections to lower the dimension"""
 
     def __init__(self):
-        self.axesLabels = ['Qx', 'Qy', 'Qz']
+        self.axesLabels = ['Qx (1/A)', 'Qy (1/A)', 'Qz (1/A)']
+        # plot flags: intensity, missing grid parts, histogram of occupation of the grid parts
+        self.plotFlag2D = 7
+        self.plotFlag1D = 7
+        self.normFlag2D = 2
+        self.normFlag1D = 2
+        self.logFlag2D  = 0
+        self.fit1D      = False
+        self.histBin    = 50
 
     #
     # set part
@@ -47,150 +56,453 @@ class PlotGrid():
         self.minBox   = np.zeros(3)
         self.maxBox   = np.array(self.gridSize)
         self.dVec     = np.ones(3)
+        self._calcVecDataSet()
+        self._calcMax()
 
     def setGridVec(self, minBox, maxBox):
         """Sets the vectors for each point of the grid by the minimum and maximum values"""
         self.minBox   = minBox
         self.maxBox   = maxBox
-        self.dVec     = (maxBox - minBox) / self.girdSize
+        self.dVec     = (maxBox - minBox) / self.gridSize
+        self._calcVecDataSet()
 
     def setAxesLabels(self, labels):
         """Set the labels for the axes"""
         self.axesLabels = labels
 
-    def plot2DPro(self):
-        """Plots the 2D projections of the data set
-        over the third dimension is summed"""
+    def setPlotFlags(self, flag2D, flag1D):
+        """Sets the ploting flags for 2D and 1D plots
+        binary code, flag & 1: intensity, flag & 2: missing grid parts,
+        flag & 4: histogram of occupation of the grid parts"""
+        self.plotFlag2D = flag2D
+        self.plotFlag1D = flag1D
+
+    def setNormFlags(self, flag2D, flag1D):
+        """Sets the normalization flags for 2D and 1D plots
+        binary code, flag & 1: intensity, flag & 2: missing grid parts,
+        flag & 4: histogram of occupation of the grid parts"""
+        self.normFlag2D = flag2D
+        self.normFlag1D = flag1D
+
+    def setLogFlags(self, flag2D):
+        """Sets whether 2D areas are plotted linear (False) of logarithmic (True)
+        binary code, flag & 1: intensity, flag & 2: missing grid parts"""
+        self.logFlag2D = flag2D
+        
+    def setFit1D(self, fit1D):
+        """Sets whether 1D lines get fitted by a Loarenzian squared"""
+        self.fit1D = fit1D
+
+    def setHistBin(self, histBin):
+        """Sets the number of bins for the histograms"""
+        self.histBin
+        
+    #
+    # help functions
+    #
+
+    def _calcVecDataSet(self):
+        """Calculats the vector data set for the grid points"""
+
+        # aliases
+        minBox = self.minBox
+        maxBox = self.maxBox
+        dVec   = self.dVec
+        
+        # vector data set of the center of each grid part
+        self.xVal = np.arange(minBox[0], maxBox[0] - dVec[0]/2, dVec[0]) + dVec[0]/2
+        self.yVal = np.arange(minBox[1], maxBox[1] - dVec[1]/2, dVec[1]) + dVec[1]/2
+        self.zVal = np.arange(minBox[2], maxBox[2] - dVec[2]/2, dVec[2]) + dVec[2]/2
+
+    def _calcMax(self):
+        """Calculates the position of the maximum as indicies"""
+        maxN = self.gridData.argmax()
+        ind2 = maxN % self.gridSize[2]
+        ind1 = maxN / self.gridSize[2] % self.gridSize[1]
+        ind0 = maxN / self.gridSize[2] / self.gridSize[1]
+        self.maxInd = np.array([ind0, ind1, ind2])
+
+    #
+    # plot functions
+    #
+    
+    def plot2DSum(self):
+        """Plots 2D Areas, over the third dimension is summed"""
 
         # aliases
         axesLabels = self.axesLabels
         intentSet  = self.gridData
         sizeBox    = self.gridSize
-        dVec       = self.dVec
         minBox     = self.minBox
         maxBox     = self.maxBox
         
-        # vector data set
-        xVal = np.arange(minBox[0], maxBox[0] - dVec[0]/2, dVec[0]) + dVec[0]/2
-        yVal = np.arange(minBox[1], maxBox[1] - dVec[1]/2, dVec[1]) + dVec[1]/2
-        zVal = np.arange(minBox[2], maxBox[2] - dVec[2]/2, dVec[2]) + dVec[2]/2
+        # figure for 2D plots        
+        fig = plt.figure()
+        fig.suptitle('2D Areas, summed in the other direction', fontsize = 24)
+        # how many horizontal plots?
+        plotHor = 0
+        if self.plotFlag2D & 1: plotHor += 1
+        if self.plotFlag2D & 2: plotHor += 1
+        if self.plotFlag2D & 4: plotHor += 1
+        plotOffSet = 0
         
-        fig1 = plt.figure()
-        plotHor = 2
+        axesInd = [[2, 1], [2, 0], [1, 0]]
+        sumInd  = [0, 1, 2]
+        # intensity
+        if self.plotFlag2D & 1:
+            plotOffSet += 1
+            for i in range(3):
+                ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                Area = intentSet.sum(sumInd[i])
+                if self.normFlag2D & 1:
+                    Area = Area / Area.max()
+                if self.logFlag2D & 1 :
+                    cax  = ax.imshow(Area, norm=LogNorm(), extent = [minBox[axesInd[i][0]], maxBox[axesInd[i][0]], minBox[axesInd[i][1]], maxBox[axesInd[i][1]]])
+                else:
+                    cax  = ax.imshow(Area, extent = [minBox[axesInd[i][0]], maxBox[axesInd[i][0]], minBox[axesInd[i][1]], maxBox[axesInd[i][1]]])
+                fig.colorbar(cax)
+                ax.set_aspect(1./ax.get_data_ratio())
+                ax.set_xlabel(axesLabels[axesInd[i][0]], fontsize = 18)
+                ax.set_ylabel(axesLabels[axesInd[i][1]], fontsize = 18)
+                if i == 0:
+                    if self.normFlag2D & 1:
+                        ax.set_title('Rel. Intensity of Data', fontsize = 20)
+                    else:
+                        ax.set_title('Intensity of Data', fontsize = 20)
         
-        # yz Area
-        ax = fig1.add_subplot(3, plotHor, 1)
-        yzArea = intentSet.sum(0)
-        cax = ax.imshow(yzArea)#, extent = [minBox[2], maxBox[2], minBox[1], maxBox[1]])
-        fig1.colorbar(cax)
-        ax.set_aspect(1./ax.get_data_ratio())
-        ax.set_xlabel('Qz', fontsize = 18)
-        ax.set_ylabel('Qy', fontsize = 18)
-        ax.set_title('Data', fontsize = 24)
-        # xz Area
-        ax = fig1.add_subplot(3, plotHor, plotHor+1)
-        xzArea = intentSet.sum(1)
-        cax = ax.imshow(xzArea)#, extent = [minBox[2], maxBox[2], minBox[0], maxBox[0]])
-        fig1.colorbar(cax)
-        ax.set_aspect(1./ax.get_data_ratio())
-        ax.set_xlabel('Qz', fontsize = 18)
-        ax.set_ylabel('Qx', fontsize = 18)
-        # xy Area
-        ax = fig1.add_subplot(3, plotHor, 2*plotHor+1)
-        xyArea = intentSet.sum(2)
-        cax = ax.imshow(xyArea)#, extent = [minBox[1], maxBox[1], minBox[0], maxBox[0]])
-        fig1.colorbar(cax)
-        ax.set_aspect(1./ax.get_data_ratio())
-        ax.set_xlabel('Qy', fontsize = 18)
-        ax.set_ylabel('Qx', fontsize = 18)
-            
-        # yz Area - masked
-        ax  = fig1.add_subplot(3, plotHor, 2)
-        cax = ax.imshow(intentSet.mask.sum(0)/float(sizeBox[0]))#, extent = [minBox[2], maxBox[2], minBox[1], maxBox[1]])
-        fig1.colorbar(cax)
-        ax.set_aspect(1./ax.get_data_ratio())
-        ax.set_xlabel('Qz', fontsize = 18)
-        ax.set_ylabel('Qy', fontsize = 18)
-        ax.set_title('Relativ No. of Missing Data', fontsize = 24)
-        # xz Area - masked
-        ax  = fig1.add_subplot(3, plotHor, plotHor+2)
-        cax = ax.imshow(intentSet.mask.sum(1)/float(sizeBox[1]))#, extent = [minBox[2], maxBox[2], minBox[0], maxBox[0]])
-        fig1.colorbar(cax)
-        ax.set_aspect(1./ax.get_data_ratio())
-        ax.set_xlabel('Qz', fontsize = 18)
-        ax.set_ylabel('Qx', fontsize = 18)
-        # xy Area - masked
-        ax  = fig1.add_subplot(3, plotHor, 2*plotHor+2)
-        cax = ax.imshow(intentSet.mask.sum(2)/float(sizeBox[2]))#, extent = [minBox[1], maxBox[1], minBox[0], maxBox[0]])
-        fig1.colorbar(cax)
-        ax.set_aspect(1./ax.get_data_ratio())
-        ax.set_xlabel('Qy', fontsize = 18)
-        ax.set_ylabel('Qx', fontsize = 18)
+        # missing grid parts, relative
+        if self.plotFlag2D & 2:
+            plotOffSet += 1
+            for i in range(3):
+                ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                Area = intentSet.mask.sum(sumInd[i])
+                if self.normFlag2D & 2:
+                    Area = Area / float(sizeBox[sumInd[i]])
+                if self.logFlag2D & 2:
+                    cax  = ax.imshow(Area, norm=LogNorm(), extent = [minBox[axesInd[i][0]], maxBox[axesInd[i][0]], minBox[axesInd[i][1]], maxBox[axesInd[i][1]]])
+                else:
+                    cax  = ax.imshow(Area, extent = [minBox[axesInd[i][0]], maxBox[axesInd[i][0]], minBox[axesInd[i][1]], maxBox[axesInd[i][1]]])
+                fig.colorbar(cax)
+                ax.set_aspect(1./ax.get_data_ratio())
+                ax.set_xlabel(axesLabels[axesInd[i][0]], fontsize = 18)
+                ax.set_ylabel(axesLabels[axesInd[i][1]], fontsize = 18)
+                if i == 0:
+                    if self.normFlag2D & 2:
+                        ax.set_title('Rel. No. of Missing Data', fontsize = 20)
+                    else:
+                        ax.set_title('No. of Missing Data', fontsize = 20)
+                    
+        # histogram for occupation numbers
+        if self.plotFlag2D & 4:
+            plotOffSet += 1
+            if self.normFlag2D & 4:
+                normHis = 1
+            else:
+                normHis = 0
+            for i in range(3):
+                ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                ax.hist(self.gridOccu.sum(sumInd[i]), self.histBin, normed=normHis, facecolor='green')
+                ax.set_xlabel('No. of Occupations', fontsize = 18)
+                ax.set_ylabel('No. of Grid Parts', fontsize = 18)
+                if i == 0:
+                    if self.normFlag2D & 4:
+                        ax.set_title('Rel. Histogram of Flattend Array', fontsize = 20)
+                    else:
+                        ax.set_title('Histogram of Flattend Array', fontsize = 20)
+                    
 
-    def plot1DPro(self):
-        """Plots the 1D projections of the data set
-        over the other two dimensions is summed"""
+    def plot1DSum(self):
+        """Plots 1D Lines over the other two dimensions is summed"""
 
         # aliases
         axesLabels = self.axesLabels
         intentSet  = self.gridData
         sizeBox    = self.gridSize
-        dVec       = self.dVec
-        minBox     = self.minBox
-        maxBox     = self.maxBox
-        
-        # vector data set
-        xVal = np.arange(minBox[0], maxBox[0] - dVec[0]/2, dVec[0]) + dVec[0]/2
-        yVal = np.arange(minBox[1], maxBox[1] - dVec[1]/2, dVec[1]) + dVec[1]/2
-        zVal = np.arange(minBox[2], maxBox[2] - dVec[2]/2, dVec[2]) + dVec[2]/2
-        
-        fig2 = plt.figure()
-        plotHor = 2
+        xVal       = self.xVal
+        yVal       = self.yVal
+        zVal       = self.zVal
+        valSet     = (xVal, yVal, zVal)
 
+        # figure for 1D plots        
+        fig = plt.figure()
+        fig.suptitle('1D Lines, summed in all other directions', fontsize = 24)
+        # how many horizontal plots?
+        plotHor = 0
+        if self.plotFlag1D & 1: plotHor += 1
+        if self.plotFlag1D & 2: plotHor += 1
+        if self.plotFlag1D & 4: plotHor += 1
+        plotOffSet = 0
+        
         peakArea  = np.zeros(3)
         peakWidth = np.zeros(3)
-        # x Line
-        ax = fig2.add_subplot(3, plotHor, 1)
-        ax.plot(xVal, intentSet.sum(1).sum(1), '-bo')
-        ax.set_xlabel('Qx', fontsize = 18)
-        ax.set_ylabel('Intensity', fontsize = 18)
-        ax.set_title('Data', fontsize = 24)
-        #f = fit.fitdata(funcs=[fitfuncs.linear, fitfuncs.lor2a])
-        #peakWidth[0] = f.result[3]
-        #peakArea[0]  = f.result[4]
-        # y Line
-        ax = fig2.add_subplot(3, plotHor, plotHor+1)
-        ax.plot(yVal, intentSet.sum(0).sum(1), '-bo')
-        ax.set_xlabel('Qy', fontsize = 18)
-        ax.set_ylabel('Intensity', fontsize = 18)
-        #f = fit.fitdata(funcs=[fitfuncs.linear, fitfuncs.lor2a])
-        #peakWidth[1] = f.result[3]
-        #peakArea[1]  = f.result[4]
-        # z Line
-        ax = fig2.add_subplot(3, plotHor, 2*plotHor+1)
-        ax.plot(zVal, intentSet.sum(0).sum(0), '-bo')
-        ax.set_xlabel('Qz', fontsize = 18)
-        ax.set_ylabel('Intensity', fontsize = 18)
-        #f = fit.fitdata(funcs=[fitfuncs.linear, fitfuncs.lor2a])
-        #peakWidth[2] = f.result[3]
-        #peakArea[2]  = f.result[4]
 
-        # x Line - masked
-        ax = fig2.add_subplot(3, plotHor, 2)
-        ax.plot(xVal, intentSet.mask.sum(1).sum(1)/float(sizeBox[1])/sizeBox[2], '-bo')
-        ax.set_xlabel('Qx', fontsize = 18)
-        ax.set_ylabel('Masked', fontsize = 18)
-        ax.set_title('Relativ No. of Missing Data', fontsize = 24)
-        # y Line - masked
-        ax = fig2.add_subplot(3, plotHor, plotHor+2)
-        ax.plot(yVal, intentSet.mask.sum(0).sum(1)/float(sizeBox[0])/sizeBox[2], '-bo')
-        ax.set_xlabel('Qy', fontsize = 18)
-        ax.set_ylabel('Masked', fontsize = 18)
-        # z Line - masked
-        ax = fig2.add_subplot(3, plotHor, 2*plotHor+2)
-        ax.plot(zVal, intentSet.mask.sum(0).sum(0)/float(sizeBox[0])/sizeBox[1], '-bo')
-        ax.set_xlabel('Qz', fontsize = 18)
-        ax.set_ylabel('Masked', fontsize = 18)
+        axesInd = [0, 1, 2]
+        sumInd  = [[1, 1], [0, 1], [0, 0]]
+
+        # intensity
+        if self.plotFlag1D & 1:
+            plotOffSet += 1
+            for i in range(3):
+                ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                intentVal = intentSet.sum(sumInd[i][0]).sum(sumInd[i][1])
+                if self.normFlag1D & 1:
+                    intentVal = intentVal / intentVal.max()
+                ax.plot(valSet[i], intentVal, '-bo')
+                ax.set_xlabel(axesLabels[i], fontsize = 18)
+                ax.set_ylabel('Intensity', fontsize = 18)
+                if i == 0:
+                    if self.normFlag1D & 1:
+                        ax.set_title('Rel. Intensity of Data', fontsize = 20)
+                    else:
+                        ax.set_title('Intensity of Data', fontsize = 20)
+                if self.fit1D == True:
+                    f = fit.fitdata(funcs=[fitfuncs.linear, fitfuncs.lor2a])
+                    peakWidth[i] = f.result[3]
+                    peakArea[i]  = f.result[4]
+       
+        # missing grid parts, relative
+        if self.plotFlag1D & 2:
+            plotOffSet += 1
+            for i in range(3):
+                ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                maskVal = intentSet.mask.sum(sumInd[i][0]).sum(sumInd[i][1])
+                if self.normFlag1D & 2:
+                    maskVal = maskVal / float(sizeBox[sumInd[i][0]])/sizeBox[sumInd[i][1]+1]
+                ax.plot(valSet[i], maskVal, '-bo')
+                ax.set_xlabel(axesLabels[i], fontsize = 18)
+                ax.set_ylabel('Masked', fontsize = 18)
+                if i == 0:
+                    if self.normFlag1D & 2:
+                        ax.set_title('Rel. No. of Missing Data', fontsize = 20)
+                    else:
+                        ax.set_title('No. of Missing Data', fontsize = 20)
+
+        # histogram for occupation numbers
+        if self.plotFlag1D & 4:
+            plotOffSet += 1
+            if self.normFlag1D & 4:
+                normHis = 1
+            else:
+                normHis = 0
+            for i in range(3):
+                ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                ax.hist(self.gridOccu.sum(sumInd[i][0]).sum(sumInd[i][1]), self.histBin, normed=normHis, facecolor='green')
+                ax.set_xlabel('No. of Occupations', fontsize = 18)
+                ax.set_ylabel('No. of Grid Parts', fontsize = 18)
+                if i == 0:
+                    if self.normFlag1D & 4:
+                        ax.set_title('Rel. Histogram', fontsize = 20)
+                    else:
+                        ax.set_title('Histogram', fontsize = 20)
+
+    def plot2DCut(self):
+        """Plots 2D Areas, cuts at maximum intensity"""
+
+        # aliases
+        axesLabels = self.axesLabels
+        intentSet  = self.gridData
+        sizeBox    = self.gridSize
+        minBox     = self.minBox
+        maxBox     = self.maxBox
+        maxInd     = self.maxInd
+        
+        # figure for 2D plots        
+        fig = plt.figure()
+        fig.suptitle('2D Areas, cuts at maximum intensity', fontsize = 24)
+        # how many horizontal plots?
+        plotHor = 0
+        if self.plotFlag2D & 1: plotHor += 1
+        if self.plotFlag2D & 2: plotHor += 1
+        if self.plotFlag2D & 4: plotHor += 1
+        plotOffSet = 0
+        
+        axesInd = [[2, 1], [2, 0], [1, 0]]
+        # intensity
+        if self.plotFlag2D & 1:
+            plotOffSet += 1
+            for i in range(3):
+                ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                if i == 0:
+                    Area = intentSet[maxInd[0],:,:]
+                elif i == 1:
+                    Area = intentSet[:,maxInd[1],:]
+                else:
+                    Area = intentSet[:,:,maxInd[2]]
+                if self.normFlag2D & 1:
+                    Area = Area / Area.max()
+                if self.logFlag2D & 1 :
+                    cax  = ax.imshow(Area, norm=LogNorm(), extent = [minBox[axesInd[i][0]], maxBox[axesInd[i][0]], minBox[axesInd[i][1]], maxBox[axesInd[i][1]]])
+                else:
+                    cax  = ax.imshow(Area, extent = [minBox[axesInd[i][0]], maxBox[axesInd[i][0]], minBox[axesInd[i][1]], maxBox[axesInd[i][1]]])
+                fig.colorbar(cax)
+                ax.set_aspect(1./ax.get_data_ratio())
+                ax.set_xlabel(axesLabels[axesInd[i][0]], fontsize = 18)
+                ax.set_ylabel(axesLabels[axesInd[i][1]], fontsize = 18)
+                if i == 0:
+                    if self.normFlag2D & 1:
+                        ax.set_title('Rel. Intensity of Data', fontsize = 20)
+                    else:
+                        ax.set_title('Intensity of Data', fontsize = 20)
+        
+        # missing grid parts, relative
+        if self.plotFlag2D & 2:
+            plotOffSet += 1
+            for i in range(3):
+                ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                if i == 0:
+                    Area = intentSet.mask[maxInd[0],:,:]
+                elif i == 1:
+                    Area = intentSet.mask[:,maxInd[1],:]
+                else:
+                    Area = intentSet.mask[:,:,maxInd[2]]
+                if self.normFlag2D & 2:
+                    Area = Area / Area.max()
+                if self.logFlag2D & 2:
+                    cax  = ax.imshow(Area, norm=LogNorm(), extent = [minBox[axesInd[i][0]], maxBox[axesInd[i][0]], minBox[axesInd[i][1]], maxBox[axesInd[i][1]]])
+                else:
+                    cax  = ax.imshow(Area, extent = [minBox[axesInd[i][0]], maxBox[axesInd[i][0]], minBox[axesInd[i][1]], maxBox[axesInd[i][1]]])
+                fig.colorbar(cax)
+                ax.set_aspect(1./ax.get_data_ratio())
+                ax.set_xlabel(axesLabels[axesInd[i][0]], fontsize = 18)
+                ax.set_ylabel(axesLabels[axesInd[i][1]], fontsize = 18)
+                if i == 0:
+                    if self.normFlag2D & 2:
+                        ax.set_title('Rel. No. of Missing Data', fontsize = 20)
+                    else:
+                        ax.set_title('No. of Missing Data', fontsize = 20)
+                    
+        # histogram for occupation numbers
+        if self.plotFlag2D & 4:
+            plotOffSet += 1
+            if self.normFlag2D & 4:
+                normHis = 1
+            else:
+                normHis = 0
+            for i in range(3):
+                ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                if i == 0:
+                    hisData = self.gridOccu[maxInd[0],:,:]
+                elif i == 1:
+                    hsiData = self.gridOccu[:,maxInd[1],:]
+                else:
+                    hisData = self.gridOccu[:,:,maxInd[2]]
+                ax.hist(hisData, self.histBin, normed=normHis, facecolor='green')
+                ax.set_xlabel('No. of Occupations', fontsize = 18)
+                ax.set_ylabel('No. of Grid Parts', fontsize = 18)
+                if i == 0:
+                    if self.normFlag2D & 4:
+                        ax.set_title('Rel. Histogram of Flattend Array', fontsize = 20)
+                    else:
+                        ax.set_title('Histogram of Flattend Array', fontsize = 20)
+                    
+
+    def plot1DCut(self):
+        """Plots 1D Lines, cut at position of maximum intensity"""
+
+        # aliases
+        axesLabels = self.axesLabels
+        intentSet  = self.gridData
+        sizeBox    = self.gridSize
+        xVal       = self.xVal
+        yVal       = self.yVal
+        zVal       = self.zVal
+        valSet     = (xVal, yVal, zVal)
+        maxInd     = self.maxInd
+
+        # figure for 1D plots        
+        fig = plt.figure()
+        fig.suptitle('1D Lines, cut at position of maximum intensity', fontsize = 24)
+        # how many horizontal plots?
+        plotHor = 0
+        if self.plotFlag1D & 1: plotHor += 1
+        if self.plotFlag1D & 2: plotHor += 1
+        if self.plotFlag1D & 4: plotHor += 1
+        plotOffSet = 0
+        
+        peakArea  = np.zeros(3)
+        peakWidth = np.zeros(3)
+
+        axesInd = [0, 1, 2]
+
+        # intensity
+        if self.plotFlag1D & 1:
+            plotOffSet += 1
+            for i in range(3):
+                ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                if i == 0:
+                    intentVal = intentSet[:,maxInd[1],maxInd[2]]
+                elif i == 1:
+                    intentVal = intentSet[maxInd[0],:,maxInd[2]]
+                else:
+                    intentVal = intentSet[maxInd[0],maxInd[1],:]
+                if self.normFlag1D & 1:
+                    intentVal = intentVal / intentVal.max()
+                ax.plot(valSet[i], intentVal, '-bo')
+                ax.set_xlabel(axesLabels[i], fontsize = 18)
+                ax.set_ylabel('Intensity', fontsize = 18)
+                if i == 0:
+                    if self.normFlag1D & 1:
+                        ax.set_title('Rel. Intensity of Data', fontsize = 20)
+                    else:
+                        ax.set_title('Intensity of Data', fontsize = 20)
+                if self.fit1D == True:
+                    f = fit.fitdata(funcs=[fitfuncs.linear, fitfuncs.lor2a])
+                    peakWidth[i] = f.result[3]
+                    peakArea[i]  = f.result[4]
+       
+        # missing grid parts, relative
+        if self.plotFlag1D & 2:
+            plotOffSet += 1
+            for i in range(3):
+                ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                if i == 0:
+                    maskVal = intentSet.mask[:,maxInd[1],maxInd[2]]
+                elif i == 1:
+                    maskVal = intentSet.mask[maxInd[0],:,maxInd[2]]
+                else:
+                    maskVal = intentSet.mask[maxInd[0],maxInd[1],:]
+                if self.normFlag1D & 2:
+                    maskVal = maskVal / maskVal.max()
+                ax.plot(valSet[i], maskVal, '-bo')
+                ax.set_xlabel(axesLabels[i], fontsize = 18)
+                ax.set_ylabel('Masked', fontsize = 18)
+                if i == 0:
+                    if self.normFlag1D & 2:
+                        ax.set_title('Rel. No. of Missing Data', fontsize = 20)
+                    else:
+                        ax.set_title('No. of Missing Data', fontsize = 20)
+
+        # histogram for occupation numbers
+        if self.plotFlag1D & 4:
+            plotOffSet += 1
+            if self.normFlag1D & 4:
+                normHis = 1
+            else:
+                normHis = 0
+            for i in range(3):
+                ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+                if i == 0:
+                    hisData = self.gridOccu[:,maxInd[1],maxInd[2]]
+                elif i == 1:
+                    hisData = self.gridOccu[maxInd[0],:,maxInd[2]]
+                else:
+                    hisData = self.gridOccu[maxInd[0],maxInd[1],:]
+                ax.hist(hisData, self.histBin, normed=normHis, facecolor='green')
+                ax.set_xlabel('No. of Occupations', fontsize = 18)
+                ax.set_ylabel('No. of Grid Parts', fontsize = 18)
+                if i == 0:
+                    if self.normFlag1D & 4:
+                        ax.set_title('Rel. Histogram', fontsize = 20)
+                    else:
+                        ax.set_title('Histogram', fontsize = 20)
+
+    def plotAll(self):
+        """Plots 2D/1D intensities, masked parts, and histograms of sums, and cuts"""
+        self.setPlotFlags(7,7)
+        self.plot2DSum()
+        self.plot1DSum()
+        self.plot2DCut()
+        self.plot1DCut()
 
 ####################################
 #
@@ -205,6 +517,12 @@ if __name__ == "__main__":
     testOccu = np.array([[np.zeros(3),[2,5,7]],[[0,4,2],[7,0,8]]])
     testPlot = PlotGrid()
     testPlot.setGrid(testData, testOccu)
-    testPlot.plot2DPro()
-    testPlot.plot1DPro()
+    #testPlot.setPlotFlags(7, 7)
+    testPlot.setNormFlags(2, 2)
+    testPlot.setLogFlags(0)
+    #testPlot.plot2DSum()
+    #testPlot.plot1DSum()
+    #testPlot.plot2DCut()
+    testPlot.plot1DCut()
+    #testPlot.plotAll()
     plt.show()
