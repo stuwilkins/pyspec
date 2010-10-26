@@ -28,8 +28,9 @@ from   pyspec  import fit, fitfuncs
 class PlotGrid():
     """Plot Grid Class
 
-    This class plots a given 1D/2D/3D grid
-    provides cuts and projections to lower the dimension"""
+    This class plots: 
+    intensity, occupation of the grid parts (bins), histogram of the occupation
+    of a given 2D or 1D grid"""
 
     def __init__(self):
         # plot flags: intensity, missing grid parts, histogram of occupation of the grid parts
@@ -37,7 +38,6 @@ class PlotGrid():
         self.plotFlag1D = 7
         self.logFlag1D  = 0
         self.logFlag2D  = 0
-        self.fit1D      = False
         self.histBin    = 50
 
     #
@@ -87,10 +87,6 @@ class PlotGrid():
         self.logFlag1D = flag1D
         self.logFlag2D = flag2D
         
-    def setFit1D(self, fit1D = 0):
-        """Sets whether 1D lines get fitted by a Loarenzian squared"""
-        self.fit1D = fit1D
-
     def setHistBin(self, histBin = 50):
         """Sets the number of bins for the histograms"""
         self.histBin
@@ -119,9 +115,6 @@ class PlotGrid():
         if self.plotFlag1D & 4: plotHor += 1
         plotOffSet = 0
         
-        peakArea  = np.zeros(3)
-        peakWidth = np.zeros(3)
-
         # intensity
         if self.plotFlag1D & 1:
             plotOffSet += 1
@@ -132,10 +125,6 @@ class PlotGrid():
                 ax.set_ylabel('Intensity', fontsize = 18)
                 if i == 0:
                     ax.set_title('Intensity of Data', fontsize = 20)
-                if self.fit1D == True:
-                    f = fit.fitdata(funcs=[fitfuncs.linear, fitfuncs.lor2a])
-                    peakWidth[i] = f.result[3]
-                    peakArea[i]  = f.result[4]
                 allax.append(ax)
        
         # occupation of the grid parts (bins)
@@ -199,8 +188,8 @@ class PlotGrid():
                     cax  = ax.imshow(intentArea[i], extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
                 fig.colorbar(cax)
                 ax.set_aspect(1./ax.get_data_ratio())
-                ax.set_xlabel(labelsAx0[i], fontsize = 18)
-                ax.set_ylabel(labelsAx1[i], fontsize = 18)
+                ax.set_xlabel(labelsAx1[i], fontsize = 18)
+                ax.set_ylabel(labelsAx0[i], fontsize = 18)
                 if i == 0:
                     ax.set_title('Intensity of Data', fontsize = 20)
                 allax.append(ax)
@@ -216,8 +205,8 @@ class PlotGrid():
                     cax  = ax.imshow(occuArea[i], extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
                 fig.colorbar(cax)
                 ax.set_aspect(1./ax.get_data_ratio())
-                ax.set_xlabel(labelsAx0[i], fontsize = 18)
-                ax.set_ylabel(labelsAx1[i], fontsize = 18)
+                ax.set_xlabel(labelsAx1[i], fontsize = 18)
+                ax.set_ylabel(labelsAx0[i], fontsize = 18)
                 if i == 0:
                     ax.set_title('Occupation of the Bins', fontsize = 20)
                 allax.append(ax)
@@ -227,8 +216,6 @@ class PlotGrid():
             plotOffSet += 1
             for i in range(3):
                 ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
-                #H, xedges, yedges = np.histogram2d(occuArea[i], bins = (self.histBin, self.histBin))
-                #ax.imshow(H, extend = [yedges[0], yedges[-0], xedges[0], xedges[-0]])
                 ax.hist(np.ravel(occuArea[i]), self.histBin, facecolor='green')
                 ax.set_xlabel('No. of Occupations', fontsize = 18)
                 ax.set_ylabel('No. of Grid Parts', fontsize = 18)
@@ -255,7 +242,7 @@ if __name__ == "__main__":
     testPlot.setLogFlags(0, 3)
     # axes configuration
     testPlot.setPlot1DAxes([range(2), range(2), range(3)], ['X', 'Y', 'Z'])
-    testPlot.setPlot2DAxes([0, 0, 0], [1, 1, 1], [0, 0, 0], [2, 2, 1], ['Y', 'X', 'X'], ['Z', 'Z', 'Y'])
+    testPlot.setPlot2DAxes([0, 0, 0], [2, 2, 1], [0, 0, 0], [1, 1, 1], ['Y', 'X', 'X'], ['Z', 'Z', 'Y'])
     # data for sums
     testPlot.setPlot1DData([testData.sum(1).sum(1), testData.sum(0).sum(1), testData.sum(0).sum(0)],
                            [testOccu.sum(1).sum(1), testOccu.sum(0).sum(1), testOccu.sum(0).sum(0)],

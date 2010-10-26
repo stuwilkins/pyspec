@@ -150,6 +150,7 @@ class ImageProcessor():
         self.logFlag1D  = 0
         self.logFlag2D  = 0
         self.fit1D      = False
+        self.fitType    = 'lor2a'
         self.histBin    = 50
 
 
@@ -182,6 +183,7 @@ class ImageProcessor():
         self.intentNorm    = conScan.Ring
         self.setName       = 'Scan #'
         self.setNum        = conScan.scan
+        self.setSize       = self.settingAngles.shape[0]
    
     def setConRoi(self, conRoi):
         """Sets the considered region of interest [xMin, xStep, yMin, yStep]"""
@@ -221,13 +223,23 @@ class ImageProcessor():
         self.logFlag1D = flag1D
         self.logFlag2D = flag2D
         
-    def setFit1D(self, fit1D = 0):
+    def setFit1D(self, fit1D = 0, fitType = 'lor2a'):
         """Sets whether 1D lines get fitted by a Loarenzian squared"""
-        self.fit1D = fit1D
+        self.fit1D   = fit1D
+        self.fitType = fitType
 
     def setHistBin(self, histBin = 50):
         """Sets the number of bins for the histograms"""
         self.histBin
+
+    def setPlotIm(self, plotImSelect = None, plotImHor = 4, plotImVer = 3):
+        """Sets the options for ploting the raw images"""
+        if plotImSelect == None:
+            self.plotImSelect = range(self.setSize)
+        else:
+            self.plotImSelect = plotImSelect
+        self.plotImHor    = plotImHor
+        self.plotImVer    = plotImVer
         
     #
     # help function part
@@ -407,7 +419,7 @@ class ImageProcessor():
         print '\n%s%d: process to (Qx, Qy, Qz, I)' % (self.setName, self.setNum)
 
         # prepare size of full dataset and get data of first scan
-        setSize  = self.settingAngles.shape[0]
+        setSize  = self.setSize
         totFirst = self.processOneImage(0)
         imSize   = totFirst.shape[0]
         npts     = setSize * imSize
@@ -452,16 +464,16 @@ class ImageProcessor():
 
         # mask the gridded data set
         gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
-
-        # calculated the corresponding vectors and maximum intensity position of the grid
-        self._calcVecDataSet()
-        self._calcMax()
-
+      
         # store intensity, occupation and no. of outside data points of the grid
         self.gridData = gridData
         self.gridOccu = gridOccu
         self.gridOut  = gridOut
 
+        # calculated the corresponding vectors and maximum intensity position of the grid
+        self._calcVecDataSet()
+        self._calcMax()
+        
     #
     # plot part
     #
@@ -517,6 +529,13 @@ class ImageProcessor():
         # plot, get figure and axes back
         fig1, allax1 = gridPlot.plot1DData()
 
+        # fit the 1D intensities
+        if self.fit1D == True:
+            for i in range(gridData1DCut.shape(0)):
+                f = fit.fit(x = self.qVal[i], y = gridData1DCut[i], func = [fitfuncs.linear, getatr(fitfuncs, self.fitType)])
+                f.go()
+                res = f.result
+
     def plotGrid2DCut(self):
         """Plots the 2D Areas of the data grid summed over the other dimension"""
 
@@ -535,6 +554,44 @@ class ImageProcessor():
                                plotTitle = '2D Area Cuts at Maximum Position')
         # plot, get figure and axes back
         fig2, allax2 = gridPlot.plot2DData()
+
+    def plotImages(self):
+        """Plots the selcted images"""
+        
+        # prepare plots
+        plotImNum = self.plotImHor * self.plotImVer
+        j = 0
+        allfig = []
+        allax  = []
+        plotImTitle  = '%s%s' % (self.setName, self.setNum)
+        plotImExtent = [self.conRoi[0], self.conRoi[0] + self.conRoi[1],
+                        self.conRoi[2], self.conRoi[2] + self.conRoi[3]]
+
+        # go through images numbers which should be plotted
+        for i in self.plotImSelect:
+
+            # label for y-axis
+            yLabel = 'image # %d' % (i)
+
+            if j%plotImNum == 0:
+                # prepare plot window
+                fig = plt.figure()
+                fig.suptitle(plotImTitle, fontsize = 24)
+                allfig.append(fig)
+
+            # new subplot
+            ax = plt.subplot(self.plotImVer, self.plotImHor, j%plotImNum+1)
+            plt.subplots_adjust(hspace = 0.4)
+            allax.append(ax)
+            ax.imshow(self._readImage(i), extent = plotImExtent)
+
+            # show the image with number as y-label    
+            ax.set_ylabel(yLabel, fontsize = 18)
+                     
+            # increment the plot image counter
+            j += 1
+
+        return allfig, allax
 
     def plotAll(self):
         """Plots 1D/2D sums and cuts"""
@@ -566,7 +623,7 @@ if __name__ == "__main__":
     totSet = testData.processOneSet()
     testData.makeGridData(totSet)
     # plot options
-    testData.setAxesLabels(['Qx', 'Qy', 'Qz'])
+    testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
     testData.setPlotFlags(7, 7)
     testData.setLogFlags(0, 3)
     testData.setFit1D(False)
@@ -576,5 +633,8 @@ if __name__ == "__main__":
     #testData.plotGrid1DCut()
     #testData.plotGrid2DCut()
     testData.plotAll()
+
+    #testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
+    #testData.plotImages()
     plt.show()
 
