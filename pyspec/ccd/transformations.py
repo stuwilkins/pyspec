@@ -77,6 +77,7 @@ def getAreaSet(image, roi):
 
     """
     selects a region of interest (ROI) from a CCD image
+    
     image : array of the image values in the full window ( [   1, 325,   1, 335 ] )
     roi   : region of interest [xmin, dx, ymin, dy], e.g. [137, 51, 142, 51] for center
 
@@ -118,7 +119,7 @@ class ImageProcessor():
     This class provides the processing of single and sets of CCD-images
     in more detail: each pixel is transformed into reciprocal space
     the set of reciprocal vectors and intensities is gridded on a regular cuboid
-    the needed informations can be provided by a spec scan from the pyspec packed"""
+    the needed informations can be provided by a spec scan from the pyspec package"""
 
     def __init__(self, configfile = None, ccdname = 'CCD'):
         # set parameters to configure the CCD setup
@@ -127,9 +128,9 @@ class ImageProcessor():
         self.ccdName = ccdname
         #self.readConfigFile(configfile)
         
-        self.detDis      = 300
-        self.detPixSizeX = 0.020
-        self.detPixSizeY = 0.020
+        self.detDis      = 300    # in mm
+        self.detPixSizeX = 0.020  # in mm
+        self.detPixSizeY = 0.020  # in mm
         # detector size in pixel
         self.detSizeX    = 1300
         self.detSizeY    = 1340
@@ -142,6 +143,14 @@ class ImageProcessor():
         self.setNum      = 1
         # gridder options
         self.setGridOptions()
+        # plot options
+        self.axesLabels  = ['Qx', 'Qy', 'Qz']
+        self.plotFlag2D = 7
+        self.plotFlag1D = 7
+        self.logFlag1D  = 0
+        self.logFlag2D  = 0
+        self.fit1D      = False
+        self.histBin    = 50
 
 
     def readConfigFile(self, filename):
@@ -156,7 +165,7 @@ class ImageProcessor():
     def setBins(self, binX, binY):
         """Takes binning into acount"""
         self.detPixSizeX *= binX
-        self.detPixSizeX *= binY
+        self.detPixSizeY *= binY
         self.detSizeX    /= binX
         self.detSizeY    /= binY
         self.detX0       /= binX
@@ -190,7 +199,36 @@ class ImageProcessor():
         self.Qmin = Qmin
         self.Qmax = Qmax
         self.dQN  = dQN
-    
+
+    #
+    # plot settings
+    #
+
+    def setAxesLabels(self, axesLabels):
+        """Sets the plotting labels for the axes"""
+        self.axesLabels = axesLabels
+
+    def setPlotFlags(self, flag2D = 7, flag1D = 7):
+        """Sets the ploting flags for 2D and 1D plots
+        binary code, flag & 1: intensity, flag & 2: missing grid parts,
+        flag & 4: histogram of occupation of the grid parts"""
+        self.plotFlag2D = flag2D
+        self.plotFlag1D = flag1D
+
+    def setLogFlags(self, flag1D = 0, flag2D = 0):
+        """Sets whether data are plotted on linear (False) or logarithmic (True) scale
+        binary code, flag & 1: intensity, flag & 2: missing grid parts"""
+        self.logFlag1D = flag1D
+        self.logFlag2D = flag2D
+        
+    def setFit1D(self, fit1D = 0):
+        """Sets whether 1D lines get fitted by a Loarenzian squared"""
+        self.fit1D = fit1D
+
+    def setHistBin(self, histBin = 50):
+        """Sets the number of bins for the histograms"""
+        self.histBin
+        
     #
     # help function part
     #
@@ -198,8 +236,9 @@ class ImageProcessor():
     def _readImage(self, imNum):
         """Read in the considered region of interest of the image
         dark image subtraction and normalization by ring current"""
-        
-        print '%s%d image #%03d: read image' % (self.setName, self.setNum, imNum)
+
+        if imNum % 10 == 0:
+            print '%s%d image #%03d: read image' % (self.setName, self.setNum, imNum)
 
         # get dark image (first CCD image)
         darkMon  = self.intentNorm[0]
@@ -224,9 +263,9 @@ class ImageProcessor():
     def _XY2delgam(self, del0, gam0):
 
         """
-        calculate (delta, gamma) from (x, y), flattend arrays are used
+        calculate (delta, gamma) in deg from (x, y), flattend arrays are used
         x, y       : given (x, y)coordinates on CCD
-        del0, gam0 : given (delta, gamma) of point0, e.g. center
+        del0, gam0 : given (delta, gamma) in deg of point0, e.g. center
         x0, y0     : given (x, y) of point0, e.g. center
         """
 
@@ -250,7 +289,68 @@ class ImageProcessor():
     
         return delta, gamma
 
+    def _calcVecDataSet(self):
+        """Calculats the vector data set for the grid points"""
+
+        # aliases
+        minBox = self.Qmin
+        maxBox = self.Qmax
+        dVec   = (maxBox - minBox) / self.dQN
         
+        # vector data set of the center of each grid part
+        qxVal = np.arange(minBox[0], maxBox[0] - dVec[0]/2, dVec[0]) + dVec[0]/2
+        qyVal = np.arange(minBox[1], maxBox[1] - dVec[1]/2, dVec[1]) + dVec[1]/2
+        qzVal = np.arange(minBox[2], maxBox[2] - dVec[2]/2, dVec[2]) + dVec[2]/2
+        self.qVal = [qxVal, qyVal, qzVal]
+
+    def _calcMax(self):
+        """Calculates the position of the maximum as indicies"""
+        maxN = self.gridData.argmax()
+        ind2 = maxN % self.dQN[2]
+        ind1 = maxN / self.dQN[2] % self.dQN[1]
+        ind0 = maxN / self.dQN[2] / self.dQN[1]
+        self.maxInd = np.array([ind0, ind1, ind2])
+
+    def _make1DSum(self):
+        """1D Lines of the grid data and occupations by summing in the other directions"""
+        gridData1DSum = [self.gridData.sum(1).sum(1),
+                         self.gridData.sum(0).sum(1),
+                         self.gridData.sum(0).sum(0)]
+        gridOccu1DSum = [self.gridOccu.sum(1).sum(1),
+                         self.gridOccu.sum(0).sum(1),
+                         self.gridOccu.sum(0).sum(0)]
+
+        return gridData1DSum, gridOccu1DSum
+
+    def _make2DSum(self):
+        """2D Areas of the grid data and occupations by summing in the other direction"""
+        gridData2DSum = [self.gridData.sum(0), self.gridData.sum(1), self.gridData.sum(2)]
+        gridOccu2DSum = [self.gridOccu.sum(0), self.gridOccu.sum(1), self.gridOccu.sum(2)]
+
+        return gridData2DSum, gridOccu2DSum
+    
+    def _make1DCut(self):
+        """1D Lines of the grid data and occupations at the position of the maximum intensity"""
+        gridData1DCut = [self.gridData[:,self.maxInd[1],self.maxInd[2]],
+                         self.gridData[self.maxInd[0],:,self.maxInd[2]],
+                         self.gridData[self.maxInd[0],self.maxInd[1],:]]
+        gridOccu1DCut = [self.gridOccu[:,self.maxInd[1],self.maxInd[2]],
+                         self.gridOccu[self.maxInd[0],:,self.maxInd[2]],
+                         self.gridOccu[self.maxInd[0],self.maxInd[1],:]]
+
+        return gridData1DCut, gridOccu1DCut
+    
+    def _make2DCut(self):
+        """2D Areas of the grid data and occupations at the position of the maximum intensity"""
+        gridData2DCut = [self.gridData[self.maxInd[0],:,:],
+                         self.gridData[:,self.maxInd[1],:],
+                         self.gridData[:,:,self.maxInd[2]]]
+        gridOccu2DCut = [self.gridOccu[self.maxInd[0],:,:],
+                         self.gridOccu[:,self.maxInd[1],:],
+                         self.gridOccu[:,:,self.maxInd[2]]]
+
+        return gridData2DCut, gridOccu2DCut
+    
     #
     # process part
     #
@@ -274,9 +374,7 @@ class ImageProcessor():
 
         # (delta, gamma)-values at each pixel
         delPix, gamPix = self._XY2delgam(delta, gamma)        
-
-        print '%s%d image #%03d: get (Qx, Qy, Qz)' % (self.setName, self.setNum, imNum)
-        
+  
         # diffractometer for angle to q calculations
         scanDiff = Diffractometer()
         scanDiff.setLambda(self.waveLen)
@@ -353,11 +451,98 @@ class ImageProcessor():
             print "Warning : There are %.2e values zero in the grid" % emptNb
 
         # mask the gridded data set
-        #gridData = ma.array(gridData / gridOccu, mask = (gridOccu == 0))
-    
-        return gridData, gridOccu, gridOut
+        gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
 
+        # calculated the corresponding vectors and maximum intensity position of the grid
+        self._calcVecDataSet()
+        self._calcMax()
 
+        # store intensity, occupation and no. of outside data points of the grid
+        self.gridData = gridData
+        self.gridOccu = gridOccu
+        self.gridOut  = gridOut
+
+    #
+    # plot part
+    #
+
+    def plotGrid1DSum(self):
+        """Plots the 1D Lines of the data grid summed over the other dimensions"""
+
+        gridPlot = PlotGrid()
+        # flag options and no. of bins for histogram
+        gridPlot.setPlotFlags(flag1D = 7)
+        gridPlot.setLogFlags(flag1D = 0)
+        gridPlot.setHistBin(20)
+        # axes and data configuration
+        gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
+        gridData1DSum, gridOccu1DSum = self._make1DSum()
+        gridPlot.setPlot1DData(gridData1DSum, gridOccu1DSum,
+                               plotTitle = '1D Lines, over other directions is summed')
+        # plot, get figure and axes back
+        fig1, allax1 = gridPlot.plot1DData()
+
+    def plotGrid2DSum(self):
+        """Plots the 2D Areas of the data grid summed over the other dimension"""
+
+        gridPlot = PlotGrid()
+        # flag options and no. of bins for histogram
+        gridPlot.setPlotFlags(flag2D = 7)
+        gridPlot.setLogFlags(flag2D = 0)
+        gridPlot.setHistBin(20)
+        # axes and data configuration
+        gridPlot.setPlot2DAxes([self.Qmin[2], self.Qmin[2], self.Qmin[1]], [self.Qmax[2], self.Qmax[2], self.Qmax[1]],
+                               [self.Qmin[1], self.Qmin[0], self.Qmin[0]], [self.Qmax[1], self.Qmax[0], self.Qmax[0]],
+                               [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
+                               [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
+        gridData2DSum, gridOccu2DSum = self._make2DSum()
+        gridPlot.setPlot2DData(gridData2DSum, gridOccu2DSum,
+                               plotTitle = '2D Areas, over other direction is summed')
+        # plot, get figure and axes back
+        fig2, allax2 = gridPlot.plot2DData()
+
+    def plotGrid1DCut(self):
+        """Plots the 1D Lines of the data grid summed over the other dimensions"""
+
+        gridPlot = PlotGrid()
+        # flag options and no. of bins for histogram
+        gridPlot.setPlotFlags(flag1D = 7)
+        gridPlot.setLogFlags(flag1D = 0)
+        gridPlot.setHistBin(20)
+        # axes and data configuration
+        gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
+        gridData1DCut, gridOccu1DCut = self._make1DCut()
+        gridPlot.setPlot1DData(gridData1DCut, gridOccu1DCut,
+                               plotTitle = '1D Line Cuts at Maximum Position')
+        # plot, get figure and axes back
+        fig1, allax1 = gridPlot.plot1DData()
+
+    def plotGrid2DCut(self):
+        """Plots the 2D Areas of the data grid summed over the other dimension"""
+
+        gridPlot = PlotGrid()
+        # flag options and no. of bins for histogram
+        gridPlot.setPlotFlags(flag2D = 7)
+        gridPlot.setLogFlags(flag2D = 0)
+        gridPlot.setHistBin(20)
+        # axes and data configuration
+        gridPlot.setPlot2DAxes([self.Qmin[2], self.Qmin[2], self.Qmin[1]], [self.Qmax[2], self.Qmax[2], self.Qmax[1]],
+                               [self.Qmin[1], self.Qmin[0], self.Qmin[0]], [self.Qmax[1], self.Qmax[0], self.Qmax[0]],
+                               [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
+                               [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
+        gridData2DCut, gridOccu2DCut = self._make2DCut()
+        gridPlot.setPlot2DData(gridData2DCut, gridOccu2DCut,
+                               plotTitle = '2D Area Cuts at Maximum Position')
+        # plot, get figure and axes back
+        fig2, allax2 = gridPlot.plot2DData()
+
+    def plotAll(self):
+        """Plots 1D/2D sums and cuts"""
+        self.plotGrid1DSum()
+        self.plotGrid2DSum()
+        self.plotGrid1DCut()
+        self.plotGrid2DCut()
+        
 ####################################
 #
 # main program, for test
@@ -379,19 +564,17 @@ if __name__ == "__main__":
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
     #print testData.processOneImage(40)
     totSet = testData.processOneSet()
-    testIntent, testOccu, testNo = testData.makeGridData(totSet)
-
-    testPlot = PlotGrid()
-    testPlot.setGrid(testIntent, testOccu)
-    testPlot.setGridVec(testData.Qmin, testData.Qmax)
-    #testPlot.setPlotFlags(7, 7)
-    testPlot.setNormFlags(2, 2)
-    testPlot.setLogFlags(1)
-    testPlot.setHistBin(20)
-    #testPlot.plot2DSum()
-    #testPlot.plot1DSum()
-    #testPlot.plot2DCut()
-    #testPlot.plot1DCut()
-    testPlot.plotAll()
+    testData.makeGridData(totSet)
+    # plot options
+    testData.setAxesLabels(['Qx', 'Qy', 'Qz'])
+    testData.setPlotFlags(7, 7)
+    testData.setLogFlags(0, 3)
+    testData.setFit1D(False)
+    testData.setHistBin(50)
+    #testData.plotGrid1DSum()
+    #testData.plotGrid2DSum()
+    #testData.plotGrid1DCut()
+    #testData.plotGrid2DCut()
+    testData.plotAll()
     plt.show()
 
