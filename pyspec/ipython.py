@@ -12,7 +12,8 @@ def magic_printfig(self, args):
 	print fo.name
 	pyplot.savefig(fo)
 	fo.close()
-	
+	ip = IPython.ipapi.get()
+	ip.system('ls -l %s' % tempfile)
 
 def magic_loadspec(self, args):
 	api = self.api
