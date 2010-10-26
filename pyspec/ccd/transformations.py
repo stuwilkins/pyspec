@@ -181,6 +181,7 @@ class ImageProcessor():
         self.darkFileNames = conScan.getCCDFilenames(dark = 1)
         self.settingAngles = conScan.getSIXCAngles()
         self.intentNorm    = conScan.Ring
+        self.UBmat         = conScan.UB
         self.setName       = 'Scan #'
         self.setNum        = conScan.scan
         self.setSize       = self.settingAngles.shape[0]
@@ -393,6 +394,7 @@ class ImageProcessor():
         scanDiff.setAngles(delta = delPix, theta = theta, chi   = chi   ,
                            phi   = phi   , mu    = mu   , gamma = gamPix)
         scanDiff.calc()
+        scanDiff.setUbMatrix(self.UBmat)
         if mode == 1:
             Qxyz = scanDiff.getQTheta()
         elif mode == 2:
@@ -617,11 +619,11 @@ if __name__ == "__main__":
     testData.setBins(4, 4)
     testData.setBySpec(scan)
     testData.setConRoi([1, 325, 1, 335])
-    testData.setFrameMode(1)
+    testData.setFrameMode(4)
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
-    #print testData.processOneImage(40)
-    totSet = testData.processOneSet()
-    testData.makeGridData(totSet)
+    print testData.processOneImage(40)
+    #totSet = testData.processOneSet()
+    #testData.makeGridData(totSet)
     # plot options
     testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
     testData.setPlotFlags(7, 7)
@@ -632,9 +634,9 @@ if __name__ == "__main__":
     #testData.plotGrid2DSum()
     #testData.plotGrid1DCut()
     #testData.plotGrid2DCut()
-    testData.plotAll()
+    #testData.plotAll()
 
     #testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
     #testData.plotImages()
-    plt.show()
+    #plt.show()
 

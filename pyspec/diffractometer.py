@@ -110,6 +110,10 @@ class Diffractometer():
         """Set the wavelength (in Angstroms) for calculations"""
         self._waveLen = waveLen
 
+    def setUbMatrix(self, UBmat):
+        """Sets the UB matrix"""
+        self.UBmat = np.matrix(UBmat)
+
     #
     # calc part
     #
@@ -185,14 +189,15 @@ class Diffractometer():
         return QPhi
 
     def getQCart(self):
-        """Calculate (Qx, Qy, Qz) set in cartesian-frame from (Qx, Qy, Qz) set in theta-frame"""
+        """Calculate (Qx, Qy, Qz) set in cartesian reciprocal space from (Qx, Qy, Qz) set in theta-frame"""
+        # still under construction
 
-        return (np.dot( self.sixcToTardis.T, self.getQPhi().T ) ).T
+        #return (np.dot( self.sixcToTardis.T, self.getQPhi().T ) ).T
 
     def getQHKL(self):
         """Calc HKL values from (Qx, Qy, Qz) set in theta-frame with UB-matrix"""
-
-        return (np.dot( self.UB_invers, self.getQCart().T ) ).T
+ 
+        return ( self.UBmat.I * np.dot( self.sixcToTardis.T, self.getQPhi().T )  ).T
 
 
 
@@ -210,8 +215,12 @@ if __name__ == "__main__":
     #testDiff.setLambda(2*np.pi)
     testDiff.setEnergy(640)
     testDiff.calc()
+    testDiff.setUbMatrix([[-0.01231028454, 0.7405370482 , 0.06323870032], 
+                          [ 0.4450897473 , 0.04166852402,-0.9509449389 ],
+                          [-0.7449130975 , 0.01265920962,-0.5692399963 ]])
     #print 'QTheta = \n%s' % (testDiff.getQTheta())
-    print 'QCart   = \n%s' % (testDiff.getQCart()  )
+    #print 'QPhiSixC = \n%s' % (testDiff.getQCart()  ) # under construction !!! #
+    print 'HKL = \n%s' % (testDiff.getQHKL())
     print 'Ready'
 
     ###########
