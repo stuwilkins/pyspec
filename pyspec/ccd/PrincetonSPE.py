@@ -66,6 +66,10 @@ class PrincetonSPEFile():
         This method can be used to quickly obtain a 2-D array of the data"""
         return self._array[n]
 
+    def getData(self):
+        """Return the array of data"""
+        return self._array
+
     def readData(self):
         """Read all the data into the class"""
         self._readHeader()

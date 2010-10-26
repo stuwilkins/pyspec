@@ -25,15 +25,93 @@
 #include <numpy/arrayobject.h>
 #include <math.h>
 #include <stdio.h>
-#include <stdint.h>
-#inlucde "princeton.h"
+#include <inttypes.h>
+#include "princeton.h"
 
 static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs){
-
+	PyObject *array				= NULL;
+	//PyObject *result			= NULL;
+	const char *filename		= NULL;
+	const int normData			= 0;
+	static char *kwlist[]		= {"filename", "norm", NULL};
+	FILE *fp					= NULL;
+	
+	uint16_t dims[2]			= {0, 0};
+	int32_t nImages				= 0;
+	
+	uint16_t *data				= NULL;
+	
+	npy_intp arraySize[3]		= {0, 0, 0};
+	
+	//double *arrayPtr			= NULL;
+	uint16_t *arrayPtr			= NULL;
+	//uint16_t *dataPtr			= NULL;
+	//int i;
+	
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|i", kwlist,
+									 &filename, &normData)){
+        return NULL;
+	}
+	
+	if((fp = fopen(filename, "rb")) == NULL){
+		PyErr_SetString(PyExc_IOError, "Unable to open file.");
+		return NULL;
+	}
+	
+	/* 
+	 Read the size of image and the number of images
+	 */
+	
+	fseek(fp, XDIM_OFFSET, SEEK_SET);
+	fread(&dims[0], sizeof(uint16_t), 1, fp);
+	fseek(fp, YDIM_OFFSET, SEEK_SET);
+	fread(&dims[1], sizeof(uint16_t), 1, fp);
+	fseek(fp, NFRAMES_OFFSET, SEEK_SET);
+	fread(&nImages, sizeof(int32_t), 1, fp);
+	
+	/*
+	
+	data = (uint16_t*)malloc(dims[0] * dims[1] * nImages * sizeof(uint16_t));
+	if(!data){
+		PyErr_SetString(PyExc_MemoryError, "Unable to allocate memory.");
+		return NULL;
+	}
+	
+	fseek(fp, DATA_OFFSET, SEEK_SET);
+	if(!fread(data, sizeof(uint16_t), dims[0] * dims[1] * nImages, fp)){
+		PyErr_SetString(PyExc_IOError, "Unable to read data.");
+		free(data);
+		return NULL;
+	}
+	*/
+	
+	arraySize[0] = nImages;
+	arraySize[1] = dims[1];
+	arraySize[2] = dims[0];
+	array = PyArray_SimpleNew(3, arraySize, NPY_USHORT);
+	
+	arrayPtr = (uint16_t *)PyArray_DATA(array);
+	
+	fseek(fp, DATA_OFFSET, SEEK_SET);
+	if(!fread(arrayPtr, sizeof(uint16_t), dims[0] * dims[1] * nImages, fp)){
+		PyErr_SetString(PyExc_IOError, "Unable to read data.");
+		free(data);
+		return NULL;
+	}
+	
+	/*
+	dataPtr = data;
+	
+	for(i=0;i<(dims[0] * dims[1] * nImages);i++){
+		*(arrayPtr++) = (double)*(dataPtr++);
+	}
+	
+	if(!data){
+		free(data);
+	}
+	*/
+	return array;
 }
-
-int read_image(FILE *fp, unsigned short *xdim, unsigned short *ydim, 
-
 
 PyMODINIT_FUNC initprinceton(void)  {
 	(void) Py_InitModule3("princeton", _princetonMethods, _princetonDoc);

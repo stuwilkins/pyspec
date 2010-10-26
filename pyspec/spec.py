@@ -426,7 +426,7 @@ class SpecScan:
 		self.values = {}
 		self.data = array([])
 
-		self.UB = zeros((3,3))
+		self.UB = eye(3)
 		
 		line = specfile._getLine()
 		self.header = self.header + line
@@ -462,14 +462,32 @@ class SpecScan:
 					self.omega = float(pos[6])
 					self.azimuth = float(pos[7])
 				except:
-					print "Unable to read geometry information"
-			elif line[0:3] == "#UB":
+					print "**** Unable to read geometry information (G4)"
+			elif line[0:3] == "#G1":
 				try:
-					m = int(line[3])
-					pos = line[4:].strip().split()
-					self.UB[m] = array([float(pos[0]), float(pos[1]), float(pos[2])])
+					pos = line[3:].strip().split()
+					pos = array(map(float, pos))
+					
+					self.Lattice = pos[0:6]
+					self.RLattice = pos[6:12]
+					self.or0 = pos[12:15]
+					self.or1 = pos[15:18]
+					sa = pos[18:-2].reshape(2, -1)
+					self.or0Angles = sa[:,0]
+					self.or1Angles = sa[:,1]
+					self.or0Lambda = pos[-2]
+					self.or1Lambda = pos[-1]
 				except:
-					print "Unable to read UB matrix"
+					print "**** Unable to read geometry information (G1)"
+
+			elif line[0:3] == "#G3":
+				try:
+					pos = line[3:].strip().split()
+					pos = array(map(float, pos))
+
+					self.UB = pos.reshape(-1, 3)
+				except:
+					print "**** Unable to read UB matrix (G3)"
 
 			line = specfile._getLine()
 			self.header = self.header + line	

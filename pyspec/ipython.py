@@ -1,5 +1,18 @@
+"""Interactive user module for the pyspec package"""
+
 import IPython.ipapi
 import pyspec.spec as spec
+import tempfile
+import matplotlib.pyplot as pyplot
+
+def magic_printfig(self, args):
+	"""Print current figure"""
+	api = self.api
+	fo = tempfile.NamedTemporaryFile(delete = False)
+	print fo.name
+	pyplot.savefig(fo)
+	fo.close()
+	
 
 def magic_loadspec(self, args):
 	api = self.api
@@ -47,14 +60,19 @@ def magic_reload(self, args):
 def magic_header(self, args):
 	self.api.ex("print SPECSCAN.header")
 	
-ip = IPython.ipapi.get()
-ip.expose_magic('getspec', magic_getspec)	
-ip.expose_magic('loadspec', magic_loadspec)
-ip.expose_magic('prints', magic_prints)
-ip.expose_magic('fitto', magic_fitto)
-ip.expose_magic('updatespec', magic_reload)
-ip.expose_magic('header', magic_header)
-ip.expose_magic('plotspec', magic_plotspec)
+def install():
+	ip = IPython.ipapi.get()
+	ip.expose_magic('getspec', magic_getspec)	
+	ip.expose_magic('loadspec', magic_loadspec)
+	ip.expose_magic('prints', magic_prints)
+	ip.expose_magic('fitto', magic_fitto)
+	ip.expose_magic('updatespec', magic_reload)
+	ip.expose_magic('header', magic_header)
+	ip.expose_magic('plotspec', magic_plotspec)
 
-ip.ex('import pyspec.spec as spec')
-ip.ex('import pyspec.fitfuncs as fitfuncs')
+	ip.expose_magic('printfig', magic_printfig)
+	
+	ip.ex('import pyspec.spec as spec')
+	ip.ex('import pyspec.fitfuncs as fitfuncs')
+
+install()

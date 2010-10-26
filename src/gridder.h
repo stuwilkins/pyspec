@@ -42,11 +42,11 @@ static char *_gridderDoc = \
 "  levmar.DIFF_DELTA   = Differential delta\n";
 
 static PyMethodDef _gridderMethods[] = {
-	{"grid1d", gridder_1D, METH_VARARGS, 
+	{"grid1d", (PyCFunction)gridder_1D, METH_VARARGS, 
 		""},
-	{"grid2d", gridder_2D, METH_VARARGS, 
+	{"grid2d", (PyCFunction)gridder_2D, METH_VARARGS, 
 		""},
-	{"grid3d", gridder_3D, METH_VARARGS, 
+	{"grid3d", (PyCFunction)gridder_3D, METH_VARARGS, 
 		""},
 	{NULL, NULL, 0, NULL}     /* Sentinel - marks the end of this structure */
 };

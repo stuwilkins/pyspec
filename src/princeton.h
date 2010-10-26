@@ -26,19 +26,30 @@
 #ifndef __PRINCETON_H
 #define __PRINCETON_H
 
-#define HDRNAMEMAX 120 
-#define USERINFOMAX 1000 
-#define COMMENTMAX 80
-#define LABELMAX 16
-#define FILEVERMAX 16
-#define DATEMAX 10 
-#define ROIMAX 10
-#deinfe TIMEMAX 7 
+#define HDRNAMEMAX		120 
+#define USERINFOMAX		1000 
+#define COMMENTMAX		80
+#define LABELMAX		16
+#define FILEVERMAX		16
+#define DATEMAX			10 
+#define ROIMAX			10
+#define TIMEMAX			7 
 
 #define DATA_OFFSET		4100
 #define XDIM_OFFSET		42
 #define YDIM_OFFSET		656
 #define TYPE_OFFSET		108
 #define NFRAMES_OFFSET	1446
+
+static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs);
+
+static char *_princetonDoc = \
+"Python functions to read Princeton Instruments SPE files.\n\n";
+
+static PyMethodDef _princetonMethods[] = {
+	{"readSPE", (PyCFunction)load_princeton, METH_VARARGS | METH_KEYWORDS, 
+		""},
+	{NULL, NULL, 0, NULL}     /* Sentinel - marks the end of this structure */
+};
 
 #endif
