@@ -473,8 +473,8 @@ class SpecScan:
 					self.or0 = pos[12:15]
 					self.or1 = pos[15:18]
 					sa = pos[18:-2].reshape(2, -1)
-					self.or0Angles = sa[:,0]
-					self.or1Angles = sa[:,1]
+					self.or0Angles = sa[0,:]
+					self.or1Angles = sa[1,:]
 					self.or0Lambda = pos[-2]
 					self.or1Lambda = pos[-1]
 				except:
