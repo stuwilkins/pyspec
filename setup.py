@@ -43,7 +43,7 @@ if sys.version_info < (2, 3):
         _setup(**kwargs)
 
 try:
-	svnR = "-" + subprocess.Popen(['svnversion', '.'], stdout=subprocess.PIPE).communicate()[0].rstrip("\n")
+	svnR = "_" + subprocess.Popen(['svnversion', '.'], stdout=subprocess.PIPE).communicate()[0].rstrip("\n")
 except:
 	svnR = ""
 
