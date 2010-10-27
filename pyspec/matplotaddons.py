@@ -1,8 +1,26 @@
 import math
-
 import pylab
 import matplotlib
+import os
+import tempfile
 
+def printfig(*args, **kwargs):
+  """Print pyplot figure.
+
+  Identical to savefig, but calles the system printer (unix) to print the current plot.
+  specifying the keyword argument printer = 'name' will send to a printer which is not
+  the system default. """
+
+  if kwargs.has_key['printer']:
+    printer = '-d' + kwargs['printer']
+    del kwargs['printer']
+  else:
+    printer = ''
+
+  fo = tempfile.NamedTemporaryFile(delete = False)
+  matplotlib.pyplot.savefig(fo, *args, **kwargs)
+  fo.close()
+  os.system('lp %s%s' % (printer ,fo.name))
 
 class AnnoteFinder:
   """

@@ -40,8 +40,6 @@ if os.path.exists("setup.cfg"):
     gridder = parseExtensionSetup('gridder', config, ext_default)
     princeton = parseExtensionSetup('princeton', config, ext_default)
 
-    print levmar, gridder, princeton
-    
 
 ext_modules = []
 if options['build_levmar']:
