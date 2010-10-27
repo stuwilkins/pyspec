@@ -29,6 +29,9 @@ Operating System :: Unix
 from distutils.core import setup, Extension
 from setupext import ext_modules
 import sys
+import subprocess
+
+__version__ = 0.2
 
 doclines = __doc__.split("\n")
 
@@ -39,8 +42,13 @@ if sys.version_info < (2, 3):
             del kwargs["classifiers"]
         _setup(**kwargs)
 
+try:
+	svnR = "-" + subprocess.Popen(['svnversion', '.'], stdout=subprocess.PIPE).communicate()[0].rstrip("\n")
+except:
+	svnR = ""
+
 setup(name='pyspec',
-      version='0.2',
+      version="%s%s" % (__version__,svnR),
       author='Stuart Wilkins',
       author_email='stuwilkins@mac.com',
       maintainer="Stuart B. Wilkins",
