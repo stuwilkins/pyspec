@@ -137,22 +137,29 @@ class ImageProcessor():
         self.detX0       = 1300 / 2.0
         self.detY0       = 1340 / 2.0
         # image treatment
-        self.conRoi      = None
-        self.frameMode   = 1
-	self.setName     = 'Set #'
+        self.setName     = 'Set #'
         self.setNum      = 1
+        self.conRoi      = None
+        self.setFrameMode(1)
         # gridder options
         self.setGridOptions()
         # plot options
-        self.axesLabels  = ['Qx', 'Qy', 'Qz']
-        self.plotFlag2D = 7
-        self.plotFlag1D = 7
-        self.logFlag1D  = 0
-        self.logFlag2D  = 0
-        self.fit1D      = False
-        self.fitType    = 'lor2a'
-        self.histBin    = 50
+        self.plotFlag2D  = 7
+        self.plotFlag1D  = 7
+        self.logFlag1D   = 0
+        self.logFlag2D   = 0
+        self.fit1D       = False
+        self.fitType     = 'lor2a'
+        self.histBin     = 50
+        # output information
+        self.opTitle     = 'Image Processing'
+        self.projName    = ''
+        self._makeSetInfo()
+        self._makeModeInfo()
+        self.opProcInfo  = ''
 
+        # Figure Size
+        self._defaultFigureSize = (11, 8.5)
 
     def readConfigFile(self, filename):
         config = MyConfigParser()
@@ -162,6 +169,20 @@ class ImageProcessor():
     #
     # set and get part
     #
+
+    def setProjName(self, projName):
+        """Set the name of the current project
+
+        projName: name of the current project"""
+
+        self.projName = projName
+
+    def getProjName(self, projName):
+        """Get the name of the current project
+
+        projName: name of the current project"""
+
+        return self.projName
 
     def setDetectorProp(self, detPixSizeX, detPixSizeY, detSizeX, detSizeY, detX0, detY0):
         """Set properties of used detector
@@ -270,7 +291,9 @@ class ImageProcessor():
         conScan : pyspec scan object which contains the needed information
 
         The set settings are:
-        waveLen       : wavelength of the X-rays (float in Angstrom)
+        temperature   : temperature of the sample (float in Kelvin)
+        waveLen       : wavelength of the X-rays  (float in Angstrom)
+        energy        : photon energy             (float in eV)
         imFileNames   : filenames for each image
         darkFileNames : filenames of the dark images
         settingAngles : setting angles of the diffractometer at each image (data point)
@@ -310,6 +333,8 @@ class ImageProcessor():
         mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame)"""
 
         self.frameMode = mode
+        self._preAxesLabels()
+        self._makeModeInfo()
 
     def getFrameMode(self):
         """Get the mode of the output frame for (Qx, Qy, Qz)
@@ -472,6 +497,24 @@ class ImageProcessor():
         return self.plotImSelect, self.plotImHor, self.plotImVer
 
     #
+    # get set functions for input output
+    #
+
+    def setInfoFile(self, infoFile):
+        """Set the path and file name for the info file about the current processing
+
+        infoFile : path and file name for the info file about the current processing"""
+
+        self.infoFile = infoFile
+
+    def getInfoFile(self):
+        """Get the path and file name for the info file about the current processing
+
+        infoFile : path and file name for the info file about the current processing"""
+
+        return self.infoFile
+
+    #
     # help function part
     #
 
@@ -488,7 +531,9 @@ class ImageProcessor():
         """Set the settings for the set from the considered pyspec scan object
 
         The set settings are:
-        waveLen       : wavelength of the X-rays (float in Angstrom)
+        temperature   : temperature of the sample (float in Kelvin)
+        waveLen       : wavelength of the X-rays  (float in Angstrom)
+        energy        : photon energy             (float in eV)
         imFileNames   : filenames for each image
         darkFileNames : filenames of the dark images
         settingAngles : setting angles of the diffractometer at each image (data point)
@@ -498,7 +543,9 @@ class ImageProcessor():
         setNum        : no. to determine the set, e.g. 244 in the spec case
         setSize       : no. of images in the set, e.g. 81"""
 
-        self.waveLen       = self.conScan.wavelength
+        self.temperature   = self.conScan.Tsam.mean() # in Kelvin
+        self.waveLen       = self.conScan.wavelength  # in Angstrom
+        self.energy        = Diffractometer.hc_over_e / self.conScan.wavelength # in eV
         self.imFileNames   = self.conScan.getCCDFilenames()
         self.darkFileNames = self.conScan.getCCDFilenames(dark = 1)
         self.settingAngles = self.conScan.getSIXCAngles()
@@ -508,6 +555,24 @@ class ImageProcessor():
         self.setNum        = self.conScan.scan
         self.setSize       = self.settingAngles.shape[0]
         self.procImSelect  = range(self.setSize)
+        self._makeSetInfo()
+
+    def _preAxesLabels(self, mode = None):
+        """Prepare the labels of the axes regarding the frame mode
+
+        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
+
+        if mode == None:
+            mode = self.frameMode
+
+        if mode != 4:
+            self.qLabel = ['Qx', 'Qy', 'Qz']
+            self.setEntLabel = '(Qx, Qy, Qz, I)'
+            self.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
+        else:
+            self.qLabel = ['H', 'K', 'L']
+            self.setEntLabel = '(H, K, L, I)'
+            self.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
 
     def _readImage(self, imNum):
         """Read in the considered region of interest of the image
@@ -725,6 +790,120 @@ class ImageProcessor():
                 axes[i].plot(xVals[i], yFit, '-r')
 
         return allRes
+
+    #
+    # help functions for input / output
+    #
+
+    def _makeSetInfo(self):
+        """Create the information about the set of images"""
+        
+        self.opSetInfo = '%s%s' % (self.setName, self.setNum)
+        try:
+            self.opSetInfo += ' Images: %s\n' % (self.procImSelect)
+        except:
+            self.opSetInfo += '\n'
+        try:
+            self.opSetInfo += 'Sample Temperature: %.2f K\t' % (self.temperature)
+        except:
+           self.opSetInfo += '' 
+        try:
+            self.opSetInfo += 'Photon Wavelength: %.2f Angst.\t' % (self.waveLen)
+        except:
+           self.opSetInfo += ''
+        try:
+            self.opSetInfo += 'Photon Energy: %.2f eV' % (self.energy)
+        except:
+           self.opSetInfo += ''
+    
+    def _makeModeInfo(self, mode = None):
+        """Create info description of the used frame mode
+
+        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
+
+        if mode == None:
+            mode = self.frameMode
+
+        if mode == 1:
+            self.opModeInfo = 'Frame Mode 1: (Qx, Qy, Qz) in theta-frame and (1/Angstrom)' 
+        if mode == 2:
+            self.opModeInfo = 'Frame Mode 2: (Qx, Qy, Qz) in phi-frame and (1/Angstrom)'
+        if mode == 3:
+            self.opModeInfo = 'Frame Mode 3: (Qx, Qy, Qz) in cartesian-frame and (1/Angstrom)'
+        if mode == 4:
+            self.opModeInfo = 'Frame Mode 4: (H, K, L) in hkl-frame and (reciprocal lattice units)'
+
+    def _makeHeaderInfo(self):
+        """Create header for output files"""
+
+        if self.projName == '':
+            opGap = ''
+        else:
+            opGap = ' - '
+        self.opHeader = '%s%s%s\n%s\n%s' % (self.opTitle, opGap, self.projName, self.opSetInfo, self.opModeInfo)
+
+    def _makeFitInfo1D(self, allRes, fitType = None, fitTitle = None, fitNames = None):
+        """Create information output for the fit results in 1D
+
+        allRes   : all results of the fittings, [[a, b, cen, width, area],...]
+        fitType  : tpe of the fitting, e.g 'lor2a'
+        fitTitle : title for the current fitting process, e.g. '1D Line cuts'
+        fitNames : name for each fitting, e.g. ['Qx', 'Qy', 'Qz']"""
+
+        # prepare information
+        if fitTitle == None:
+            fitTitle = ''
+        else:
+            fitTitle = fitTitle + ' '
+        if fitType == None:
+            fitType = self.fitType
+        if fitNames == None:
+            fitNames = []
+            for i in range(allRes.shape[0]):
+                fitNames.append('Fit %02d' % i)
+
+        fitInfo = '%s%s\n\t a \t\t b \t\t cen \t\t width \t\t area' % (fitTitle, fitType)
+        line    = '\n%s \t ' + 4*'%.5e\t ' + '%.5e'
+        for i in range(allRes.shape[0]):
+            fitInfo += line % (fitNames[i], allRes[i,0], allRes[i,1], allRes[i,2], allRes[i,3], allRes[i,4])
+
+        return fitInfo
+
+    def _makeGridInfo(self, gData = None, gOccu = None, gOut = None, gMin = None, gMax = None, dg = None):
+        """Create information about the grid
+
+        gridData : values at the grid parts (bins)
+        gridOccu : occupation no. of the grid parts (bins)
+        gridOut  : no. of data points outside the grid
+        Qmin     : minimal Q-values of the grid
+        Qmax     : maximal Q-values of the grid
+        dQN      : no. of grid parts (bins) in the three principal directions"""
+
+        # prepare information, if not given, take it from the object
+        if gData == None:
+            gData = self.gridData
+        if gOccu == None:
+            gOccu = self.gridOccu
+        if gOut  == None:
+            gOut  = self.gridOut
+        if gMin == None:
+            gMin = self.Qmin
+        if gMax == None:
+            gMax = self.Qmax
+        if dg == None:
+            dg = self.dQN
+        emptNb = (gOccu == 0).sum()
+        
+        gridInfo = '\n\n%s sets processed to grid\n' % (self.setEntLabel) + \
+            'Grid dimension = %s \t No. of bins in the grid %.2e\n' % (dg, gData.size) + \
+            'Data points outside the grid : %.2e \t Bins with zero information : %.2e' % (gOut, emptNb)
+        gridInfo += '\n\t min \t\t max \t\t step'
+        line = '\n%s \t %.2e \t %.2e \t %.2e'
+        for i in range(gMin.size):
+            gridInfo += line % (self.qLabel[i], gMin[i], gMax[i], dg[i])
+
+        return gridInfo
+
     #
     # process part
     #
@@ -735,7 +914,7 @@ class ImageProcessor():
         procSelect : list with the images which will be processed, take object default if None
         mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
 
-        print '\n%s%d: process to (Qx, Qy, Qz, I)' % (self.setName, self.setNum)
+        print '\n%s%d: process to %s' % (self.setName, self.setNum, self.setEntLabel)
 
         if procSelect == None:
             procSelect = self.procImSelect
@@ -757,6 +936,9 @@ class ImageProcessor():
             j = j + imSize
             k = k + imSize
             totSet[j:k, :] = self._processOneImage(i, mode = mode)
+
+        # for info file
+        self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (totSet.shape[0], self.setEntLabel)
 
         return totSet
 
@@ -790,9 +972,9 @@ class ImageProcessor():
 
         # 3D grid of the data set 
         gridData, gridOccu, gridOut = gridder.grid3d(totData, Qmin[0], Qmax[0], dQN[0], Qmin[1], Qmax[1], dQN[1], Qmin[2], Qmax[2], dQN[2])
-        if gridOut != 0:
-            print "Warning : There are %.2e points outside the grid (%.2e points in the grid)" % (gridOut, gridData.size - gridOut)
         emptNb = (gridOccu == 0).sum()
+        if gridOut != 0:
+            print "Warning : There are %.2e points outside the grid (%.2e bins in the grid)" % (gridOut, gridData.size)
         if emptNb:
             print "Warning : There are %.2e values zero in the grid" % emptNb
 
@@ -807,10 +989,11 @@ class ImageProcessor():
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()
         self._calcMax()
-
+        
+        # for info file
+        self.opProcInfo += self._makeGridInfo()
     
             
-        
     #
     # plot part
     #
@@ -842,7 +1025,9 @@ class ImageProcessor():
         if self.fit1D:
             infoDes = '%s%s 1D Line summed' % (self.setName, self.setNum)
             allRes  = self._add1DFits(self.qVal, gridData1DSum, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
-
+            # for info file
+            self.opProcInfo += '\n\n' + self._makeFitInfo1D(allRes, fitType = None, fitTitle = '1D Line summed', fitNames = self.qLabel)
+        
         return fig1, allax1, allRes
 
     def plotGrid2DSum(self):
@@ -894,6 +1079,8 @@ class ImageProcessor():
         if self.fit1D:
             infoDes = '%s%s 1D Line cut' % (self.setName, self.setNum)
             allRes  = self._add1DFits(self.qVal, gridData1DCut, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
+            # for info file
+            self.opProcInfo += '\n\n' + self._makeFitInfo1D(allRes, fitType = None, fitTitle = '1D Line cut', fitNames = self.qLabel)
 
         return fig1, allax1, allRes
 
@@ -951,7 +1138,7 @@ class ImageProcessor():
 
             if j%plotImNum == 0:
                 # prepare plot window
-                fig = plt.figure()
+                fig = plt.figure(figsize = self._defaultFigSize)
                 fig.suptitle(plotImTitle, fontsize = 24)
                 allfig.append(fig)
 
@@ -975,6 +1162,30 @@ class ImageProcessor():
         self.plotGrid2DSum()
         self.plotGrid1DCut()
         self.plotGrid2DCut()
+
+    #
+    # input / output part
+    #
+
+    def makeInfo(self):
+        """Create the information about the current processing"""
+
+        self._makeHeaderInfo()
+        curInfo = '%s%s' % (self.opHeader, self.opProcInfo)
+
+        return curInfo
+
+    def writeInfoFile(self, outFile = None):
+        """Write information about the current processing into a file
+
+        outFile : path and file name of the output file"""
+
+        if outFile == None:
+            outFile = self.infoFile
+
+        out = file(outFile, 'w')
+        out.write(self.makeInfo())
+        out.close()
         
 ####################################
 #
@@ -987,24 +1198,26 @@ if __name__ == "__main__":
 
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/2010_09_X1A2/ymn2o5_sep10_1', 
 			     ccdpath = '/mounts/davros/nasshare/images/sept10')
-    scan = sf[218]
+    scan = sf[244]
 
     testData = ImageProcessor()
     
     testData.setBins(4, 4)
     testData.setSpecScan(scan)
     testData.setConRoi([1, 325, 1, 335])
-    testData.setFrameMode(4)
+    testData.setFrameMode(1)
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
-    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
+    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 180, 40])
+    #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
     
-    #print testData.processOneImage(40)
+    #imSet  = testData.processOneSet(procSelect = [40])
     #totSet = testData.processOneSet()
     #testData.makeGridData(procSelect = [40])
     testData.makeGridData()
+
     # plot options
     #testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
-    testData.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
+    #testData.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
     testData.setPlotFlags(7, 7)
     testData.setLogFlags(0, 3)
     testData.setFit1D(True)
@@ -1018,5 +1231,11 @@ if __name__ == "__main__":
 
     #testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
     #testData.plotImages()
-    plt.show()
+    
+    # test of input output file handling
 
+    print '\n\n'
+    print testData.makeInfo()
+    #testData.writeInfoFile(outFile = 'infoFile.dat')
+
+    plt.show()

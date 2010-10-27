@@ -40,6 +40,8 @@ class PlotGrid():
         self.logFlag2D  = 0
         self.histBin    = 50
 
+        self._defaultFigSize = (11, 8.5)
+
     #
     # set part
     #
@@ -105,7 +107,7 @@ class PlotGrid():
         occuSet    = self.occuLine
         
         # figure for 1D plots        
-        fig = plt.figure()
+        fig = plt.figure(figsize = self._defaultFigSize)
         fig.suptitle(self.title1D, fontsize = 24)
         allax = []
         # how many horizontal plots?
@@ -167,7 +169,7 @@ class PlotGrid():
         occuArea   = self.occuArea 
         
         # figure for 2D plots        
-        fig = plt.figure()
+        fig = plt.figure(figsize = self._defaultFigSize)
         fig.suptitle(self.title2D, fontsize = 24)
         allax = []
         # how many horizontal plots?

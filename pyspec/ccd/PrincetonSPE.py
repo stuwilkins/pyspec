@@ -85,6 +85,12 @@ class PrincetonSPEFile():
     def getSize(self):
         """Return a tuple of the size of the data array"""
         return self._size
+    def getChipSize(self):
+        """Return a tuple of the size of the CCD chip"""
+        return self._chipSize
+    def getVirtualChipSize(self):
+        """Return the virtual chip size"""
+        return self._vChipSize
 
     def getComment(self, n = None):
         """Return the comments in the data file
@@ -149,6 +155,8 @@ class PrincetonSPEFile():
             raise Exception("Unknown data type")
         self._dataType = data_types[dt]
         self._size = (zdim, ydim, xdim)
+        self._chipSize = (dydim, dxdim)
+        self._vChipSize = (vydim, vxdim)
         
     def _readComments(self):
         self._comments = []
