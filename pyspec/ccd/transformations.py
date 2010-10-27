@@ -23,7 +23,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from   pyspec import spec
+from   pyspec import spec, fit, fitfuncs
 from   pyspec.diffractometer import Diffractometer
 from   pyspec.ccd.PrincetonSPE import *
 from   pyspec.ccd.plotter import PlotGrid
@@ -160,21 +160,83 @@ class ImageProcessor():
         config.get(self.ccdname, '', vars = {})
         
     #
-    # set part
+    # set and get part
     #
 
-    def setBins(self, binX, binY):
-        """Takes binning into acount"""
-        self.detPixSizeX *= binX
-        self.detPixSizeY *= binY
-        self.detSizeX    /= binX
-        self.detSizeY    /= binY
-        self.detX0       /= binX
-        self.detY0       /= binY
+    def setDetectorProp(self, detPixSizeX, detPixSizeY, detSizeX, detSizeY, detX0, detY0):
+        """Set properties of used detector
 
-    def setBySpec(self, conScan):
-        """get settings from the considered pyspec scan object
-        wavelength, filenames, angels, kind of set (scan)"""
+        detPixSizeX : detector pixel size in detector X-direction (float in mm)
+        detPixSizeY : detector pixel size in detector Y-direction (float in mm)
+        detSizeX    : detector no. of pixels (size) in detector X-direction (integer)
+        detSizeY    : detector no. of pixels (size) in detector Y-direction (integer)
+        detX0       : detector X-coordinate of center for reference gamma-value (float)
+        detY0       : detector Y-coordinate of center for reference delta-value (float)"""
+        
+        self.detPixSizeX = detPixSizeX  
+        self.detPixSizeY = detPixSizeY
+        self.detSizeX    = detSizeX
+        self.detSizeY    = detSizeY
+        self.detX0       = detX0
+        self.detY0       = detY0
+
+    def getDetectorProp(self):
+        """Get properties of used detector
+
+        detPixSizeX : detector pixel size in detector X-direction (float in mm)
+        detPixSizeY : detector pixel size in detector Y-direction (float in mm)
+        detSizeX    : detector no. of pixels (size) in detector X-direction (integer)
+        detSizeY    : detector no. of pixels (size) in detector Y-direction (integer)
+        detX0       : detector X-coordinate of center for reference gamma-value (float)
+        detY0       : detector Y-coordinate of center for reference delta-value (float)"""
+
+        return self.detPixSizeX, self.detPixSizeY, self.detSizeX, self.detSizeY, self.detX0, self.detY0
+
+    def setDetectorDis(self, detDis):
+        """Set the detector distance
+
+        detDis : detector distance (float in mm)"""
+        
+        self.detDis = detDis
+
+    def getDetectorDis(self):
+        """Get the detector distance
+
+        detDis : detector distance (float in mm)"""
+
+        return self.detDis
+
+    def setBins(self, binX, binY):
+        """Set no. of bins. Takes them into acount for pixel size, detector size and detector center
+        
+        binX : no. of pixels along detector X-direction which are bined
+        binY : no. of pixels along detector Y-direction which are bined"""
+        
+        self.binX = binX
+        self.binY = binY
+        self._applyBins()
+
+    def getBins(self, binX, binY):
+        """Set no. of bins. Takes them into acount for pixel size, detector size and detector center
+        
+        binX : no. of pixels along detector X-direction which are bined
+        binY : no. of pixels along detector Y-direction which are bined"""
+
+        return self.binX, self.binY
+
+    def setSetSettings(self, waveLen, imFilesNames, settingAngles, intentNorm, UBmat, setName, setNum, setSize):
+        """Set the settings for the set 
+
+        The set settings are:
+        waveLen       : wavelength of the X-rays (float in Angstrom)
+        imFileNames   : filenames for each image
+        darkFileNames : filenames of the dark images
+        settingAngles : setting angles of the diffractometer at each image (data point)
+        intentNorm    : normalization factor (division) for each image
+        UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
+        setName       : name of the considered set, e.g. 'Scan #' in the spec case
+        setNum        : no. to determine the set, e.g. 244 in the spec case
+        setSize       : no. of images in the set, e.g. 81"""
 
         self.waveLen       = conScan.wavelength
         self.imFileNames   = conScan.getCCDFilenames()
@@ -185,56 +247,214 @@ class ImageProcessor():
         self.setName       = 'Scan #'
         self.setNum        = conScan.scan
         self.setSize       = self.settingAngles.shape[0]
+
+    def getSetSettings(self, waveLen, imFilesNames, settingAngles, intentNorm, UBmat, setName, setNum, setSize):
+        """Set the settings for the set 
+
+        The set settings are:
+        waveLen       : wavelength of the X-rays (float in Angstrom)
+        imFileNames   : filenames for each image
+        darkFileNames : filenames of the dark images
+        settingAngles : setting angles of the diffractometer at each image (data point)
+        intentNorm    : normalization factor (division) for each image
+        UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
+        setName       : name of the considered set, e.g. 'Scan #' in the spec case
+        setNum        : no. to determine the set, e.g. 244 in the spec case
+        setSize       : no. of images in the set, e.g. 81"""
+
+        return self.waveLen, self.imFilesNames, self.settingAngles, self.intentNorm, self.UBmat, self.setName, self.setNum, self.setSize
+
+    def setSpecScan(self, conScan):
+        """Set the settings for the set from the considered pyspec scan object
+
+        conScan : pyspec scan object which contains the needed information
+
+        The set settings are:
+        waveLen       : wavelength of the X-rays (float in Angstrom)
+        imFileNames   : filenames for each image
+        darkFileNames : filenames of the dark images
+        settingAngles : setting angles of the diffractometer at each image (data point)
+        intentNorm    : normalization factor (division) for each image
+        UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
+        setName       : name of the considered set, e.g. 'Scan #' in the spec case
+        setNum        : no. to determine the set, e.g. 244 in the spec case
+        setSize       : no. of images in the set, e.g. 81"""
+
+        self.conScan = conScan
+        self._setBySpec()
    
+    def getSpecScan(self):
+        """Get the pyspec scan object which was used for the set settings
+        
+        conScan : pyspec scan object which contains the needed information"""
+
+        return self.conScan
+
     def setConRoi(self, conRoi):
-        """Sets the considered region of interest [xMin, xStep, yMin, yStep]"""
+        """Set the considered region of interest 
+
+        conRoi : [xMin, xStep, yMin, yStep]"""
+        
         self.conRoi = conRoi
 
+    def getConRoi(self):
+        """Get the considered region of interest 
+
+        conRoi : [xMin, xStep, yMin, yStep]"""
+        
+        return self.conRoi
+
     def setFrameMode(self, mode):
-        """modes of frames are: theta- (1), phi- (2), cartesian- (3) and hkl-frame (4)"""
+        """Set the mode of the output frame for (Qx, Qy, Qz)
+
+        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame)"""
+
         self.frameMode = mode
 
+    def getFrameMode(self):
+        """Get the mode of the output frame for (Qx, Qy, Qz)
+
+        mode: : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame)"""
+
+        return self.frameMode
+
+    def setProcIm(self, procImSelect = None):
+        """Set the selection of the images for processing
+
+        procImSelect : list with the images which will be processed, all if None"""
+                
+        if procImSelect == None:
+            self.procImSelect = range(self.setSize)
+        else:
+            self.procImSelect = procImSelect
+        
+    def getProcIm(self, procImSelect = None):
+        """Get the selection of the images for processing
+
+        procImSelect : list with the images which will be processed, all if None"""
+                
+        return self.procImSelect
+
     def setGridOptions(self, Qmin = None, Qmax = None, dQN = None):
-        """Sets the options for the gridding of the dataset
-        Size of the cuboid: Qmin, Qmax = [Qx, Qy, Qz]_min, max
-        Number of parts   : dQN = [Nqx, Nqy, Nqz]"""
+        """Set the options for the gridding of the dataset
+
+        Qmin : minimum values of the cuboid [Qx, Qy, Qz]_min
+        Qmax : maximum values of the cuboid [Qx, Qy, Qz]_max
+        dQN  : no. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
 
         self.Qmin = Qmin
         self.Qmax = Qmax
         self.dQN  = dQN
 
+    def getGridOptions(self):
+        """Get the options for the gridding of the dataset
+
+        Qmin : minimum values of the cuboid [Qx, Qy, Qz]_min
+        Qmax : maximum values of the cuboid [Qx, Qy, Qz]_max
+        dQN  : no. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
+
+        return self.Qmin, self.Qmax, self.dQN
+
     #
-    # plot settings
+    # set and get functions for plot settings
     #
 
     def setAxesLabels(self, axesLabels):
-        """Sets the plotting labels for the axes"""
+        """Set the plotting labels for the axes
+
+        axesLabels : labels for the axes [xLabel, yLabel, zLabel]"""
+        
         self.axesLabels = axesLabels
 
-    def setPlotFlags(self, flag2D = 7, flag1D = 7):
-        """Sets the ploting flags for 2D and 1D plots
-        binary code, flag & 1: intensity, flag & 2: missing grid parts,
-        flag & 4: histogram of occupation of the grid parts"""
-        self.plotFlag2D = flag2D
+    def getAxesLabels(self):
+        """Get the plotting labels for the axes
+
+        axesLabels : labels for the axes [xLabel, yLabel, zLabel]"""
+        
+        return self.axesLabels
+
+    def setPlotFlags(self, flag1D = 7, flag2D = 7):
+        """Set the ploting flags for 1D and 2D plots
+
+        flag1D : flag to select 2D plots
+        flag2D : flag to select 1D plots
+
+        binary code, flag & 1: intensity, flag & 2: occupation numbers of the grid parts (bins),
+        flag & 4: histogram of occupation of the grid parts (bins)"""
+        
         self.plotFlag1D = flag1D
+        self.plotFlag2D = flag2D
+
+    def getPlotFlags(self):
+        """Get the ploting flags for 1D and 2D plots
+
+        flag1D : flag to select 1D plots
+        flag2D : flag to select 2D plots
+
+        binary code, flag & 1: intensity, flag & 2: occupation numbers of the grid parts (bins),
+        flag & 4: histogram of occupation of the grid parts (bins)"""
+        
+        return self.plotFlag2D, self.plotFlag1D
 
     def setLogFlags(self, flag1D = 0, flag2D = 0):
-        """Sets whether data are plotted on linear (False) or logarithmic (True) scale
+        """Set whether data are plotted on linear (0) or logarithmic (1) scale
+
+        flag1D : flag to select scale of 1D plots
+        flag2D : flag to select scale of 2D plots
+
         binary code, flag & 1: intensity, flag & 2: missing grid parts"""
+        
         self.logFlag1D = flag1D
         self.logFlag2D = flag2D
         
+    def getLogFlags(self):
+        """Get whether data are plotted on linear (0) or logarithmic (1) scale
+
+        flag1D : flag to select scale of 1D plots
+        flag2D : flag to select scale of 2D plots
+
+        binary code, flag & 1: intensity, flag & 2: missing grid parts"""
+        
+        return self.logFlag1D, self.logFlag2D
+
     def setFit1D(self, fit1D = 0, fitType = 'lor2a'):
-        """Sets whether 1D lines get fitted by a Loarenzian squared"""
-        self.fit1D   = fit1D
-        self.fitType = fitType
+        """Set whether 1D lines get fitted (1)
+
+        fit1D   : 1 (on), 0 (off) fitting of the 1D data
+        fitType : type of the peak function from pyspec fitfuncs, e.g. 'lor2a'"""
+        
+        self.fit1D     = fit1D
+        self.fit1DType = fitType
+
+    def getFit1D(self):
+        """Get whether 1D lines get fitted (1)
+
+        fit1D   : 1 (on), 0 (off) fitting of the 1D data
+        fitType : type of the peak function from pyspec fitfuncs, e.g. 'lor2a'"""
+        
+        return self.fit1D, self.fit1DType
 
     def setHistBin(self, histBin = 50):
-        """Sets the number of bins for the histograms"""
-        self.histBin
+        """Set the no. of bins for the histograms
+
+        hisBin : no. of bins for the histograms of the occupation numbers"""
+        
+        self.histBin = histBin
+
+    def getHistBin(self, histBin = 50):
+        """Get the no. of bins for the histograms
+
+        hisBin : no. of bins for the histograms of the occupation numbers"""
+        
+        return self.histBin
 
     def setPlotIm(self, plotImSelect = None, plotImHor = 4, plotImVer = 3):
-        """Sets the options for ploting the raw images"""
+        """Set the options for ploting the raw images
+
+        plotImSelect : list with the raw images which will be plotted, all if None
+        plotImHor    : no. of horizontal images per window, e.g. 4
+        plotImVer    : no. of vertical   images per window, e.g. 3"""
+        
         if plotImSelect == None:
             self.plotImSelect = range(self.setSize)
         else:
@@ -242,9 +462,52 @@ class ImageProcessor():
         self.plotImHor    = plotImHor
         self.plotImVer    = plotImVer
         
+    def getPlotIm(self):
+        """Get the options for ploting the raw images
+
+        plotImSelect : list with the raw images which will be plotted, all if None
+        plotImHor    : no. of horizontal images per window, e.g. 4
+        plotImVer    : no. of vertical   images per window, e.g. 3"""
+        
+        return self.plotImSelect, self.plotImHor, self.plotImVer
+
     #
     # help function part
     #
+
+    def _applyBins(self):
+        """Takes binning into acount for pixel size, detector size and detector center"""
+        self.detPixSizeX *= self.binX
+        self.detPixSizeY *= self.binY
+        self.detSizeX    /= self.binX
+        self.detSizeY    /= self.binY
+        self.detX0       /= self.binX
+        self.detY0       /= self.binY
+
+    def _setBySpec(self):
+        """Set the settings for the set from the considered pyspec scan object
+
+        The set settings are:
+        waveLen       : wavelength of the X-rays (float in Angstrom)
+        imFileNames   : filenames for each image
+        darkFileNames : filenames of the dark images
+        settingAngles : setting angles of the diffractometer at each image (data point)
+        intentNorm    : normalization factor (division) for each image
+        UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
+        setName       : name of the considered set, e.g. 'Scan #' in the spec case
+        setNum        : no. to determine the set, e.g. 244 in the spec case
+        setSize       : no. of images in the set, e.g. 81"""
+
+        self.waveLen       = self.conScan.wavelength
+        self.imFileNames   = self.conScan.getCCDFilenames()
+        self.darkFileNames = self.conScan.getCCDFilenames(dark = 1)
+        self.settingAngles = self.conScan.getSIXCAngles()
+        self.intentNorm    = self.conScan.Ring
+        self.UBmat         = self.conScan.UB
+        self.setName       = 'Scan #'
+        self.setNum        = self.conScan.scan
+        self.setSize       = self.settingAngles.shape[0]
+        self.procImSelect  = range(self.setSize)
 
     def _readImage(self, imNum):
         """Read in the considered region of interest of the image
@@ -301,6 +564,54 @@ class ImageProcessor():
         gamma = gam0 - np.arctan( (x-x0)*pixDisX/detDis )/np.pi*180.0
     
         return delta, gamma
+
+    def _processOneImage(self, imNum, mode = None):
+        """Process one image to (Qx, Qy, Qz, I)
+
+        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
+
+        # used mode
+        if mode == None:
+            mode = self.frameMode
+        # angle alias
+        delta = self.settingAngles[imNum, 0]
+        theta = self.settingAngles[imNum, 1]
+        chi   = self.settingAngles[imNum, 2]
+        phi   = self.settingAngles[imNum, 3]
+        mu    = self.settingAngles[imNum, 4]
+        gamma = self.settingAngles[imNum, 5]
+        
+        # intensities of considered image part
+        intent = np.ravel( self._readImage(imNum) )
+
+        # (delta, gamma)-values at each pixel
+        delPix, gamPix = self._XY2delgam(delta, gamma)        
+  
+        # diffractometer for angle to q calculations
+        scanDiff = Diffractometer()
+        scanDiff.setLambda(self.waveLen)
+        scanDiff.setAngles(delta = delPix, theta = theta, chi   = chi   ,
+                           phi   = phi   , mu    = mu   , gamma = gamPix)
+        scanDiff.calc()
+        scanDiff.setUbMatrix(self.UBmat)
+        if mode == 1:
+            Qxyz = scanDiff.getQTheta()
+        elif mode == 2:
+            Qxyz = scanDiff.getQPhi()
+        elif mode == 3:
+            Qxyz = scanDiff.getQCart()
+        elif mode == 4:
+            Qxyz = scanDiff.getQHKL()
+        else:
+            print 'mode = %s is no proper mode for calculation of (Qx, Qy, Qz)!'
+            print 'choose  theta- (1), phi- (2), cartesian- (3) or hkl-frame (4)'
+
+        # out put (Qx, Qy, Qz, I)
+        totIm = np.zeros((intent.size, 4))
+        totIm[:,:3] = Qxyz
+        totIm[:,3]  = intent
+
+        return totIm
 
     def _calcVecDataSet(self):
         """Calculats the vector data set for the grid points"""
@@ -363,85 +674,106 @@ class ImageProcessor():
                          self.gridOccu[:,:,self.maxInd[2]]]
 
         return gridData2DCut, gridOccu2DCut
-    
+
+    def _fit1DData(self, xVal, yVal, fitType = None, infoDes = ''):
+        """Fit a 1D data set
+
+        xVal    : x-values
+        yVal    : y-values
+        fitType : peak shape to fit from pyspec fitfuncs, use object default if None, e.g. 'lor2a'
+        infoDes : description of the current fit try for output, e.g. 'Qx Line cut of Scan #244'
+
+        returns
+        fitRes  : results of the fit, [a1, b1, cen1, width1, area1], [0, 0, 0, 0, 0] if unsuccessful fit"""
+
+        if fitType == None:
+            fitType = self.fit1DType
+
+        fitRes = np.zeros(5)
+        try:
+            f = fit.fit(x=xVal, y=yVal, funcs = [fitfuncs.linear, getattr(fitfuncs, fitType)])
+            f.go()
+            fitRes = f.result
+        except:
+            print 'WARNING : %s could not be fitted to %s!' % (infoDes, fitType)
+
+        return fitRes
+
+    def _add1DFits(self, xVals, yVals, axes, fitType = None, infoDes = ''):
+        """Tries fits of the 1D data and adds them to the data plot
+
+        xVals   : list with the x-values
+        yVals   : list with the y-values
+        axes    : list of the axes where the data was plotted to add the fits
+        fitType : peak shape to fit from pyspec fitfuncs, use object default if None, e.g. 'lor2a'
+        infoDes : description of the current fit try for output, e.g. 'Qx Line cut of Scan #244'
+
+        returns
+        allRes  : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
+
+        allRes = np.zeros((len(xVals), 5))
+
+        # go through the list of 1D data sets
+        for i in range(len(xVals)):
+            # try to fit the 1D data
+            infoDesI = infoDes + ' %d ' % (i)
+            fitRes   = self._fit1DData(xVals[i], yVals[i], fitType = fitType, infoDes = infoDesI)
+            allRes[i,:] = fitRes
+            # if the fit was successful plot it to the data
+            if not np.all(fitRes == 0):
+                yFit = fitfuncs.linear(xVals[i], fitRes[:2]) + getattr(fitfuncs, fitType)(xVals[i], fitRes[2:])
+                axes[i].plot(xVals[i], yFit, '-r')
+
+        return allRes
     #
     # process part
     #
 
-    def processOneImage(self, imNum):
-        """Process one image to (Qx, Qy, Qz, I)
-        modes of frames are: theta- (1), phi- (2), cartesian- (3) and hkl-frame (4)"""
+    def processOneSet(self, procSelect = None, mode = None):
+        """Process selcted images of the full set into (Qx, Qy, Qz, I)
 
-        # used mode
-        mode = self.frameMode
-        # angle alias
-        delta = self.settingAngles[imNum, 0]
-        theta = self.settingAngles[imNum, 1]
-        chi   = self.settingAngles[imNum, 2]
-        phi   = self.settingAngles[imNum, 3]
-        mu    = self.settingAngles[imNum, 4]
-        gamma = self.settingAngles[imNum, 5]
-        
-        # intensities of considered image part
-        intent = np.ravel( self._readImage(imNum) )
-
-        # (delta, gamma)-values at each pixel
-        delPix, gamPix = self._XY2delgam(delta, gamma)        
-  
-        # diffractometer for angle to q calculations
-        scanDiff = Diffractometer()
-        scanDiff.setLambda(self.waveLen)
-        scanDiff.setAngles(delta = delPix, theta = theta, chi   = chi   ,
-                           phi   = phi   , mu    = mu   , gamma = gamPix)
-        scanDiff.calc()
-        scanDiff.setUbMatrix(self.UBmat)
-        if mode == 1:
-            Qxyz = scanDiff.getQTheta()
-        elif mode == 2:
-            Qxyz = scanDiff.getQPhi()
-        elif mode == 3:
-            Qxyz = scanDiff.getQCart()
-        elif mode == 4:
-            Qxyz = scanDiff.getQHKL()
-        else:
-            print 'mode = %s is no proper mode for calculation of (Qx, Qy, Qz)!'
-            print 'choose  theta- (1), phi- (2), cartesian- (3) or hkl-frame (4)'
-
-        # out put (Qx, Qy, Qz, I)
-        totIm = np.zeros((intent.size, 4))
-        totIm[:,:3] = Qxyz
-        totIm[:,3]  = intent
-
-        return totIm
-
-    def processOneSet(self):
-        """Process full set of images (Qx, Qy, Qz, I)
-        modes of frames are: theta- (1), phi- (2), cartesian- (3) and hkl-frame (4)"""
+        procSelect : list with the images which will be processed, take object default if None
+        mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
 
         print '\n%s%d: process to (Qx, Qy, Qz, I)' % (self.setName, self.setNum)
 
+        if procSelect == None:
+            procSelect = self.procImSelect
+        if mode == None:
+            mode = self.frameMode
+
         # prepare size of full dataset and get data of first scan
-        setSize  = self.setSize
-        totFirst = self.processOneImage(0)
+        procSize  = len(procSelect)
+        totFirst = self._processOneImage(procSelect[0])
         imSize   = totFirst.shape[0]
-        npts     = setSize * imSize
+        npts     = procSize * imSize
         totSet   = np.zeros((npts, 4))
 
-        # go through all images and get data sets
+        # go through all selected images and get data sets
         j = 0
         k = imSize
         totSet[j:k,:] = totFirst
-        for i in range(1, setSize):
+        for i in procSelect[1:]:
             j = j + imSize
             k = k + imSize
-            totSet[j:k, :] = self.processOneImage(i)
+            totSet[j:k, :] = self._processOneImage(i, mode = mode)
 
         return totSet
 
-    def makeGridData(self, totData):
+    def makeGridData(self, procSelect = None, mode = None):
         """Grid the data set into a cuboid
         Size of the cuboid: Qmin, Qmax = [Qx, Qy, Qz]_min, max
-        Number of parts   : dQN = [Nqx, Nqy, Nqz]"""
+        Number of parts   : dQN = [Nqx, Nqy, Nqz]
+
+        procSelect : list with the images which will be processed, take object default if None
+        mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
+
+        if procSelect == None:
+            procSelect = self.procImSelect
+        if mode == None:
+            mode = self.frameMode
+
+        totData = self.processOneSet(procSelect = procSelect, mode = mode)
 
         # prepare min, max,...
         if self.Qmin == None:
@@ -475,13 +807,24 @@ class ImageProcessor():
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()
         self._calcMax()
+
+    
+            
         
     #
     # plot part
     #
 
     def plotGrid1DSum(self):
-        """Plots the 1D Lines of the data grid summed over the other dimensions"""
+        """Plots the 1D Lines of the data grid summed over the other dimensions
+
+        retrurns
+        fig1   : plt.figure object of the plotting window
+        allax1 : list of plt.axes objects which carry the figures
+        allRes : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
+
+        # results for fit of 1D data, None if no fitting
+        allRes = None
 
         gridPlot = PlotGrid()
         # flag options and no. of bins for histogram
@@ -495,9 +838,19 @@ class ImageProcessor():
                                plotTitle = '1D Lines, over other directions is summed')
         # plot, get figure and axes back
         fig1, allax1 = gridPlot.plot1DData()
+        # try to fit the 1D data
+        if self.fit1D:
+            infoDes = '%s%s 1D Line summed' % (self.setName, self.setNum)
+            allRes  = self._add1DFits(self.qVal, gridData1DSum, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
+
+        return fig1, allax1, allRes
 
     def plotGrid2DSum(self):
-        """Plots the 2D Areas of the data grid summed over the other dimension"""
+        """Plots the 2D Areas of the data grid summed over the other dimension
+
+        retrurns
+        fig2   : plt.figure object of the plotting window
+        allax2 : list of plt.axes objects which carry the figures"""
 
         gridPlot = PlotGrid()
         # flag options and no. of bins for histogram
@@ -515,8 +868,15 @@ class ImageProcessor():
         # plot, get figure and axes back
         fig2, allax2 = gridPlot.plot2DData()
 
+        return fig2, allax2
+
     def plotGrid1DCut(self):
-        """Plots the 1D Lines of the data grid summed over the other dimensions"""
+        """Plots the 1D Lines of the data grid summed over the other dimensions
+
+        retrurns
+        fig1   : plt.figure object of the plotting window
+        allax1 : list of plt.axes objects which carry the figures
+        allRes : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
 
         gridPlot = PlotGrid()
         # flag options and no. of bins for histogram
@@ -530,16 +890,19 @@ class ImageProcessor():
                                plotTitle = '1D Line Cuts at Maximum Position')
         # plot, get figure and axes back
         fig1, allax1 = gridPlot.plot1DData()
+        # try to fit the 1D data
+        if self.fit1D:
+            infoDes = '%s%s 1D Line cut' % (self.setName, self.setNum)
+            allRes  = self._add1DFits(self.qVal, gridData1DCut, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
 
-        # fit the 1D intensities
-        if self.fit1D == True:
-            for i in range(gridData1DCut.shape(0)):
-                f = fit.fit(x = self.qVal[i], y = gridData1DCut[i], func = [fitfuncs.linear, getatr(fitfuncs, self.fitType)])
-                f.go()
-                res = f.result
+        return fig1, allax1, allRes
 
     def plotGrid2DCut(self):
-        """Plots the 2D Areas of the data grid summed over the other dimension"""
+        """Plots the 2D Areas of the data grid summed over the other dimension
+
+        retrurns
+        fig2   : plt.figure object of the plotting window
+        allax2 : list of plt.axes objects which carry the figures"""
 
         gridPlot = PlotGrid()
         # flag options and no. of bins for histogram
@@ -557,8 +920,16 @@ class ImageProcessor():
         # plot, get figure and axes back
         fig2, allax2 = gridPlot.plot2DData()
 
-    def plotImages(self):
-        """Plots the selcted images"""
+        return fig2, allax2
+
+    def plotImages(self, images = None):
+        """Plots the selcted images
+
+        images : selction of the images for plotting, use object default if None
+
+        retrurns
+        allfig : list of plt.figure objects of the plotting windows
+        allax  : list of plt.axes objects which carry the figures"""
         
         # prepare plots
         plotImNum = self.plotImHor * self.plotImVer
@@ -569,8 +940,11 @@ class ImageProcessor():
         plotImExtent = [self.conRoi[0], self.conRoi[0] + self.conRoi[1],
                         self.conRoi[2], self.conRoi[2] + self.conRoi[3]]
 
+        if images is None:
+            images = self.plotImSelect
+
         # go through images numbers which should be plotted
-        for i in self.plotImSelect:
+        for i in images:
 
             # label for y-axis
             yLabel = 'image # %d' % (i)
@@ -613,30 +987,36 @@ if __name__ == "__main__":
 
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/2010_09_X1A2/ymn2o5_sep10_1', 
 			     ccdpath = '/mounts/davros/nasshare/images/sept10')
-    scan = sf[244]
+    scan = sf[218]
 
     testData = ImageProcessor()
+    
     testData.setBins(4, 4)
-    testData.setBySpec(scan)
+    testData.setSpecScan(scan)
     testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(4)
-    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
-    print testData.processOneImage(40)
+    #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
+    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
+    
+    #print testData.processOneImage(40)
     #totSet = testData.processOneSet()
-    #testData.makeGridData(totSet)
+    #testData.makeGridData(procSelect = [40])
+    testData.makeGridData()
     # plot options
-    testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
+    #testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
+    testData.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
     testData.setPlotFlags(7, 7)
     testData.setLogFlags(0, 3)
-    testData.setFit1D(False)
+    testData.setFit1D(True)
     testData.setHistBin(50)
+    
     #testData.plotGrid1DSum()
     #testData.plotGrid2DSum()
     #testData.plotGrid1DCut()
     #testData.plotGrid2DCut()
-    #testData.plotAll()
+    testData.plotAll()
 
     #testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
     #testData.plotImages()
-    #plt.show()
+    plt.show()
 

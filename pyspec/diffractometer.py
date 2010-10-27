@@ -113,6 +113,7 @@ class Diffractometer():
     def setUbMatrix(self, UBmat):
         """Sets the UB matrix"""
         self.UBmat = np.matrix(UBmat)
+        self.UBinv = self.UBmat.I
 
     #
     # calc part
@@ -197,7 +198,7 @@ class Diffractometer():
     def getQHKL(self):
         """Calc HKL values from (Qx, Qy, Qz) set in theta-frame with UB-matrix"""
  
-        return ( self.UBmat.I * np.dot( self.sixcToTardis.T, self.getQPhi().T )  ).T
+        return ( self.UBinv * np.dot( self.sixcToTardis.T, self.getQPhi().T )  ).T
 
 
 
