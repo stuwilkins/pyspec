@@ -57,6 +57,7 @@ setup(name='pyspec',
       platforms = ["any"],
       description = doclines[0],
       long_description = "\n".join(doclines[2:]),
-      packages=['pyspec', 'pyspec.ccd'],
+      packages=['pyspec', 'pyspec.ccd', 'pyspec.calcs'],
+      package_data={'pyspec.calcs': ['data/*']},
       ext_modules = ext_modules
 )

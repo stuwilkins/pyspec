@@ -38,12 +38,15 @@ if os.path.exists("setup.cfg"):
     except: pass
     try: options['build_princeton'] = config.getboolean("princeton","build")
     except: pass
+    try: options['build_sginfo'] = config.getboolean("sginfo","build")
+    except: pass
 
     levmar = parseExtensionSetup('levmar', config, ext_default)
     levmar['libraries'].append('levmar')
 
     gridder = parseExtensionSetup('gridder', config, ext_default)
     princeton = parseExtensionSetup('princeton', config, ext_default)
+    sginfo = parseExtensionSetup('sginfo', config, ext_default)
 
 
 ext_modules = []
@@ -62,4 +65,11 @@ if options['build_princeton']:
                                  depends = ['src/princeton.h'],
 				 **princeton))
 
-
+if options['build_sginfo']:
+    ext_modules.append(Extension('pyspec.calcs.sginfo', 
+                                 ['src/sginfomodule.c',
+                                  'src/sgclib.c',
+                                  'src/sgio.c',
+                                  'src/sgfind.c',
+                                  'src/sghkl.c',
+                                  'src/sgsi.c']))
