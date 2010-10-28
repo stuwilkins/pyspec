@@ -47,6 +47,7 @@ class PrincetonSPEFile():
         provided opens the datafile and reads the contents"""
         
         self._fid = None
+        self.fname = fname
         if fname is not None:
             self.openFile(fname)
         elif fid is not None:
@@ -57,10 +58,48 @@ class PrincetonSPEFile():
 
     def __str__(self):
         """Provide a text representation of the file."""
-        s = ""
-        s += "Data size : %d x %d x %d\n" % (self._size[::-1])
-        s += "Comments :\n"
+        s =  "Filename      : %s\n" % self.fname
+        s += "Data size     : %d x %d x %d\n" % (self._size[::-1])
+        s += "CCD Chip Size : %d x %d\n" % self._chipSize[::-1]
+        s += "File date     : %s\n" % time.asctime(self._filedate)
+        s += "Exposure Time : %f\n" % self.Exposure
+        s += "Num ROI       : %d\n" % self.NumROI
+        s += "Num ROI Exp   : %d\n" % self.NumROIExperiment
+        s += "Contoller Ver.: %d\n" % self.ControllerVersion
+        s += "Logic Output  : %d\n" % self.LogicOutput
+        #self.AppHiCapLowNoise = self._readInt(4)
+        s += "Timing Mode   : %d\n" % self.TimingMode
+        s += "Det. Temp     : %d\n" % self.DetTemperature
+        s += "Det. Type     : %d\n" % self.DetectorType
+        s += "Trigger Diode : %d\n" % self.TriggerDiode
+        s += "Delay Time    : %d\n" % self.DelayTime
+        s += "Shutter Cont. : %d\n" % self.ShutterControl
+        s += "Absorb Live   : %d\n" % self.AbsorbLive
+        s += "Absorb Mode   : %d\n" % self.AbsorbMode
+        s += "Virtual Chip  : %d\n" % self.CanDoVirtualChip
+        s += "Thresh. Min L : %d\n" % self.ThresholdMinLive
+        s += "Thresh. Min   : %d\n" % self.ThresholdMin
+        s += "Thresh. Max L : %d\n" % self.ThresholdMaxLive
+        s += "Thresh. Max   : %d\n" % self.ThresholdMax
+        s += "Geometric Op  : %d\n" % self.GeometricOps
+        s += "ADC Offset    : %d\n" % self.ADCOffset
+        s += "ADC Rate      : %d\n" % self.ADCRate
+        s += "ADC Type      : %d\n" % self.ADCType
+        s += "ADC Resol.    : %d\n" % self.ADCRes
+        s += "ADC Bit. Adj. : %d\n" % self.ADCBitAdj
+        s += "ADC Gain      : %d\n" % self.Gain
+        
+        i = 0
+        for roi in self.allROI:
+            s += "ROI %-4d      : %-5d %-5d %-5d %-5d %-5d %-5d\n" % (i,roi[0], roi[1], roi[2],
+                                                                  roi[3], roi[4], roi[5])
+            i += 1
+        
+        s += "\nComments :\n"
+        i = 0
         for c in self._comments:
+            s += "%-3d : " % i
+            i += 1
             s += c
             s += "\n"
         return s
@@ -80,6 +119,8 @@ class PrincetonSPEFile():
         self._readHeader()
         self._readSize()
         self._readComments()
+        self._readAllROI()
+        self._readDate()
         self._readArray()
 
     def openFile(self, fname):
@@ -129,6 +170,7 @@ class PrincetonSPEFile():
         self.AppHiCapLowNoise = self._readInt(4)
         self.TimingMode = self._readInt(8)
         self.Exposure = self._readFloat(10)
+        self.DetTemperature = self._readFloat(36)
         self.DetectorType = self._readInt(40)
         self.TriggerDiode = self._readInt(44)
         self.DelayTime = self._readFloat(46)
@@ -140,7 +182,23 @@ class PrincetonSPEFile():
         self.ThresholdMin = self._readFloat(60)
         self.ThresholdMaxLive = self._readInt(64)
         self.ThresholdMax = self._readFloat(66)
-        
+        self.ADCOffset = self._readInt(188)
+        self.ADCRate = self._readInt(190)
+        self.ADCType = self._readInt(192)
+        self.ADCRes = self._readInt(194)
+        self.ADCBitAdj = self._readInt(196)
+        self.Gain = self._readInt(198)
+        self.GeometricOps = self._readInt(600)
+
+    def _readAllROI(self):
+        self.allROI = self._readAtNumpy(1512, 60, numpy.int16).reshape(-1,6)
+        self.NumROI = self._readAtNumpy(1510, 1, numpy.int16)[0]
+        self.NumROIExperiment = self._readAtNumpy(1488, 1, numpy.int16)[0]
+        if self.NumROI == 0:
+            self.NumROI = 1
+        if self.NumROIExperiment == 0:
+            self.NumROIExperiment = 1
+    
     def _readDate(self):
         _date = self._readAtString(20, self.DATEMAX)
         _time = self._readAtString(172, self.TIMEMAX)
@@ -177,6 +235,7 @@ class PrincetonSPEFile():
 
 if __name__ == "__main__":
     # Run a test
-    data = PrincetonSPEFile("ccdtest.02_0028-0020_0006.spe")
-    data._readDate()
+    data = PrincetonSPEFile("../../tests/testimage.spe")
+    print data
+    
     
