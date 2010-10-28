@@ -36,6 +36,11 @@ delta : along +X'    -> S*    (delta-frame)
 gamma : along +Z*    -> S**   (gamma-frame)
 """
 
+__version__   = "$Revision:$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate:$"
+__id__        = "$Id:$"
+
 class Diffractometer():
     """Diffractometer class
 

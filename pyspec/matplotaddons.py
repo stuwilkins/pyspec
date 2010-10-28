@@ -4,6 +4,11 @@ import matplotlib
 import os
 import tempfile
 
+__version__   = "$Revision$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
+
 def printfig(*args, **kwargs):
   """Print pyplot figure.
 

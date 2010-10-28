@@ -25,6 +25,11 @@ import matplotlib.pyplot as plt
 from   matplotlib.colors import LogNorm
 from   pyspec  import fit, fitfuncs
 
+__version__   = "$Revision:$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate:$"
+__id__        = "$Id:$"
+
 class PlotGrid():
     """Plot Grid Class
 

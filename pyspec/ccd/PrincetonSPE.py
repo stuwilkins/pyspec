@@ -23,6 +23,11 @@
 import numpy
 import time
 
+__version__   = "$Revision$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
+
 class PrincetonSPEFile():
     """Class to read SPE files from Princeton CCD cameras"""
 

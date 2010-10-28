@@ -61,6 +61,11 @@ try:
 except ImportError:
    warnings.warn("NO levmar package ... unable to use LEVMAR regression module")
 
+__version__   = "$Revision$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
+
 class FitPlotCmd(cmd.Cmd):
     """Simple command processor for interactive fitting"""
 

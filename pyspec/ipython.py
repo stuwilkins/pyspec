@@ -5,6 +5,11 @@ import pyspec.spec as spec
 import tempfile
 import matplotlib.pyplot as pyplot
 
+__version__   = "$Revision$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
+
 def magic_printfig(self, args):
 	"""Print current figure"""
 	api = self.api

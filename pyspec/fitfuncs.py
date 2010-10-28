@@ -32,6 +32,11 @@ try:
 except ImportError:
 	pass
 
+__version__   = "$Revision$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
+
 class GetGraphInput(object):
     """
     Class that creates a callable object to retrieve mouse click in a

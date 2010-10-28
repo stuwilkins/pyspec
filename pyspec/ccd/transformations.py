@@ -30,6 +30,11 @@ from   pyspec.ccd.plotter import PlotGrid
 import gridder
 from ConfigParser import ConfigParser
 
+__version__   = "$Revision$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
+
 class MyConfigParser(ConfigParser):
     def readAllLocations(self, filename):
         _f = os.path.split(filename)
