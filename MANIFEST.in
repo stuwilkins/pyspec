@@ -1,3 +1,7 @@
+#
+# $Id$
+# $Author$
+#
 include setup.cfg*
 include setupext.py
 recursive-include tests *.py *.spe *.dat

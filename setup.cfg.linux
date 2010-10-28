@@ -1,7 +1,7 @@
 #
 # PYSPEC setup.cfg file
 #
-# $Id: setup.cfg 41 2010-10-13 20:39:16Z stuwilkins $
+# $Id$
 #
 [global]
 verbose=1

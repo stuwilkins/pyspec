@@ -4,6 +4,11 @@ import numpy as np
 import copy
 from distutils.core import Extension
 
+__version__   = "$Revision$"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
+
 options = {'build_levmar'    : False ,
            'build_gridder'   : False ,
            'build_princeton' : False }

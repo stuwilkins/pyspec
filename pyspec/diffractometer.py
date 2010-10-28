@@ -1,8 +1,8 @@
 #
 # diffractometer.py (c) Stuart B. Wilkins 2010 and (c) Sven Partzsch 2010
 #
-# $Id: fit.py 48 2010-10-16 18:05:14Z stuwilkins $
-# $HeadURL: https://pyspec.svn.sourceforge.net/svnroot/pyspec/trunk/pyspec/fit.py $
+# $Id$
+# $HeadURL$
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -36,10 +36,10 @@ delta : along +X'    -> S*    (delta-frame)
 gamma : along +Z*    -> S**   (gamma-frame)
 """
 
-__version__   = "$Revision:$"
+__version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
-__date__      = "$LastChangedDate:$"
-__id__        = "$Id:$"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
 
 class Diffractometer():
     """Diffractometer class

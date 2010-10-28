@@ -1,8 +1,8 @@
 #
 # plotter.py (c) Stuart B. Wilkins 2010 and (c) Sven Partzsch
 #
-# $Id: transformations.py 40 2010-10-13 15:58:30Z stuwilkins $
-# $HeadURL: https://pyspec.svn.sourceforge.net/svnroot/pyspec/trunk/pyspec/ccd/transformations.py $
+# $Id$
+# $HeadURL$
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -25,10 +25,10 @@ import matplotlib.pyplot as plt
 from   matplotlib.colors import LogNorm
 from   pyspec  import fit, fitfuncs
 
-__version__   = "$Revision:$"
+__version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
-__date__      = "$LastChangedDate:$"
-__id__        = "$Id:$"
+__date__      = "$LastChangedDate$"
+__id__        = "$Id$"
 
 class PlotGrid():
     """Plot Grid Class
