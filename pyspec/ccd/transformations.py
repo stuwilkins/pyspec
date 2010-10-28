@@ -703,47 +703,7 @@ class ImageProcessor():
         ind2 = maxN % self.dQN[2]
         ind1 = maxN / self.dQN[2] % self.dQN[1]
         ind0 = maxN / self.dQN[2] / self.dQN[1]
-        self.maxInd = np.array([ind0, ind1, ind2])
-
-    def _make1DSum(self):
-        """1D Lines of the grid data and occupations by summing in the other directions"""
-        gridData1DSum = [self.gridData.sum(1).sum(1),
-                         self.gridData.sum(0).sum(1),
-                         self.gridData.sum(0).sum(0)]
-        gridOccu1DSum = [self.gridOccu.sum(1).sum(1),
-                         self.gridOccu.sum(0).sum(1),
-                         self.gridOccu.sum(0).sum(0)]
-
-        return gridData1DSum, gridOccu1DSum
-
-    def _make2DSum(self):
-        """2D Areas of the grid data and occupations by summing in the other direction"""
-        gridData2DSum = [self.gridData.sum(0), self.gridData.sum(1), self.gridData.sum(2)]
-        gridOccu2DSum = [self.gridOccu.sum(0), self.gridOccu.sum(1), self.gridOccu.sum(2)]
-
-        return gridData2DSum, gridOccu2DSum
-    
-    def _make1DCut(self):
-        """1D Lines of the grid data and occupations at the position of the maximum intensity"""
-        gridData1DCut = [self.gridData[:,self.maxInd[1],self.maxInd[2]],
-                         self.gridData[self.maxInd[0],:,self.maxInd[2]],
-                         self.gridData[self.maxInd[0],self.maxInd[1],:]]
-        gridOccu1DCut = [self.gridOccu[:,self.maxInd[1],self.maxInd[2]],
-                         self.gridOccu[self.maxInd[0],:,self.maxInd[2]],
-                         self.gridOccu[self.maxInd[0],self.maxInd[1],:]]
-
-        return gridData1DCut, gridOccu1DCut
-    
-    def _make2DCut(self):
-        """2D Areas of the grid data and occupations at the position of the maximum intensity"""
-        gridData2DCut = [self.gridData[self.maxInd[0],:,:],
-                         self.gridData[:,self.maxInd[1],:],
-                         self.gridData[:,:,self.maxInd[2]]]
-        gridOccu2DCut = [self.gridOccu[self.maxInd[0],:,:],
-                         self.gridOccu[:,self.maxInd[1],:],
-                         self.gridOccu[:,:,self.maxInd[2]]]
-
-        return gridData2DCut, gridOccu2DCut
+        self.maxInd = np.array([ind0, ind1, ind2])    
 
     def _fit1DData(self, xVal, yVal, fitType = None, infoDes = ''):
         """Fit a 1D data set
@@ -997,8 +957,118 @@ class ImageProcessor():
         
         # for info file
         self.opProcInfo += self._makeGridInfo()
+
+    def get1DSum(self):
+        """1D Lines of the grid data and occupations by summing in the other directions
+
+        returns
+        gridData1DSum : intensity set  in the order Qx, Qy, Qz as list
+        gridOccu1DSum : occupation no. in the order Qx, Qy, Qz as list"""
+
+        gridData1DSum = [self.gridData.sum(1).sum(1),
+                         self.gridData.sum(0).sum(1),
+                         self.gridData.sum(0).sum(0)]
+        gridOccu1DSum = [self.gridOccu.sum(1).sum(1),
+                         self.gridOccu.sum(0).sum(1),
+                         self.gridOccu.sum(0).sum(0)]
+
+        return gridData1DSum, gridOccu1DSum
+
+    def get2DSum(self):
+        """2D Areas of the grid data and occupations by summing in the other direction
+
+        returns
+        gridData2DSum : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
+        gridOccu2DSum : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
+
+        gridData2DSum = [self.gridData.sum(0), self.gridData.sum(1), self.gridData.sum(2)]
+        gridOccu2DSum = [self.gridOccu.sum(0), self.gridOccu.sum(1), self.gridOccu.sum(2)]
+
+        return gridData2DSum, gridOccu2DSum
     
-            
+    def get1DCut(self):
+        """1D Lines of the grid data and occupations at the position of the maximum intensity
+
+        returns
+        gridData1DCut : intensity set  in the order Qx, Qy, Qz as list
+        gridOccu1DCut : occupation no. in the order Qx, Qy, Qz as list"""
+
+        gridData1DCut = [self.gridData[:,self.maxInd[1],self.maxInd[2]],
+                         self.gridData[self.maxInd[0],:,self.maxInd[2]],
+                         self.gridData[self.maxInd[0],self.maxInd[1],:]]
+        gridOccu1DCut = [self.gridOccu[:,self.maxInd[1],self.maxInd[2]],
+                         self.gridOccu[self.maxInd[0],:,self.maxInd[2]],
+                         self.gridOccu[self.maxInd[0],self.maxInd[1],:]]
+
+        return gridData1DCut, gridOccu1DCut
+    
+    def get2DCut(self):
+        """2D Areas of the grid data and occupations at the position of the maximum intensity
+
+        returns
+        gridData2DCut : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
+        gridOccu2DCut : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
+
+        gridData2DCut = [self.gridData[self.maxInd[0],:,:],
+                         self.gridData[:,self.maxInd[1],:],
+                         self.gridData[:,:,self.maxInd[2]]]
+        gridOccu2DCut = [self.gridOccu[self.maxInd[0],:,:],
+                         self.gridOccu[:,self.maxInd[1],:],
+                         self.gridOccu[:,:,self.maxInd[2]]]
+
+        return gridData2DCut, gridOccu2DCut
+
+    def get1DCutAv(self):
+        """1D averaged Lines of the grid data and occupations at the position of the maximum
+        intensity and its eight neighbored lines 
+
+        returns
+        gridData1DCutAv : intensity set  in the order Qx, Qy, Qz as list
+        gridOccu1DCutAv : occupation no. in the order Qx, Qy, Qz as list"""
+
+        # initialize with correct size as zeros
+        gridData1DCutAv = [np.zeros(self.dQN[0]),np.zeros(self.dQN[1]),np.zeros(self.dQN[2])]
+        gridOccu1DCutAv = [np.zeros(self.dQN[0]),np.zeros(self.dQN[1]),np.zeros(self.dQN[2])]
+
+        # go through the neighbors
+        for i in range(3):
+            for j in range(3):
+                gridData1DCutAv += [self.gridData[:,self.maxInd[1]+i-1,self.maxInd[2]+j-1]/9.0,
+                                    self.gridData[self.maxInd[0]+i-1,:,self.maxInd[2]+j-1]/9.0,
+                                    self.gridData[self.maxInd[0]+i-1,self.maxInd[1]+j-1,:]/9.0]
+                gridOccu1DCutAv += [self.gridOccu[:,self.maxInd[1]+i-1,self.maxInd[2]+j-1]/9.0,
+                                    self.gridOccu[self.maxInd[0]+i-1,:,self.maxInd[2]+j-1]/9.0,
+                                    self.gridOccu[self.maxInd[0]+i-1,self.maxInd[1]+j-1,:]/9.0]
+        
+        return gridData1DCutAv, gridOccu1DCutAv
+
+    def get2DCutAv(self):
+        """2D average Areas of the grid data and occupations at the position of the maximum
+        intensity and the their two neighbors
+
+        returns
+        gridData2DCutAv : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
+        gridOccu2DCutAv : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
+
+        # initialize with correct size as zeros
+        gridData2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1]))),
+                           np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[0]))),
+                           np.array(np.meshgrid(np.zeros(self.dQN[1]),np.zeros(self.dQN[0])))]
+        gridOccu2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1]))),
+                           np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[0]))),
+                           np.array(np.meshgrid(np.zeros(self.dQN[1]),np.zeros(self.dQN[0])))]
+        
+        # go through the neighbors
+        for i in range(3):
+            gridData2DCutAv[0] += self.gridData[self.maxInd[0]+i-1,:,:]/3.0
+            gridData2DCutAv[1] += self.gridData[:,self.maxInd[1]+i-1,:]/3.0
+            gridData2DCutAv[2] += self.gridData[:,:,self.maxInd[2]+i-1]/3.0
+            gridOccu2DCutAv[0] += self.gridOccu[self.maxInd[0]+i-1,:,:]/3.0
+            gridOccu2DCutAv[1] += self.gridOccu[:,self.maxInd[1]+i-1,:]/3.0
+            gridOccu2DCutAv[2] += self.gridOccu[:,:,self.maxInd[2]+i-1]/3.0
+        
+        return gridData2DCutAv, gridOccu2DCutAv
+    
     #
     # plot part
     #
@@ -1021,7 +1091,7 @@ class ImageProcessor():
         gridPlot.setHistBin(20)
         # axes and data configuration
         gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
-        gridData1DSum, gridOccu1DSum = self._make1DSum()
+        gridData1DSum, gridOccu1DSum = self.get1DSum()
         gridPlot.setPlot1DData(gridData1DSum, gridOccu1DSum,
                                plotTitle = '1D Lines, over other directions is summed')
         # plot, get figure and axes back
@@ -1052,7 +1122,7 @@ class ImageProcessor():
                                [self.Qmin[1], self.Qmin[0], self.Qmin[0]], [self.Qmax[1], self.Qmax[0], self.Qmax[0]],
                                [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
                                [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
-        gridData2DSum, gridOccu2DSum = self._make2DSum()
+        gridData2DSum, gridOccu2DSum = self.get2DSum()
         gridPlot.setPlot2DData(gridData2DSum, gridOccu2DSum,
                                plotTitle = '2D Areas, over other direction is summed')
         # plot, get figure and axes back
@@ -1075,7 +1145,7 @@ class ImageProcessor():
         gridPlot.setHistBin(20)
         # axes and data configuration
         gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
-        gridData1DCut, gridOccu1DCut = self._make1DCut()
+        gridData1DCut, gridOccu1DCut = self.get1DCutAv()
         gridPlot.setPlot1DData(gridData1DCut, gridOccu1DCut,
                                plotTitle = '1D Line Cuts at Maximum Position')
         # plot, get figure and axes back
@@ -1106,14 +1176,70 @@ class ImageProcessor():
                                [self.Qmin[1], self.Qmin[0], self.Qmin[0]], [self.Qmax[1], self.Qmax[0], self.Qmax[0]],
                                [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
                                [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
-        gridData2DCut, gridOccu2DCut = self._make2DCut()
+        gridData2DCut, gridOccu2DCut = self.get2DCut()
         gridPlot.setPlot2DData(gridData2DCut, gridOccu2DCut,
                                plotTitle = '2D Area Cuts at Maximum Position')
+        
         # plot, get figure and axes back
         fig2, allax2 = gridPlot.plot2DData()
 
         return fig2, allax2
 
+    def plotGrid1DCutAv(self):
+        """Plots the 1D Lines of the data grid summed over the other dimensions
+
+        retrurns
+        fig1   : plt.figure object of the plotting window
+        allax1 : list of plt.axes objects which carry the figures
+        allRes : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
+
+        gridPlot = PlotGrid()
+        # flag options and no. of bins for histogram
+        gridPlot.setPlotFlags(flag1D = 7)
+        gridPlot.setLogFlags(flag1D = 0)
+        gridPlot.setHistBin(20)
+        # axes and data configuration
+        gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
+        gridData1DCutAv, gridOccu1DCutAv = self.get1DCutAv()
+        gridPlot.setPlot1DData(gridData1DCutAv, gridOccu1DCutAv,
+                               plotTitle = '1D Line Cuts at Maximum Position')
+        # plot, get figure and axes back
+        fig1, allax1 = gridPlot.plot1DData()
+        # try to fit the 1D data
+        if self.fit1D:
+            infoDes = '%s%s 1D Line cut' % (self.setName, self.setNum)
+            allRes  = self._add1DFits(self.qVal, gridData1DCutAv, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
+            # for info file
+            self.opProcInfo += '\n\n' + self._makeFitInfo1D(allRes, fitType = None, fitTitle = '1D Line cut', fitNames = self.qLabel)
+
+        return fig1, allax1, allRes
+
+    def plotGrid2DCutAv(self):
+        """Plots the 2D Areas of the data grid summed over the other dimension
+
+        retrurns
+        fig2   : plt.figure object of the plotting window
+        allax2 : list of plt.axes objects which carry the figures"""
+
+        gridPlot = PlotGrid()
+        # flag options and no. of bins for histogram
+        gridPlot.setPlotFlags(flag2D = 7)
+        gridPlot.setLogFlags(flag2D = 0)
+        gridPlot.setHistBin(20)
+        # axes and data configuration
+        gridPlot.setPlot2DAxes([self.Qmin[2], self.Qmin[2], self.Qmin[1]], [self.Qmax[2], self.Qmax[2], self.Qmax[1]],
+                               [self.Qmin[1], self.Qmin[0], self.Qmin[0]], [self.Qmax[1], self.Qmax[0], self.Qmax[0]],
+                               [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
+                               [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
+        gridData2DCutAv, gridOccu2DCutAv = self.get2DCutAv()
+        gridPlot.setPlot2DData(gridData2DCutAv, gridOccu2DCutAv,
+                               plotTitle = '2D Area Cuts at Maximum Position')
+        
+        # plot, get figure and axes back
+        fig2, allax2 = gridPlot.plot2DData()
+
+        return fig2, allax2
+    
     def plotImages(self, images = None):
         """Plots the selcted images
 
@@ -1217,8 +1343,8 @@ if __name__ == "__main__":
     
     #imSet  = testData.processOneSet(procSelect = [40])
     #totSet = testData.processOneSet()
-    #testData.makeGridData(procSelect = [40])
-    testData.makeGridData()
+    testData.makeGridData(procSelect = [40])
+    #testData.makeGridData()
 
     # plot options
     #testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
@@ -1239,6 +1365,11 @@ if __name__ == "__main__":
     
     # test of input output file handling
 
+    #print '\n\n'
+    #dat, ocu = testData.get2DCutAv()
+    #print dat
+    #print '\n'
+    #print dat[0].shape
     print '\n\n'
     print testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')
