@@ -385,6 +385,13 @@ class ImageProcessor():
 
         return self.Qmin, self.Qmax, self.dQN
 
+    def getGridVectors(self):
+        """Get the values for the underlying grid vectors
+
+        qVal : list of the Qx, Qy, and Qz values"""
+
+        return self.qVal
+
     #
     # set and get functions for plot settings
     #
@@ -587,7 +594,6 @@ class ImageProcessor():
             print '%s%d image #%03d: read image' % (self.setName, self.setNum, imNum)
 
         # get dark image (first CCD image)
-        darkMon  = self.intentNorm[0]
         fileName = self.darkFileNames[0]
         darkVal  = PrincetonSPEFile(fileName)[0].astype(numpy.float64)
         
@@ -601,8 +607,8 @@ class ImageProcessor():
             self.conRoi   = [1, len(pointVal[0]), 1, len(pointVal)]
 
         # get considered part of the images
-        conDark  = getAreaSet(darkVal,  self.conRoi) / darkMon
-        conIm    = getAreaSet(pointVal, self.conRoi) / pointMon - conDark
+        conDark  =  getAreaSet(darkVal,  self.conRoi)
+        conIm    = (getAreaSet(pointVal, self.conRoi) - conDark) / pointMon
 
         return conIm
 
@@ -909,11 +915,16 @@ class ImageProcessor():
 
     def makeGridData(self, procSelect = None, mode = None):
         """Grid the data set into a cuboid
-        Size of the cuboid: Qmin, Qmax = [Qx, Qy, Qz]_min, max
-        Number of parts   : dQN = [Nqx, Nqy, Nqz]
+        Size of the cuboid : Qmin, Qmax = [Qx, Qy, Qz]_min, max
+        Number of parts    : dQN = [Nqx, Nqy, Nqz]
 
         procSelect : list with the images which will be processed, take object default if None
-        mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
+        mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None
+
+        returns
+        gridData : values at the grid parts (bins)
+        gridOccu : occupation no. of the grid parts (bins)
+        gridOut  : no. of the data points outside the grid"""
 
         if procSelect == None:
             procSelect = self.procImSelect
@@ -943,9 +954,15 @@ class ImageProcessor():
         if emptNb:
             print "Warning : There are %.2e values zero in the grid" % emptNb
 
+        
+        gridData = gridData/gridOccu
+        for i in range(dQN[0]):
+            for j in range(dQN[1]):
+                for k in range(dQN[2]):
+                    if np.isnan(gridData[i,j,k]):
+                        gridData[i,j,k] = 0.0
         # mask the gridded data set
-        gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
-      
+        #gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
         # store intensity, occupation and no. of outside data points of the grid
         self.gridData = gridData
         self.gridOccu = gridOccu
@@ -957,6 +974,8 @@ class ImageProcessor():
         
         # for info file
         self.opProcInfo += self._makeGridInfo()
+
+        return gridData, gridOccu, gridOut
 
     def get1DSum(self):
         """1D Lines of the grid data and occupations by summing in the other directions
@@ -1030,15 +1049,16 @@ class ImageProcessor():
         gridData1DCutAv = [np.zeros(self.dQN[0]),np.zeros(self.dQN[1]),np.zeros(self.dQN[2])]
         gridOccu1DCutAv = [np.zeros(self.dQN[0]),np.zeros(self.dQN[1]),np.zeros(self.dQN[2])]
 
+        #print self.dQN[0]
         # go through the neighbors
         for i in range(3):
             for j in range(3):
-                gridData1DCutAv += [self.gridData[:,self.maxInd[1]+i-1,self.maxInd[2]+j-1]/9.0,
-                                    self.gridData[self.maxInd[0]+i-1,:,self.maxInd[2]+j-1]/9.0,
-                                    self.gridData[self.maxInd[0]+i-1,self.maxInd[1]+j-1,:]/9.0]
-                gridOccu1DCutAv += [self.gridOccu[:,self.maxInd[1]+i-1,self.maxInd[2]+j-1]/9.0,
-                                    self.gridOccu[self.maxInd[0]+i-1,:,self.maxInd[2]+j-1]/9.0,
-                                    self.gridOccu[self.maxInd[0]+i-1,self.maxInd[1]+j-1,:]/9.0]
+                gridData1DCutAv[0] += self.gridData[:,self.maxInd[1]+i-1,self.maxInd[2]+j-1]/9.0
+                gridData1DCutAv[1] += self.gridData[self.maxInd[0]+i-1,:,self.maxInd[2]+j-1]/9.0
+                gridData1DCutAv[2] += self.gridData[self.maxInd[0]+i-1,self.maxInd[1]+j-1,:]/9.0
+                gridOccu1DCutAv[0] += self.gridOccu[:,self.maxInd[1]+i-1,self.maxInd[2]+j-1]/9.0
+                gridOccu1DCutAv[1] += self.gridOccu[self.maxInd[0]+i-1,:,self.maxInd[2]+j-1]/9.0
+                gridOccu1DCutAv[2] += self.gridOccu[self.maxInd[0]+i-1,self.maxInd[1]+j-1,:]/9.0
         
         return gridData1DCutAv, gridOccu1DCutAv
 
@@ -1051,13 +1071,13 @@ class ImageProcessor():
         gridOccu2DCutAv : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
 
         # initialize with correct size as zeros
-        gridData2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1]))),
-                           np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[0]))),
-                           np.array(np.meshgrid(np.zeros(self.dQN[1]),np.zeros(self.dQN[0])))]
-        gridOccu2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1]))),
-                           np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[0]))),
-                           np.array(np.meshgrid(np.zeros(self.dQN[1]),np.zeros(self.dQN[0])))]
-        
+        gridData2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1])))[0],
+                           np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[0])))[0],
+                           np.array(np.meshgrid(np.zeros(self.dQN[1]),np.zeros(self.dQN[0])))[0]]
+        gridOccu2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1])))[0],
+                           np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[0])))[0],
+                           np.array(np.meshgrid(np.zeros(self.dQN[1]),np.zeros(self.dQN[0])))[0]]
+        print gridData2DCutAv[0].shape
         # go through the neighbors
         for i in range(3):
             gridData2DCutAv[0] += self.gridData[self.maxInd[0]+i-1,:,:]/3.0
@@ -1066,8 +1086,17 @@ class ImageProcessor():
             gridOccu2DCutAv[0] += self.gridOccu[self.maxInd[0]+i-1,:,:]/3.0
             gridOccu2DCutAv[1] += self.gridOccu[:,self.maxInd[1]+i-1,:]/3.0
             gridOccu2DCutAv[2] += self.gridOccu[:,:,self.maxInd[2]+i-1]/3.0
-        
         return gridData2DCutAv, gridOccu2DCutAv
+
+    def getIntIntensity(self):
+        """Get the integrated intensity of the peak by summing over all grid parts (bins)
+
+        returns
+        intInten : integrated intensity"""
+
+        intInten = self.gridData.sum()
+
+        return intInten
     
     #
     # plot part
@@ -1145,7 +1174,7 @@ class ImageProcessor():
         gridPlot.setHistBin(20)
         # axes and data configuration
         gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
-        gridData1DCut, gridOccu1DCut = self.get1DCutAv()
+        gridData1DCut, gridOccu1DCut = self.get1DCut()
         gridPlot.setPlot1DData(gridData1DCut, gridOccu1DCut,
                                plotTitle = '1D Line Cuts at Maximum Position')
         # plot, get figure and axes back
@@ -1202,15 +1231,15 @@ class ImageProcessor():
         gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
         gridData1DCutAv, gridOccu1DCutAv = self.get1DCutAv()
         gridPlot.setPlot1DData(gridData1DCutAv, gridOccu1DCutAv,
-                               plotTitle = '1D Line Cuts at Maximum Position')
+                               plotTitle = '1D Line Cuts at Maximum Position and 8 Neighbors Averaged')
         # plot, get figure and axes back
         fig1, allax1 = gridPlot.plot1DData()
         # try to fit the 1D data
         if self.fit1D:
-            infoDes = '%s%s 1D Line cut' % (self.setName, self.setNum)
+            infoDes = '%s%s 1D Line cuts average' % (self.setName, self.setNum)
             allRes  = self._add1DFits(self.qVal, gridData1DCutAv, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
             # for info file
-            self.opProcInfo += '\n\n' + self._makeFitInfo1D(allRes, fitType = None, fitTitle = '1D Line cut', fitNames = self.qLabel)
+            self.opProcInfo += '\n\n' + self._makeFitInfo1D(allRes, fitType = None, fitTitle = '1D Line cut average', fitNames = self.qLabel)
 
         return fig1, allax1, allRes
 
@@ -1233,7 +1262,7 @@ class ImageProcessor():
                                [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
         gridData2DCutAv, gridOccu2DCutAv = self.get2DCutAv()
         gridPlot.setPlot2DData(gridData2DCutAv, gridOccu2DCutAv,
-                               plotTitle = '2D Area Cuts at Maximum Position')
+                               plotTitle = '2D Area Cuts at Maximum Position and 2 Neighbors Averaged')
         
         # plot, get figure and axes back
         fig2, allax2 = gridPlot.plot2DData()
@@ -1269,7 +1298,7 @@ class ImageProcessor():
 
             if j%plotImNum == 0:
                 # prepare plot window
-                fig = plt.figure(figsize = self._defaultFigSize)
+                fig = plt.figure(figsize = self._defaultFigureSize)
                 fig.suptitle(plotImTitle, fontsize = 24)
                 allfig.append(fig)
 
@@ -1293,6 +1322,8 @@ class ImageProcessor():
         self.plotGrid2DSum()
         self.plotGrid1DCut()
         self.plotGrid2DCut()
+        self.plotGrid1DCutAv()
+        self.plotGrid2DCutAv()
 
     #
     # input / output part
@@ -1337,14 +1368,21 @@ if __name__ == "__main__":
     testData.setSpecScan(scan)
     testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(1)
-    #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
-    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 180, 40])
+    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
+    #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
+
+    testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
+    testData.plotImages()
     
     #imSet  = testData.processOneSet(procSelect = [40])
     #totSet = testData.processOneSet()
-    testData.makeGridData(procSelect = [40])
-    #testData.makeGridData()
+    #testData.makeGridData(procSelect = [40])
+    testData.makeGridData()
+
+    print 'Peak integrated intensity : %.2e' % (testData.getIntIntensity())
+    #lineData, lineOccu = testData.get1DCut()
+    #areaData, areaOccu = testData.get2DCut()
 
     # plot options
     #testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
@@ -1353,23 +1391,17 @@ if __name__ == "__main__":
     testData.setLogFlags(0, 3)
     testData.setFit1D(True)
     testData.setHistBin(50)
-    
+ 
     #testData.plotGrid1DSum()
     #testData.plotGrid2DSum()
     #testData.plotGrid1DCut()
     #testData.plotGrid2DCut()
+    #testData.plotGrid1DCutAv()
+    #testData.plotGrid2DCutAv()
     testData.plotAll()
-
-    #testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
-    #testData.plotImages()
-    
+ 
     # test of input output file handling
 
-    #print '\n\n'
-    #dat, ocu = testData.get2DCutAv()
-    #print dat
-    #print '\n'
-    #print dat[0].shape
     print '\n\n'
     print testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')

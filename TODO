@@ -1,0 +1,7 @@
+Gridder:
+
+Current version gives summed values in each grid part (bin) and its occupation. One needs the averaged value, i.e. dividing by the occupation number. This casses problems because if there are no contributing data poins, i.e. occupation no. = 0 the division gives 'nan'. That is bad for the later treatment. The masking helps only for the first simple plots.
+
+It would be better that the gridder runs a loop in C++ over all grid parts (bins) at the end. If occupation not zero, dived by occupation number. If occupation number is zero, set the value to zero. This gives the same form of the averaged values. If one needs the sums, one just multiply by the occupation number, which is never a problem. If one wants to mask the grid parts (bins) with no contributing data points, one can take the occupation numbers which are zero as indicators.
+
+This problem became clear by trying to average neighboring line cuts to get rid of aliasing effects. 
