@@ -1,3 +1,4 @@
+
 #
 # transformations.py (c) Stuart B. Wilkins 2010 and (c) Sven Partzsch 2010
 #
@@ -954,13 +955,10 @@ class ImageProcessor():
         if emptNb:
             print "Warning : There are %.2e values zero in the grid" % emptNb
 
-        
+        # grid set weighted by the occupation numbers
         gridData = gridData/gridOccu
-        for i in range(dQN[0]):
-            for j in range(dQN[1]):
-                for k in range(dQN[2]):
-                    if np.isnan(gridData[i,j,k]):
-                        gridData[i,j,k] = 0.0
+        gridData[gridOccu == 0] = np.zeros(gridData[gridOccu == 0].shape) 
+        
         # mask the gridded data set
         #gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
         # store intensity, occupation and no. of outside data points of the grid
@@ -1152,6 +1150,8 @@ class ImageProcessor():
                                [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
                                [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
         gridData2DSum, gridOccu2DSum = self.get2DSum()
+        for i in range(3):
+            gridData2DSum[i] = np.ma.array(gridData2DSum[i], mask = (gridOccu2DSum[i] == 0))
         gridPlot.setPlot2DData(gridData2DSum, gridOccu2DSum,
                                plotTitle = '2D Areas, over other direction is summed')
         # plot, get figure and axes back
@@ -1206,6 +1206,8 @@ class ImageProcessor():
                                [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
                                [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
         gridData2DCut, gridOccu2DCut = self.get2DCut()
+        for i in range(3):
+            gridData2DCut[i] = np.ma.array(gridData2DCut[i], mask = (gridOccu2DCut[i] == 0))
         gridPlot.setPlot2DData(gridData2DCut, gridOccu2DCut,
                                plotTitle = '2D Area Cuts at Maximum Position')
         
@@ -1261,6 +1263,8 @@ class ImageProcessor():
                                [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
                                [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
         gridData2DCutAv, gridOccu2DCutAv = self.get2DCutAv()
+        for i in range(3):
+            gridData2DCutAv[i] = np.ma.array(gridData2DCutAv[i], mask = (gridOccu2DCutAv[i] == 0))
         gridPlot.setPlot2DData(gridData2DCutAv, gridOccu2DCutAv,
                                plotTitle = '2D Area Cuts at Maximum Position and 2 Neighbors Averaged')
         
@@ -1372,8 +1376,8 @@ if __name__ == "__main__":
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
 
-    testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
-    testData.plotImages()
+    #testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
+    #testData.plotImages()
     
     #imSet  = testData.processOneSet(procSelect = [40])
     #totSet = testData.processOneSet()
@@ -1395,10 +1399,10 @@ if __name__ == "__main__":
     #testData.plotGrid1DSum()
     #testData.plotGrid2DSum()
     #testData.plotGrid1DCut()
-    #testData.plotGrid2DCut()
+    testData.plotGrid2DCut()
     #testData.plotGrid1DCutAv()
-    #testData.plotGrid2DCutAv()
-    testData.plotAll()
+    testData.plotGrid2DCutAv()
+    #testData.plotAll()
  
     # test of input output file handling
 
