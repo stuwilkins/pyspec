@@ -11,7 +11,8 @@ __id__        = "$Id$"
 
 options = {'build_levmar'    : False ,
            'build_gridder'   : False ,
-           'build_princeton' : False }
+           'build_princeton' : False ,
+           'build_sginfo'    : False }
 
 ext_default  = {'include_dirs' : [np.get_include()],
                 'library_dirs' : [],
