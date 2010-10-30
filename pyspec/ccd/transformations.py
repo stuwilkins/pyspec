@@ -1,4 +1,3 @@
-
 #
 # transformations.py (c) Stuart B. Wilkins 2010 and (c) Sven Partzsch 2010
 #
@@ -1119,6 +1118,7 @@ class ImageProcessor():
                                plotTitle = '1D Lines, over other directions is summed')
         # plot, get figure and axes back
         fig1, allax1 = gridPlot.plot1DData()
+        allRes = np.zeros((3,5))
         # try to fit the 1D data
         if self.fit1D:
             infoDes = '%s%s 1D Line summed' % (self.setName, self.setNum)
@@ -1175,6 +1175,7 @@ class ImageProcessor():
                                plotTitle = '1D Line Cuts at Maximum Position')
         # plot, get figure and axes back
         fig1, allax1 = gridPlot.plot1DData()
+        allRes = np.zeros((3,5))
         # try to fit the 1D data
         if self.fit1D:
             infoDes = '%s%s 1D Line cut' % (self.setName, self.setNum)
@@ -1232,6 +1233,7 @@ class ImageProcessor():
                                plotTitle = '1D Line Cuts at Maximum Position and 8 Neighbors Averaged')
         # plot, get figure and axes back
         fig1, allax1 = gridPlot.plot1DData()
+        allRes = np.zeros((3,5))
         # try to fit the 1D data
         if self.fit1D:
             infoDes = '%s%s 1D Line cuts average' % (self.setName, self.setNum)
@@ -1284,6 +1286,9 @@ class ImageProcessor():
         allfig = []
         allax  = []
         plotImTitle  = '%s%s' % (self.setName, self.setNum)
+        # read in first image to get conRoi if not set
+        if self.conRoi == None:
+            self._readImage(0)
         plotImExtent = [self.conRoi[0], self.conRoi[0] + self.conRoi[1],
                         self.conRoi[2], self.conRoi[2] + self.conRoi[3]]
 
@@ -1366,21 +1371,21 @@ if __name__ == "__main__":
     
     testData.setBins(4, 4)
     testData.setSpecScan(scan)
-    testData.setConRoi([1, 325, 1, 335])
+    #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(1)
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
 
-    #testData.setPlotIm(plotImSelect = None, plotImHor = 4, plotImVer = 3)
+    #testData.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
     #testData.plotImages()
     
     #imSet  = testData.processOneSet(procSelect = [40])
     #totSet = testData.processOneSet()
-    #testData.makeGridData(procSelect = [40])
-    testData.makeGridData()
+    testData.makeGridData(procSelect = [40])
+    #testData.makeGridData()
 
-    print 'Peak integrated intensity : %.2e' % (testData.getIntIntensity())
+    #print 'Peak integrated intensity : %.2e' % (testData.getIntIntensity())
     #lineData, lineOccu = testData.get1DCut()
     #areaData, areaOccu = testData.get2DCut()
 
@@ -1389,15 +1394,15 @@ if __name__ == "__main__":
     #testData.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
     testData.setPlotFlags(7, 7)
     testData.setLogFlags(0, 3)
-    testData.setFit1D(True)
+    testData.setFit1D(False)
     testData.setHistBin(50)
  
-    #testData.plotGrid1DSum()
+    testData.plotGrid1DSum()
     #testData.plotGrid2DSum()
-    #testData.plotGrid1DCut()
-    testData.plotGrid2DCut()
-    #testData.plotGrid1DCutAv()
-    testData.plotGrid2DCutAv()
+    testData.plotGrid1DCut()
+    #testData.plotGrid2DCut()
+    testData.plotGrid1DCutAv()
+    #testData.plotGrid2DCutAv()
     #testData.plotAll()
  
     # test of input output file handling
