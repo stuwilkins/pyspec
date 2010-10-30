@@ -499,6 +499,41 @@ class PlotGrid():
 
 if __name__ == "__main__":
 
+    from pyspec import spec
+    from pyspec.ccd.transformations import ImageProcessor
+
+    sf   = spec.SpecDataFile('/home/tardis/spartzsch/2010_09_X1A2/ymn2o5_sep10_1', 
+			     ccdpath = '/mounts/davros/nasshare/images/sept10')
+    scan = sf[244]
+
+    testData = ImageProcessor()
+
+    testData.setDetectorAngle(-1.24)
+    testData.setBins(4, 4)
+    testData.setSpecScan(scan)
+    #testData.setConRoi([1, 325, 1, 335])
+    testData.setFrameMode(1)
+    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
+    #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
+    #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
+
+    #testData.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
+    #testData.plotImages()
+    
+    #imSet  = testData.processOneSet(procSelect = [40])
+    #totSet = testData.processOneSet()
+    testData.makeGridData(procSelect = [40])
+
+    testPlotter = PlotGrid(testData)
+
+    testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
+    testPlotter.plotImages()
+
+    testPlotter.setPlot1DFit(True)
+    testPlotter.plotGrid1D('sum')
+    testPlotter.plotGrid2D('sum')
+
+
     """
     testData = np.array([[range(0,3),range(3,6)],[range(6,9),range(9,12)]])
     testOccu = np.array([[np.zeros(3),[2,5,7]],[[0,4,2],[7,0,8]]])
