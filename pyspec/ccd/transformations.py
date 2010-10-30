@@ -149,23 +149,15 @@ class ImageProcessor():
         self.setFrameMode(1)
         # gridder options
         self.setGridOptions()
-        # plot options
-        self.plotFlag2D  = 7
-        self.plotFlag1D  = 7
-        self.logFlag1D   = 0
-        self.logFlag2D   = 0
+        # 1D fit options
         self.fit1D       = False
         self.fitType     = 'lor2a'
-        self.histBin     = 50
         # output information
         self.opTitle     = 'Image Processing'
         self.projName    = ''
         self._makeSetInfo()
         self._makeModeInfo()
         self.opProcInfo  = ''
-
-        # Figure Size
-        self._defaultFigureSize = (11, 8.5)
 
     def readConfigFile(self, filename):
         config = MyConfigParser()
@@ -407,68 +399,6 @@ class ImageProcessor():
 
         return self.qVal
 
-    #
-    # set and get functions for plot settings
-    #
-
-    def setAxesLabels(self, axesLabels):
-        """Set the plotting labels for the axes
-
-        axesLabels : labels for the axes [xLabel, yLabel, zLabel]"""
-        
-        self.axesLabels = axesLabels
-
-    def getAxesLabels(self):
-        """Get the plotting labels for the axes
-
-        axesLabels : labels for the axes [xLabel, yLabel, zLabel]"""
-        
-        return self.axesLabels
-
-    def setPlotFlags(self, flag1D = 7, flag2D = 7):
-        """Set the ploting flags for 1D and 2D plots
-
-        flag1D : flag to select 2D plots
-        flag2D : flag to select 1D plots
-
-        binary code, flag & 1: intensity, flag & 2: occupation numbers of the grid parts (bins),
-        flag & 4: histogram of occupation of the grid parts (bins)"""
-        
-        self.plotFlag1D = flag1D
-        self.plotFlag2D = flag2D
-
-    def getPlotFlags(self):
-        """Get the ploting flags for 1D and 2D plots
-
-        flag1D : flag to select 1D plots
-        flag2D : flag to select 2D plots
-
-        binary code, flag & 1: intensity, flag & 2: occupation numbers of the grid parts (bins),
-        flag & 4: histogram of occupation of the grid parts (bins)"""
-        
-        return self.plotFlag2D, self.plotFlag1D
-
-    def setLogFlags(self, flag1D = 0, flag2D = 0):
-        """Set whether data are plotted on linear (0) or logarithmic (1) scale
-
-        flag1D : flag to select scale of 1D plots
-        flag2D : flag to select scale of 2D plots
-
-        binary code, flag & 1: intensity, flag & 2: missing grid parts"""
-        
-        self.logFlag1D = flag1D
-        self.logFlag2D = flag2D
-        
-    def getLogFlags(self):
-        """Get whether data are plotted on linear (0) or logarithmic (1) scale
-
-        flag1D : flag to select scale of 1D plots
-        flag2D : flag to select scale of 2D plots
-
-        binary code, flag & 1: intensity, flag & 2: missing grid parts"""
-        
-        return self.logFlag1D, self.logFlag2D
-
     def setFit1D(self, fit1D = 0, fitType = 'lor2a'):
         """Set whether 1D lines get fitted (1)
 
@@ -485,44 +415,7 @@ class ImageProcessor():
         fitType : type of the peak function from pyspec fitfuncs, e.g. 'lor2a'"""
         
         return self.fit1D, self.fit1DType
-
-    def setHistBin(self, histBin = 50):
-        """Set the no. of bins for the histograms
-
-        hisBin : no. of bins for the histograms of the occupation numbers"""
-        
-        self.histBin = histBin
-
-    def getHistBin(self, histBin = 50):
-        """Get the no. of bins for the histograms
-
-        hisBin : no. of bins for the histograms of the occupation numbers"""
-        
-        return self.histBin
-
-    def setPlotIm(self, plotImSelect = None, plotImHor = 4, plotImVer = 3):
-        """Set the options for ploting the raw images
-
-        plotImSelect : list with the raw images which will be plotted, all if None
-        plotImHor    : no. of horizontal images per window, e.g. 4
-        plotImVer    : no. of vertical   images per window, e.g. 3"""
-        
-        if plotImSelect == None:
-            self.plotImSelect = range(self.setSize)
-        else:
-            self.plotImSelect = plotImSelect
-        self.plotImHor    = plotImHor
-        self.plotImVer    = plotImVer
-        
-    def getPlotIm(self):
-        """Get the options for ploting the raw images
-
-        plotImSelect : list with the raw images which will be plotted, all if None
-        plotImHor    : no. of horizontal images per window, e.g. 4
-        plotImVer    : no. of vertical   images per window, e.g. 3"""
-        
-        return self.plotImSelect, self.plotImHor, self.plotImVer
-
+   
     #
     # get set functions for input output
     #
@@ -595,11 +488,9 @@ class ImageProcessor():
         if mode != 4:
             self.qLabel = ['Qx', 'Qy', 'Qz']
             self.setEntLabel = '(Qx, Qy, Qz, I)'
-            self.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
         else:
             self.qLabel = ['H', 'K', 'L']
             self.setEntLabel = '(H, K, L, I)'
-            self.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
 
     def _readImage(self, imNum):
         """Read in the considered region of interest of the image
@@ -1122,246 +1013,44 @@ class ImageProcessor():
         intInten = self.gridData.sum()
 
         return intInten
-    
+
     #
-    # plot part
+    # fit part
     #
 
-    def plotGrid1DSum(self):
-        """Plots the 1D Lines of the data grid summed over the other dimensions
+    def get1DFit(self, xVal, yVal, fitType = None, infoDes = ''):
+        """Fit a 1D data set
 
-        retrurns
-        fig1   : plt.figure object of the plotting window
-        allax1 : list of plt.axes objects which carry the figures
-        allRes : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
+        xVal    : x-values as list of arrays
+        yVal    : y-values as list of arrays
+        fitType : peak shape to fit from pyspec fitfuncs, use object default if None, e.g. 'lor2a'
+        infoDes : description of the current fit try for output, e.g. 'Line cut of Scan #244'
 
-        # results for fit of 1D data, None if no fitting
-        allRes = None
+        returns
+        yFit    : y-values of the fit
+        fitRes  : results of the fit, [a1, b1, cen1, width1, area1], [0, 0, 0, 0, 0] if unsuccessful fit"""
 
-        gridPlot = PlotGrid()
-        # flag options and no. of bins for histogram
-        gridPlot.setPlotFlags(flag1D = 7)
-        gridPlot.setLogFlags(flag1D = 0)
-        gridPlot.setHistBin(20)
-        # axes and data configuration
-        gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
-        gridData1DSum, gridOccu1DSum = self.get1DSum()
-        gridPlot.setPlot1DData(gridData1DSum, gridOccu1DSum,
-                               plotTitle = '1D Lines, over other directions is summed')
-        # plot, get figure and axes back
-        fig1, allax1 = gridPlot.plot1DData()
-        allRes = np.zeros((3,5))
-        # try to fit the 1D data
-        if self.fit1D:
-            infoDes = '%s%s 1D Line summed' % (self.setName, self.setNum)
-            allRes  = self._add1DFits(self.qVal, gridData1DSum, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
-            # for info file
-            self.opProcInfo += '\n\n' + self._makeFitInfo1D(allRes, fitType = None, fitTitle = '1D Line summed', fitNames = self.qLabel)
-        
-        return fig1, allax1, allRes
+        if fitType == None:
+            fitType = self.fitType
 
-    def plotGrid2DSum(self):
-        """Plots the 2D Areas of the data grid summed over the other dimension
+        yFit   = []
+        for i in range(len(xVal)):
+            yFit.append(np.zeros(len(xVal[i])))
+        fitRes = np.zeros((len(xVal),5))
+        for i in range(len(xVal)):
+            try:
+                f = fit.fit(x=xVal[i], y=yVal[i], funcs = [fitfuncs.linear, getattr(fitfuncs, fitType)])
+                f.go()
+                yFit[i]   = fitfuncs.linear(xVal[i], f.result[:2]) + getattr(fitfuncs, fitType)(xVal[i], f.result[2:])
+                fitRes[i] = f.result
+            except:
+                print 'WARNING : %s %s could not be fitted to %s!' % (self.qLabel[i], infoDes, fitType)
 
-        retrurns
-        fig2   : plt.figure object of the plotting window
-        allax2 : list of plt.axes objects which carry the figures"""
+        # for info file
+        self.opProcInfo += '\n\n' + self._makeFitInfo1D(fitRes, fitType = None, fitTitle = infoDes, fitNames = self.qLabel)
 
-        gridPlot = PlotGrid()
-        # flag options and no. of bins for histogram
-        gridPlot.setPlotFlags(flag2D = 7)
-        gridPlot.setLogFlags(flag2D = 0)
-        gridPlot.setHistBin(20)
-        # axes and data configuration
-        gridPlot.setPlot2DAxes([self.Qmin[2], self.Qmin[2], self.Qmin[1]], [self.Qmax[2], self.Qmax[2], self.Qmax[1]],
-                               [self.Qmin[1], self.Qmin[0], self.Qmin[0]], [self.Qmax[1], self.Qmax[0], self.Qmax[0]],
-                               [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
-                               [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
-        gridData2DSum, gridOccu2DSum = self.get2DSum()
-        for i in range(3):
-            gridData2DSum[i] = np.ma.array(gridData2DSum[i], mask = (gridOccu2DSum[i] == 0))
-        gridPlot.setPlot2DData(gridData2DSum, gridOccu2DSum,
-                               plotTitle = '2D Areas, over other direction is summed')
-        # plot, get figure and axes back
-        fig2, allax2 = gridPlot.plot2DData()
-
-        return fig2, allax2
-
-    def plotGrid1DCut(self):
-        """Plots the 1D Lines of the data grid summed over the other dimensions
-
-        retrurns
-        fig1   : plt.figure object of the plotting window
-        allax1 : list of plt.axes objects which carry the figures
-        allRes : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
-
-        gridPlot = PlotGrid()
-        # flag options and no. of bins for histogram
-        gridPlot.setPlotFlags(flag1D = 7)
-        gridPlot.setLogFlags(flag1D = 0)
-        gridPlot.setHistBin(20)
-        # axes and data configuration
-        gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
-        gridData1DCut, gridOccu1DCut = self.get1DCut()
-        gridPlot.setPlot1DData(gridData1DCut, gridOccu1DCut,
-                               plotTitle = '1D Line Cuts at Maximum Position')
-        # plot, get figure and axes back
-        fig1, allax1 = gridPlot.plot1DData()
-        allRes = np.zeros((3,5))
-        # try to fit the 1D data
-        if self.fit1D:
-            infoDes = '%s%s 1D Line cut' % (self.setName, self.setNum)
-            allRes  = self._add1DFits(self.qVal, gridData1DCut, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
-            # for info file
-            self.opProcInfo += '\n\n' + self._makeFitInfo1D(allRes, fitType = None, fitTitle = '1D Line cut', fitNames = self.qLabel)
-
-        return fig1, allax1, allRes
-
-    def plotGrid2DCut(self):
-        """Plots the 2D Areas of the data grid summed over the other dimension
-
-        retrurns
-        fig2   : plt.figure object of the plotting window
-        allax2 : list of plt.axes objects which carry the figures"""
-
-        gridPlot = PlotGrid()
-        # flag options and no. of bins for histogram
-        gridPlot.setPlotFlags(flag2D = 7)
-        gridPlot.setLogFlags(flag2D = 0)
-        gridPlot.setHistBin(20)
-        # axes and data configuration
-        gridPlot.setPlot2DAxes([self.Qmin[2], self.Qmin[2], self.Qmin[1]], [self.Qmax[2], self.Qmax[2], self.Qmax[1]],
-                               [self.Qmin[1], self.Qmin[0], self.Qmin[0]], [self.Qmax[1], self.Qmax[0], self.Qmax[0]],
-                               [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
-                               [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
-        gridData2DCut, gridOccu2DCut = self.get2DCut()
-        for i in range(3):
-            gridData2DCut[i] = np.ma.array(gridData2DCut[i], mask = (gridOccu2DCut[i] == 0))
-        gridPlot.setPlot2DData(gridData2DCut, gridOccu2DCut,
-                               plotTitle = '2D Area Cuts at Maximum Position')
-        
-        # plot, get figure and axes back
-        fig2, allax2 = gridPlot.plot2DData()
-
-        return fig2, allax2
-
-    def plotGrid1DCutAv(self):
-        """Plots the 1D Lines of the data grid summed over the other dimensions
-
-        retrurns
-        fig1   : plt.figure object of the plotting window
-        allax1 : list of plt.axes objects which carry the figures
-        allRes : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
-
-        gridPlot = PlotGrid()
-        # flag options and no. of bins for histogram
-        gridPlot.setPlotFlags(flag1D = 7)
-        gridPlot.setLogFlags(flag1D = 0)
-        gridPlot.setHistBin(20)
-        # axes and data configuration
-        gridPlot.setPlot1DAxes(self.qVal, self.axesLabels)
-        gridData1DCutAv, gridOccu1DCutAv = self.get1DCutAv()
-        gridPlot.setPlot1DData(gridData1DCutAv, gridOccu1DCutAv,
-                               plotTitle = '1D Line Cuts at Maximum Position and 8 Neighbors Averaged')
-        # plot, get figure and axes back
-        fig1, allax1 = gridPlot.plot1DData()
-        allRes = np.zeros((3,5))
-        # try to fit the 1D data
-        if self.fit1D:
-            infoDes = '%s%s 1D Line cuts average' % (self.setName, self.setNum)
-            allRes  = self._add1DFits(self.qVal, gridData1DCutAv, axes = allax1[:3], fitType = self.fit1DType, infoDes = infoDes)
-            # for info file
-            self.opProcInfo += '\n\n' + self._makeFitInfo1D(allRes, fitType = None, fitTitle = '1D Line cut average', fitNames = self.qLabel)
-
-        return fig1, allax1, allRes
-
-    def plotGrid2DCutAv(self):
-        """Plots the 2D Areas of the data grid summed over the other dimension
-
-        retrurns
-        fig2   : plt.figure object of the plotting window
-        allax2 : list of plt.axes objects which carry the figures"""
-
-        gridPlot = PlotGrid()
-        # flag options and no. of bins for histogram
-        gridPlot.setPlotFlags(flag2D = 7)
-        gridPlot.setLogFlags(flag2D = 0)
-        gridPlot.setHistBin(20)
-        # axes and data configuration
-        gridPlot.setPlot2DAxes([self.Qmin[2], self.Qmin[2], self.Qmin[1]], [self.Qmax[2], self.Qmax[2], self.Qmax[1]],
-                               [self.Qmin[1], self.Qmin[0], self.Qmin[0]], [self.Qmax[1], self.Qmax[0], self.Qmax[0]],
-                               [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
-                               [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
-        gridData2DCutAv, gridOccu2DCutAv = self.get2DCutAv()
-        for i in range(3):
-            gridData2DCutAv[i] = np.ma.array(gridData2DCutAv[i], mask = (gridOccu2DCutAv[i] == 0))
-        gridPlot.setPlot2DData(gridData2DCutAv, gridOccu2DCutAv,
-                               plotTitle = '2D Area Cuts at Maximum Position and 2 Neighbors Averaged')
-        
-        # plot, get figure and axes back
-        fig2, allax2 = gridPlot.plot2DData()
-
-        return fig2, allax2
+        return yFit, fitRes
     
-    def plotImages(self, images = None):
-        """Plots the selcted images
-
-        images : selction of the images for plotting, use object default if None
-
-        retrurns
-        allfig : list of plt.figure objects of the plotting windows
-        allax  : list of plt.axes objects which carry the figures"""
-        
-        # prepare plots
-        plotImNum = self.plotImHor * self.plotImVer
-        j = 0
-        allfig = []
-        allax  = []
-        plotImTitle  = '%s%s' % (self.setName, self.setNum)
-        # read in first image to get conRoi if not set
-        if self.conRoi == None:
-            self._readImage(0)
-        plotImExtent = [self.conRoi[0], self.conRoi[0] + self.conRoi[1],
-                        self.conRoi[2], self.conRoi[2] + self.conRoi[3]]
-
-        if images is None:
-            images = self.plotImSelect
-
-        # go through images numbers which should be plotted
-        for i in images:
-
-            # label for y-axis
-            yLabel = 'image # %d' % (i)
-
-            if j%plotImNum == 0:
-                # prepare plot window
-                fig = plt.figure(figsize = self._defaultFigureSize)
-                fig.suptitle(plotImTitle, fontsize = 24)
-                allfig.append(fig)
-
-            # new subplot
-            ax = plt.subplot(self.plotImVer, self.plotImHor, j%plotImNum+1)
-            plt.subplots_adjust(hspace = 0.4)
-            allax.append(ax)
-            ax.imshow(self._readImage(i), extent = plotImExtent)
-
-            # show the image with number as y-label    
-            ax.set_ylabel(yLabel, fontsize = 18)
-                     
-            # increment the plot image counter
-            j += 1
-
-        return allfig, allax
-
-    def plotAll(self):
-        """Plots 1D/2D sums and cuts"""
-        self.plotGrid1DSum()
-        self.plotGrid2DSum()
-        self.plotGrid1DCut()
-        self.plotGrid2DCut()
-        self.plotGrid1DCutAv()
-        self.plotGrid2DCutAv()
-
     #
     # input / output part
     #
@@ -1425,20 +1114,30 @@ if __name__ == "__main__":
     # plot options
     #testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
     #testData.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
-    testData.setPlotFlags(7, 7)
-    testData.setLogFlags(0, 3)
-    testData.setFit1D(False)
-    testData.setHistBin(50)
+    #testData.setPlotFlags(7, 7)
+    #testData.setLogFlags(0, 3)
+    #testData.setFit1D(False)
+    #testData.setHistBin(50)
  
-    testData.plotGrid1DSum()
+    #testData.plotGrid1DSum()
     #testData.plotGrid2DSum()
-    testData.plotGrid1DCut()
+    #testData.plotGrid1DCut()
     #testData.plotGrid2DCut()
-    testData.plotGrid1DCutAv()
+    #testData.plotGrid1DCutAv()
     #testData.plotGrid2DCutAv()
     #testData.plotAll()
  
     # test of input output file handling
+
+    # test with plotter directly
+    testPlotter = PlotGrid(testData)
+
+    testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
+    testPlotter.plotImages()
+
+    testPlotter.setPlot1DFit(True)
+    testPlotter.plotGrid1D('sum')
+    testPlotter.plotGrid2D('sum')
 
     print '\n\n'
     print testData.makeInfo()
