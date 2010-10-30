@@ -24,31 +24,17 @@
 #ifndef __GRIDDER_H
 #define __GRIDDER_H
 
-int c_grid1d(double *dout, unsigned long *nout, double *data, double grid_start, double grid_stop, int max_data, int n_grid);
-int c_grid2d(double *dout, unsigned long *nout, double *data, double *grid_start, double *grid_stop, int max_data, int *n_grid);
-unsigned long c_grid3d(double *dout, unsigned long *nout, double *data, double *grid_start, double *grid_stop, int max_data, int *n_grid);
+unsigned long c_grid3d(double *dout, unsigned long *nout, double *data, double *grid_start, double *grid_stop, int max_data, int *n_grid, int norm_data);
 
-static PyObject* gridder_3D(PyObject *self, PyObject *args);
-static PyObject* gridder_2D(PyObject *self, PyObject *args);
-static PyObject* gridder_1D(PyObject *self, PyObject *args);
+static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static char *_gridderDoc = \
-"Python functions to perform gridding (binning) of experimental data.\n\n" 
-"Members:\n\n"
-"  grid1d = 4 element tuple representing the default\n"
-"                        opts into dder an ddif.\n"
-"  levmar.INIT_MU      = Initial value for mu\n"
-"  levmar.STOP_THRESH  = Stopping threshold\n"
-"  levmar.DIFF_DELTA   = Differential delta\n";
+"Python functions to perform gridding (binning) of experimental data.\n\n";
 
 static PyMethodDef _gridderMethods[] = {
-	{"grid1d", (PyCFunction)gridder_1D, METH_VARARGS, 
-		""},
-	{"grid2d", (PyCFunction)gridder_2D, METH_VARARGS, 
-		""},
-	{"grid3d", (PyCFunction)gridder_3D, METH_VARARGS, 
-		""},
-	{NULL, NULL, 0, NULL}     /* Sentinel - marks the end of this structure */
+  {"grid3d", (PyCFunction)gridder_3D, METH_VARARGS | METH_KEYWORDS, 
+   "Grid the numpy.array object into a regular grid"},
+  {NULL, NULL, 0, NULL}     /* Sentinel - marks the end of this structure */
 };
 
 #endif

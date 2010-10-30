@@ -948,17 +948,13 @@ class ImageProcessor():
         dQN  = self.dQN
 
         # 3D grid of the data set 
-        gridData, gridOccu, gridOut = gridder.grid3d(totData, Qmin[0], Qmax[0], dQN[0], Qmin[1], Qmax[1], dQN[1], Qmin[2], Qmax[2], dQN[2])
+        gridData, gridOccu, gridOut = gridder.grid3d(totData,Qmin, Qmax, dQN, norm = 1)
         emptNb = (gridOccu == 0).sum()
         if gridOut != 0:
             print "Warning : There are %.2e points outside the grid (%.2e bins in the grid)" % (gridOut, gridData.size)
         if emptNb:
             print "Warning : There are %.2e values zero in the grid" % emptNb
 
-        # grid set weighted by the occupation numbers
-        gridData = gridData/gridOccu
-        gridData[gridOccu == 0] = np.zeros(gridData[gridOccu == 0].shape) 
-        
         # mask the gridded data set
         #gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
         # store intensity, occupation and no. of outside data points of the grid
