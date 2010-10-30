@@ -528,8 +528,11 @@ class ImageProcessor():
         xNew : corrected X-values of the detector
         yNew : corrected Y-values of the detector"""
 
-        xNew = np.cos(self.detAngle) * xVal - np.sin(self.detAngle) * yVal
-        yNew = np.sin(self.detAngle) * xVal + np.cos(self.detAngle) * yVal
+        # detetoc angle in rad
+        detAn = self.detAngle /180.0 * np.pi
+
+        xNew = np.cos(detAn) * xVal - np.sin(detAn) * yVal
+        yNew = np.sin(detAn) * xVal + np.cos(detAn) * yVal
 
         return xNew, yNew
 

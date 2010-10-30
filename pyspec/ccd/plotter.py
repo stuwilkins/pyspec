@@ -25,10 +25,35 @@ import matplotlib.pyplot as plt
 from   matplotlib.colors import LogNorm
 from   pyspec  import fit, fitfuncs
 
+# Try installing 3d routines
+try:
+    from enthought.mayavi import mlab
+except:
+    pass
+
 __version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
+
+class PlotGrid3D():
+    def __init__(self, imProc = None):
+        self.imProc = imProc
+    def plot3D(self):
+        data = self.imProc.gridData
+        ma = data.max()
+        mb = data.min()
+        hm = (np.arange(0.7, 0.95, 0.3) * (ma - mb) + mb).tolist()
+        Qmin, Qmax, dQN = self.imProc.getGridOptions()
+        extent = []
+        for i in range(3):
+            extent.append(Qmin[i])
+            extent.append(Qmax[i])
+        print extent
+        mlab.contour3d(data, contours = hm, vmax = ma,
+                       transparent = True, vmin = mb,
+                       extent = extent)
+
 
 class PlotGrid():
     """Plot Grid Class
@@ -522,15 +547,17 @@ if __name__ == "__main__":
     
     #imSet  = testData.processOneSet(procSelect = [40])
     #totSet = testData.processOneSet()
-    testData.makeGridData(procSelect = [40])
+    testData.makeGridData()
+    testPlotter = PlotGrid3D(testData)
+    testPlotter.plot3D()
 
     testPlotter = PlotGrid(testData)
 
-    testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
-    testPlotter.plotImages()
+    #testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
+    #testPlotter.plotImages()
 
-    testPlotter.setPlot1DFit(True)
-    testPlotter.plotGrid1D('sum')
+    #testPlotter.setPlot1DFit(True)
+    #testPlotter.plotGrid1D('sum')
     testPlotter.plotGrid2D('sum')
 
 
@@ -558,4 +585,4 @@ if __name__ == "__main__":
     # test with image processor
     
 
-    plt.show()
+    #plt.show()
