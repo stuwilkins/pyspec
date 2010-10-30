@@ -141,6 +141,7 @@ class ImageProcessor():
         self.detSizeY    = 1340
         self.detX0       = 1300 / 2.0
         self.detY0       = 1340 / 2.0
+        self.detAngle    = 0.0
         # image treatment
         self.setName     = 'Set #'
         self.setNum      = 1
@@ -231,6 +232,20 @@ class ImageProcessor():
         detDis : detector distance (float in mm)"""
 
         return self.detDis
+
+    def setDetectorAngle(self, detAng):
+        """Set the detector miss alignement angle in deg
+
+        detAng : detector miss alignement angle in deg"""
+
+        self.detAngle = detAng
+
+    def getDetectorAngle(self, detAng):
+        """Get the detector miss alignement angle in deg
+
+        detAng : detector miss alignement angle in deg"""
+
+        return self.detAngle
 
     def setBins(self, binX, binY):
         """Set no. of bins. Takes them into acount for pixel size, detector size and detector center
@@ -612,6 +627,21 @@ class ImageProcessor():
 
         return conIm
 
+    def _XYCorrect(self, xVal, yVal):
+        """Correct the miss alignement of the CCD camera
+
+        xVal : measured X-values of the detector
+        yVal : measured Y-values of the detector
+
+        return
+        xNew : corrected X-values of the detector
+        yNew : corrected Y-values of the detector"""
+
+        xNew = np.cos(self.detAngle) * xVal - np.sin(self.detAngle) * yVal
+        yNew = np.sin(self.detAngle) * xVal + np.cos(self.detAngle) * yVal
+
+        return xNew, yNew
+
     def _XY2delgam(self, del0, gam0):
 
         """
@@ -625,6 +655,8 @@ class ImageProcessor():
         conZ = getAreaXY(self.conRoi)
         x    = np.ravel(conZ[0])
         y    = np.ravel(conZ[1])
+
+        x, y = self._XYCorrect(x, y)
 
         # detector distance
         detDis = self.detDis
@@ -1368,7 +1400,8 @@ if __name__ == "__main__":
     scan = sf[244]
 
     testData = ImageProcessor()
-    
+
+    testData.setDetectorAngle(-1.24)
     testData.setBins(4, 4)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
