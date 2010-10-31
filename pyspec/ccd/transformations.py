@@ -501,12 +501,12 @@ class ImageProcessor():
 
         # get dark image (first CCD image)
         fileName = self.darkFileNames[0]
-        darkVal  = PrincetonSPEFile(fileName)[0].astype(numpy.float64)
+        darkVal  = PrincetonSPEFile(fileName)[0].astype(numpy.float)
         
         # get file name and read image of data point
         pointMon = self.intentNorm[imNum]
         fileName = self.imFileNames[imNum]
-        pointVal = PrincetonSPEFile(fileName)[0].astype(numpy.float64)
+        pointVal = PrincetonSPEFile(fileName)[0].astype(numpy.float)
 
         # considered region of interest
         if self.conRoi == None:
