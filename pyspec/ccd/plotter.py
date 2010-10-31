@@ -29,7 +29,10 @@ from   pyspec  import fit, fitfuncs
 try:
     from enthought.mayavi import mlab
 except:
+    warnings.warn("*** No Enthought mayavi module, 3D visualization is disabled ***")
     pass
+
+
 
 __version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
