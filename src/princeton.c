@@ -28,6 +28,21 @@
 #include <inttypes.h>
 #include "princeton.h"
 
+static PyObject* load_multiprinceton(PyObject *self, PyObject *args, PyObject *kwargs){
+  static char *kwlist[] = {"filenames", "dark"};
+  PyObject *array = NULL;
+  
+  const char* darkimage;
+
+  if(!PyArg_ParseTuppleAndKeywords(args, kwargs, "O|s", kwlist
+				   &filenames, &darkimage)){
+    return NULL;
+  }
+
+  
+  
+}
+
 static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs){
 	PyObject *array				= NULL;
 	//PyObject *result			= NULL;

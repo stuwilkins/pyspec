@@ -269,7 +269,10 @@ class PlotGrid():
             plotOffSet += 1
             for i in range(3):
                 ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
-                ax.plot(valSet[i], intentSet[i], '-bo')
+                if self.logFlag1D & 1 :
+                    ax.semilogy(valSet[i], intentSet[i], '-bo')
+                else:
+                    ax.plot(valSet[i], intentSet[i], '-bo')
                 ax.set_xlabel(labelAx0[i], fontsize = 18)
                 ax.set_ylabel('Intensity', fontsize = 18)
                 if i == 0:
@@ -287,7 +290,10 @@ class PlotGrid():
             plotOffSet += 1
             for i in range(3):
                 ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
-                ax.plot(valSet[i], occuSet[i], '-bo')
+                if self.logFlag1D & 2 :
+                    ax.semilogy(valSet[i], occuSet[i], '-bo')
+                else:
+                    ax.plot(valSet[i], occuSet[i], '-bo')
                 ax.set_xlabel(labelAx0[i], fontsize = 18)
                 ax.set_ylabel('Occupation No.', fontsize = 18)
                 if i == 0:
@@ -299,7 +305,10 @@ class PlotGrid():
             plotOffSet += 1
             for i in range(3):
                 ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
-                ax.hist(occuSet[i], self.histBin, facecolor='green')
+                if self.logFlag1D & 4 :
+                    ax.hist(occuSet[i], self.histBin, log=True, facecolor='green')
+                else:
+                    ax.hist(occuSet[i], self.histBin, facecolor='green')
                 ax.set_xlabel('No. of Occupations', fontsize = 18)
                 ax.set_ylabel('No. of Grid Parts', fontsize = 18)
                 if i == 0:
@@ -374,7 +383,10 @@ class PlotGrid():
             plotOffSet += 1
             for i in range(3):
                 ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
-                ax.hist(np.ravel(occuArea[i]), self.histBin, facecolor='green')
+                if self.logFlag2D & 4 :
+                    ax.hist(np.ravel(occuArea[i]), self.histBin, log=True, facecolor='green')
+                else:
+                    ax.hist(np.ravel(occuArea[i]), self.histBin, facecolor='green')
                 ax.set_xlabel('No. of Occupations', fontsize = 18)
                 ax.set_ylabel('No. of Grid Parts', fontsize = 18)
                 if i == 0:
@@ -562,12 +574,15 @@ if __name__ == "__main__":
     #testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
     #testPlotter.plotImages()
 
-    testPlotter.setLogFlags(0, 3)
-    #testPlotter.setPlot1DFit(True)
-    #testPlotter.plotGrid1D('sum')
+    testPlotter.setLogFlags(7, 7)
+    testPlotter.setPlot1DFit(True)
+    testPlotter.plotGrid1D('sum')
+    #testPlotter.plotGrid1D('cut')
+    #testPlotter.plotGrid1D('cutAv')
     testPlotter.plotGrid2D('sum')
-    testPlotter.plotGrid2D('cut')
-    testPlotter.plotGrid2D('cutAv')
+    #testPlotter.plotGrid2D('cut')
+    #testPlotter.plotGrid2D('cutAv')
+    #testPlotter.plotAll()
 
     """
     testData = np.array([[range(0,3),range(3,6)],[range(6,9),range(9,12)]])

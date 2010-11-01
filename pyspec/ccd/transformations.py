@@ -21,6 +21,7 @@
 #
 
 import os
+import gc
 import numpy as np
 import matplotlib.pyplot as plt
 from   pyspec import spec, fit, fitfuncs
@@ -29,6 +30,9 @@ from   pyspec.ccd.PrincetonSPE import *
 from   pyspec.ccd.plotter import PlotGrid
 import gridder
 from ConfigParser import ConfigParser
+
+#gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
+gc.enable()
 
 __version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
@@ -158,6 +162,11 @@ class ImageProcessor():
         self._makeSetInfo()
         self._makeModeInfo()
         self.opProcInfo  = ''
+
+        self.darkVal = None
+        self.gridData = None
+        self.gridOccu = None
+        self.totSet = None
 
     def readConfigFile(self, filename):
         config = MyConfigParser()
@@ -500,21 +509,23 @@ class ImageProcessor():
             print '%s%d image #%03d: read image' % (self.setName, self.setNum, imNum)
 
         # get dark image (first CCD image)
-        fileName = self.darkFileNames[0]
-        darkVal  = PrincetonSPEFile(fileName)[0].astype(numpy.float)
+        if self.darkVal is None:
+            self.darkVal  = PrincetonSPEFile(self.darkFileNames[0])[0].astype(numpy.float)
         
         # get file name and read image of data point
         pointMon = self.intentNorm[imNum]
         fileName = self.imFileNames[imNum]
-        pointVal = PrincetonSPEFile(fileName)[0].astype(numpy.float)
+        pointVal = PrincetonSPEFile(fileName)[0].astype(numpy.float) - self.darkVal
 
         # considered region of interest
         if self.conRoi == None:
-            self.conRoi   = [1, len(pointVal[0]), 1, len(pointVal)]
+            self.conRoi   = [1, pointVal.shape[1], 1, pointVal.shape[0]]
 
-        # get considered part of the images
-        conDark  =  getAreaSet(darkVal,  self.conRoi)
-        conIm    = (getAreaSet(pointVal, self.conRoi) - conDark) / pointMon
+        # get considered part of the image
+        conIm    = getAreaSet(pointVal, self.conRoi) / pointMon
+        
+        del pointVal
+        #gc.collect()
 
         return conIm
 
@@ -612,6 +623,9 @@ class ImageProcessor():
         totIm = np.zeros((intent.size, 4))
         totIm[:,:3] = Qxyz
         totIm[:,3]  = intent
+
+        del Qxyz 
+        del intent
 
         return totIm
 
@@ -823,23 +837,23 @@ class ImageProcessor():
         totFirst = self._processOneImage(procSelect[0])
         imSize   = totFirst.shape[0]
         npts     = procSize * imSize
-        totSet   = np.zeros((npts, 4))
+
+        if self.totSet is None:
+            self.totSet = np.zeros((npts, 4))
 
         # go through all selected images and get data sets
         j = 0
         k = imSize
-        totSet[j:k,:] = totFirst
+        self.totSet[j:k,:] = totFirst
         for i in procSelect[1:]:
             j = j + imSize
             k = k + imSize
-            totSet[j:k, :] = self._processOneImage(i, mode = mode)
+            self.totSet[j:k, :] = self._processOneImage(i, mode = mode)
 
         # for info file
-        self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (totSet.shape[0], self.setEntLabel)
+        self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
 
-        return totSet
-
-    def makeGridData(self, procSelect = None, mode = None):
+    def makeGridData(self, procSelect = None, mode = None, delete = False):
         """Grid the data set into a cuboid
         Size of the cuboid : Qmin, Qmax = [Qx, Qy, Qz]_min, max
         Number of parts    : dQN = [Nqx, Nqy, Nqz]
@@ -857,13 +871,14 @@ class ImageProcessor():
         if mode == None:
             mode = self.frameMode
 
-        totData = self.processOneSet(procSelect = procSelect, mode = mode)
+        self.processOneSet(procSelect = procSelect, mode = mode)
+        print "Total data is %f MBytes\n" % (self.totSet.nbytes / 1024.0**2)
 
         # prepare min, max,...
         if self.Qmin == None:
-            self.Qmin = np.array([ totData[:,0].min(), totData[:,1].min(), totData[:,2].min() ])
+            self.Qmin = np.array([ self.totSet[:,0].min(), self.totSet[:,1].min(), self.totSet[:,2].min() ])
         if self.Qmax == None:
-            self.Qmax = np.array([ totData[:,0].max(), totData[:,1].max(), totData[:,2].max() ])
+            self.Qmax = np.array([ self.totSet[:,0].max(), self.totSet[:,1].max(), self.totSet[:,2].max() ])
         if self.dQN  == None:
             self.dQN = [100, 100, 100]
 
@@ -873,7 +888,15 @@ class ImageProcessor():
         dQN  = self.dQN
 
         # 3D grid of the data set 
-        gridData, gridOccu, gridOut = gridder.grid3d(totData,Qmin, Qmax, dQN, norm = 1)
+        print "*** Gridding Data ***"
+        if self.gridData is not None:
+            del self.gridData
+        if self.gridOccu is not None:
+            del self.gridOccu
+        gc.collect(2)
+
+        gridData, gridOccu, gridOut = gridder.grid3d(self.totSet,Qmin, Qmax, dQN, norm = 1)
+        print "*** DONE ***"
         emptNb = (gridOccu == 0).sum()
         if gridOut != 0:
             print "Warning : There are %.2e points outside the grid (%.2e bins in the grid)" % (gridOut, gridData.size)
@@ -894,7 +917,6 @@ class ImageProcessor():
         # for info file
         self.opProcInfo += self._makeGridInfo()
 
-        return gridData, gridOccu, gridOut
 
     def get1DSum(self):
         """1D Lines of the grid data and occupations by summing in the other directions
@@ -1107,8 +1129,8 @@ if __name__ == "__main__":
     
     #imSet  = testData.processOneSet(procSelect = [40])
     #totSet = testData.processOneSet()
-    testData.makeGridData(procSelect = [40])
-    #testData.makeGridData()
+    #testData.makeGridData(procSelect = [40])
+    testData.makeGridData()
 
     #print 'Peak integrated intensity : %.2e' % (testData.getIntIntensity())
     #lineData, lineOccu = testData.get1DCut()

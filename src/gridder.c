@@ -75,7 +75,7 @@ static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs){
 			     PyArray_DATA(gridI),
 			     grid_start, grid_stop, data_size, grid_nsteps, norm_data);
 	
-	return Py_BuildValue("OOl", gridout, Nout, n_outside); 
+	return Py_BuildValue("NNl", gridout, Nout, n_outside); 
 }
 
 unsigned long c_grid3d(double *dout, unsigned long *nout, double *data, 
