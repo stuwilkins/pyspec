@@ -338,6 +338,9 @@ class PlotGrid():
             for i in range(3):
                 ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
                 if self.logFlag2D & 1 :
+                    minPosVal = (intentArea[i] > 0.0).min()
+                    negPart   = intentArea[i] <= 0
+                    negPart   = np.ones(negPart.shape) * minPosVal
                     cax  = ax.imshow(intentArea[i], norm=LogNorm(), extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
                 else:
                     cax  = ax.imshow(intentArea[i], extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
@@ -551,18 +554,20 @@ if __name__ == "__main__":
     #imSet  = testData.processOneSet(procSelect = [40])
     #totSet = testData.processOneSet()
     testData.makeGridData()
-    testPlotter = PlotGrid3D(testData)
-    testPlotter.plot3D()
+    #testPlotter = PlotGrid3D(testData)
+    #testPlotter.plot3D()
 
     testPlotter = PlotGrid(testData)
 
     #testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
     #testPlotter.plotImages()
 
+    testPlotter.setLogFlags(0, 3)
     #testPlotter.setPlot1DFit(True)
     #testPlotter.plotGrid1D('sum')
     testPlotter.plotGrid2D('sum')
-
+    testPlotter.plotGrid2D('cut')
+    testPlotter.plotGrid2D('cutAv')
 
     """
     testData = np.array([[range(0,3),range(3,6)],[range(6,9),range(9,12)]])
@@ -588,4 +593,4 @@ if __name__ == "__main__":
     # test with image processor
     
 
-    #plt.show()
+    plt.show()
