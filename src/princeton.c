@@ -31,16 +31,31 @@
 static PyObject* load_multiprinceton(PyObject *self, PyObject *args, PyObject *kwargs){
   static char *kwlist[] = {"filenames", "dark"};
   PyObject *array = NULL;
-  
+  PyObject *filenames = NULL;
   const char* darkimage;
+  char *filename;
+  int nimages, i;
 
   if(!PyArg_ParseTuppleAndKeywords(args, kwargs, "O|s", kwlist
 				   &filenames, &darkimage)){
     return NULL;
   }
 
-  
-  
+  if(!PyList_Check(filenames)){
+    return NULL;
+  }
+
+  nimages = PyList_Size(filenames);
+  for(i=0;i<nimages;i++){
+    filename = PyString_AsString(PyList_GetItem(filenames));
+    if(!filename){
+      return NULL;
+    }
+
+    fprintf(stderr, "Filename %d = %s\n", i, filename);
+  }
+
+  return NULL;
 }
 
 static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs){

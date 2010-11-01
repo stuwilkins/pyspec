@@ -42,13 +42,16 @@
 #define NFRAMES_OFFSET	1446
 
 static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject* load_multiprinceton(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static char *_princetonDoc = \
 "Python functions to read Princeton Instruments SPE files.\n\n";
 
 static PyMethodDef _princetonMethods[] = {
 	{"readSPE", (PyCFunction)load_princeton, METH_VARARGS | METH_KEYWORDS, 
-		""},
+	 ""},
+	{"readMultiSPE", (PyCFunction)load_multiprinceton, METH_VARARGS | METH_KEYWORDS,
+	 ""},
 	{NULL, NULL, 0, NULL}     /* Sentinel - marks the end of this structure */
 };
 

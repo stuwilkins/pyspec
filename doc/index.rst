@@ -13,6 +13,11 @@ Contents:
 
    intro
    tutorial
+   spec
+   ccd_transformations
+   ccd_plotting
+   diffractometer
+
 
 Indices and tables
 ==================

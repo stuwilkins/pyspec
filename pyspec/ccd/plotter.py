@@ -25,14 +25,19 @@ import matplotlib.pyplot as plt
 from   matplotlib.colors import LogNorm
 from   pyspec  import fit, fitfuncs
 
-# Try installing 3d routines
+# Try improting 3d routines
 try:
     from enthought.mayavi import mlab
 except:
     warnings.warn("*** No Enthought mayavi module, 3D visualization is disabled ***")
     pass
 
-
+# Try importing 3d routines from matplotlib
+try:
+    from mpl_toolkits import mplot3d as plt3d
+except:
+    warnings.warn("*** No matplotlib mplot3d module, 3D figures is disabled ***")
+    pass
 
 __version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
