@@ -1,6 +1,6 @@
 /* 
  
- pyspec.gridder  
+ pyspec.ccd.ctrans 
  (c) 2010 Stuart Wilkins <stuwilkins@mac.com>
  
  This program is free software; you can redistribute it and/or
@@ -24,7 +24,142 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <math.h>
-#include "gridder.h"
+#include "ctrans.h"
+
+static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
+  static char *kwlist[] = { "angles", "ccd_size", "ccd_pixsize", "ccd_cen", "ccd_bin", "dist", "wavelength", NULL };
+  PyObject *angles, *_angles;
+  PyObject *qOut = NULL;
+  CCD ccd;
+  npy_intp dims[2];
+  npy_intp nimages;
+  int i;
+  int ndelgam;
+
+  _float lambda;
+
+  _float *delgam;
+  _float *anglesp;
+  _float *qOutp;
+
+  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O(ii)(dd)(ii)(ii)dd", kwlist,
+				  &_angles,
+				  &ccd.xSize, &ccd.ySize,
+				  &ccd.xPixSize, &ccd.yPixSize, 
+				  &ccd.xCen, &ccd.yCen,
+				  &ccd.xBin, &ccd.yBin,
+				  &ccd.dist,
+				  &lambda)){
+    return NULL;
+  }
+
+  angles = PyArray_FROMANY(_angles, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
+  if(!angles){
+    return NULL;
+  }
+  
+  nimages = PyArray_DIM(angles, 0);
+  ndelgam = ccd.xSize * ccd.ySize;
+
+  dims[0] = nimages * ndelgam;
+  dims[1] = 4;
+  qOut = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+  if(!qOut){
+    return NULL;
+  }
+
+  // Allocate memory for delta/gamma pairs
+  
+  delgam = (_float*)malloc(ndelgam * sizeof(double) * 2);
+  if(!delgam){
+    // Add error message here
+    return NULL;
+  }
+
+  anglesp = (double *)PyArray_DATA(angles);
+  qOutp = (double *)PyArray_DATA(qOut);
+  for(i=0;i<nimages;i++){
+    // For each image process
+    calcDeltaGamma(delgam, &ccd, anglesp[0], anglesp[5]);
+    calcQTheta(delgam, anglesp[1], anglesp[4], qOutp, ndelgam, lambda);
+    anglesp+=6;
+    qOutp+=(ndelgam * 4); 
+  }
+
+  //fprintf(stderr, "delgam = %p\n", delgam);
+
+  //fprintf(stderr,"Done\n");
+
+  free(delgam);
+  
+  return Py_BuildValue("O", qOut);
+}
+
+int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int n, _float lambda){
+  // Calculate Q in the Theta frame
+  // angles -> Six cicle detector angles [delta gamma]
+  // theta  -> Theta value at this detector setting
+  // mu     -> Mu value at this detector setting
+  // qTheta -> Q Values
+  // n      -> Number of values to convert
+  _int i;
+  _float *angles;
+  _float *qt;
+  _float kl;
+  _float del, gam;
+
+  angles = diffAngles;
+  qt = qTheta;
+  kl = 2 * M_PI / lambda;
+  for(i=0;i<n;i++){
+    del = *(angles++);
+    gam = *(angles++);
+    *qt = (-1.0 * sin(gam) * kl) - (sin(mu) * kl);
+    //fprintf(stderr, " %lf", *qt);
+    qt++;
+    *qt = (cos(del - theta) * cos(gam) * kl) - (cos(theta) * cos(mu) * kl);
+    //fprintf(stderr, " %lf", *qt);
+    qt++;
+    *qt = (sin(del - theta) * cos(gam) * kl) + (sin(theta) * cos(mu) * kl);
+    //fprintf(stderr, " %lf\n", *qt);
+    qt++;
+    qt++;
+  }
+  
+  return true;
+}
+
+int calcQPhiFromQTheta(_float* diffAngles, _float *qTheta, _float *qPhi, _int n, _float lambda){
+  
+  return false;
+}
+
+int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen){
+  // Calculate Delta Gamma Values for CCD
+  int i,j;
+  _float *delgamp;
+  _float xPix, yPix;
+
+  xPix = ccd->xBin * ccd->xPixSize / ccd->dist;
+  yPix = ccd->yBin * ccd->yPixSize / ccd->dist;
+  delgamp = delgam;
+
+  //fprintf(stderr, "xPix = %lf, yPix %lf\n", xPix, yPix); 
+
+  for(j=0;j<ccd->ySize;j++){
+    for(i=0;i<ccd->xSize;i++){
+      //fprintf(stderr, "DelCen = %lf\n", delCen);
+      *delgamp = delCen - atan( (j - ccd->yCen) * yPix);
+      //fprintf(stderr, "Delta = %lf", *delgamp);
+      delgamp++;
+      *delgamp = gamCen - atan( (i - ccd->xCen) * xPix); 
+      //fprintf(stderr, " Gamma = %lf\n", *delgamp);
+      delgamp++;
+    }
+  }
+
+  return true;
+} 
 
 static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs){
 	PyObject *gridout = NULL, *Nout = NULL;
@@ -143,8 +278,8 @@ unsigned long c_grid3d(double *dout, unsigned long *nout, double *data,
 	return n_outside;
 }
 
-PyMODINIT_FUNC initgridder(void)  {
-	(void) Py_InitModule3("gridder", _gridderMethods, _gridderDoc);
+PyMODINIT_FUNC initctrans(void)  {
+	(void) Py_InitModule3("ctrans", _ctransMethods, _ctransDoc);
 	import_array();  // Must be present for NumPy.  Called first after above line.
 }
 

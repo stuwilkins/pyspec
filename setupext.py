@@ -10,7 +10,7 @@ __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
 options = {'build_levmar'    : False ,
-           'build_gridder'   : False ,
+           'build_ctrans'   : False ,
            'build_princeton' : False ,
            'build_sginfo'    : False }
 
@@ -35,7 +35,7 @@ if os.path.exists("setup.cfg"):
 
     try: options['build_levmar'] = config.getboolean("levmar","build")
     except: pass
-    try: options['build_gridder'] = config.getboolean("gridder","build")
+    try: options['build_ctrans'] = config.getboolean("ctrans","build")
     except: pass
     try: options['build_princeton'] = config.getboolean("princeton","build")
     except: pass
@@ -45,7 +45,7 @@ if os.path.exists("setup.cfg"):
     levmar = parseExtensionSetup('levmar', config, ext_default)
     levmar['libraries'].append('levmar')
 
-    gridder = parseExtensionSetup('gridder', config, ext_default)
+    ctrans = parseExtensionSetup('ctrans', config, ext_default)
     princeton = parseExtensionSetup('princeton', config, ext_default)
     sginfo = parseExtensionSetup('sginfo', config, ext_default)
 
@@ -56,10 +56,10 @@ if options['build_levmar']:
                                  extra_compile_args = ['-g'],
                                  depends = ['src/pylevmar.h'],
                                  **levmar))
-if options['build_gridder']:
-    ext_modules.append(Extension('gridder', ['src/gridder.c'],
-                                 depends = ['src/gridder.h'],
-                                 **gridder))
+if options['build_ctrans']:
+    ext_modules.append(Extension('ctrans', ['src/ctrans.c'],
+                                 depends = ['src/ctrans.h'],
+                                 **ctrans))
 
 if options['build_princeton']:
     ext_modules.append(Extension('princeton', ['src/princeton.c'],

@@ -28,7 +28,14 @@ from   pyspec import spec, fit, fitfuncs
 from   pyspec.diffractometer import Diffractometer
 from   pyspec.ccd.PrincetonSPE import *
 from   pyspec.ccd.plotter import PlotGrid
-import gridder
+try:
+    import pyspec.ccd.ctrans as ctrans
+except:
+    try:
+        import ctrans
+    except:
+        pass
+
 from ConfigParser import ConfigParser
 
 try:
@@ -143,12 +150,11 @@ class FileProcessor():
         self.filenames = scan.getCCDFilenames()
         self.darkfilenames = scan.getCCDFilenames(dark = 1)
     def process(self):
-        print "Processing images......."
+        print "---- Processing images."
         self.images = princeton.readMultiSPE(self.filenames,
                                              self.darkfilenames[0])
-        print "Done. Array size %s (%.3f Mb)" % (str(self.images.shape), 
-                                               self.images.nbytes / 1024**2) 
-
+        print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
+                                                       self.images.nbytes / 1024**2) 
     def getImage(self):
         """Get the image data"""
         return self.images
@@ -859,6 +865,7 @@ class ImageProcessor():
         procSelect : list with the images which will be processed, take object default if None
         mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
 
+        """
         print '\n%s%d: process to %s' % (self.setName, self.setNum, self.setEntLabel)
 
         if procSelect == None:
@@ -879,7 +886,20 @@ class ImageProcessor():
             self._processOneImage(self.totSet[j:k,:], i, mode = mode)
             j = j + imSize
             k = k + imSize
+        """
 
+        print "---- Converting to Q"
+        self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
+                                    ccd_size    = (self.detSizeX, self.detSizeY),
+                                    ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
+                                    ccd_cen     = (int(self.detX0), int(self.detY0)),
+                                    ccd_bin     = (self.binX, self.binY),
+                                    dist        = self.detDis,
+                                    wavelength  = self.waveLen)
+        print "---- DONE"
+        print self.totSet
+        self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
+        print self.totSet
         # for info file
         self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
 
@@ -925,7 +945,7 @@ class ImageProcessor():
             del self.gridOccu
         gc.collect(2)
 
-        gridData, gridOccu, gridOut = gridder.grid3d(self.totSet,Qmin, Qmax, dQN, norm = 1)
+        gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet,Qmin, Qmax, dQN, norm = 1)
         print "*** DONE ***"
         emptNb = (gridOccu == 0).sum()
         if gridOut != 0:
