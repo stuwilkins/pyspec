@@ -842,7 +842,7 @@ class ImageProcessor():
         if gMax == None:
             gMax = self.Qmax
         if dg == None:
-            dg = self.dQN
+            dg = (gMax - gMin) / self.dQN
         emptNb = (gOccu == 0).sum()
         
         gridInfo = '\n\n%s sets processed to grid\n' % (self.setEntLabel) + \
