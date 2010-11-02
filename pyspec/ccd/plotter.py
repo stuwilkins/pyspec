@@ -88,6 +88,10 @@ class PlotGrid():
         self._defaultFigureSize = (11, 8.5)
         # plot the 1D fits
         self.plot1DFit  = False
+        # plot of raw figures
+        self.plotImSelect = None
+        self.plotImHor = 4
+        self.plotImVer = 3
 
     #
     # set part
@@ -400,10 +404,10 @@ class PlotGrid():
 
         return fig, allax
 
-    def plotImages(self, images = None):
+    def plotImages(self, plotImSelect = None):
         """Plots the selcted images
 
-        images : selction of the images for plotting, use object default if None
+        plotImSelect : selction of the images for plotting, use object default if None
 
         retrurns
         allfig : list of plt.figure objects of the plotting windows
@@ -421,11 +425,14 @@ class PlotGrid():
         plotImExtent = [self.imProc.conRoi[0], self.imProc.conRoi[0] + self.imProc.conRoi[1],
                         self.imProc.conRoi[2], self.imProc.conRoi[2] + self.imProc.conRoi[3]]
 
-        if images is None:
-            images = self.plotImSelect
+        # selection of images by passed, default or set size
+        if plotImSelect == None:
+            plotImSelect = self.plotImSelect
+        if plotImSelect == None:
+            plotImSelect = range(self.imProc.setSize)
 
         # go through images numbers which should be plotted
-        for i in images:
+        for i in plotImSelect:
 
             # label for y-axis
             yLabel = 'image # %d' % (i)
@@ -561,30 +568,29 @@ if __name__ == "__main__":
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(1)
+
+    # grid data
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
+    #testData.makeGridData()
 
-    #testData.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
-    #testData.plotImages()
-    
-    #imSet  = testData.processOneSet(procSelect = [40])
-    #totSet = testData.processOneSet()
-    testData.makeGridData()
     #testPlotter = PlotGrid3D(testData)
     #testPlotter.plot3D()
 
+    # plotter for grid and images
     testPlotter = PlotGrid(testData)
 
     #testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
-    #testPlotter.plotImages()
+    testPlotter.plotImages(plotImSelect = [40])
+    testPlotter.plotImages()
 
     testPlotter.setLogFlags(7, 7)
     testPlotter.setPlot1DFit(True)
-    testPlotter.plotGrid1D('sum')
+    #testPlotter.plotGrid1D('sum')
     #testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
-    testPlotter.plotGrid2D('sum')
+    #testPlotter.plotGrid2D('sum')
     #testPlotter.plotGrid2D('cut')
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
