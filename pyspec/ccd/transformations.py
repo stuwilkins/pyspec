@@ -31,6 +31,12 @@ from   pyspec.ccd.plotter import PlotGrid
 import gridder
 from ConfigParser import ConfigParser
 
+try:
+    import princeton
+except:
+    print "No princeton"
+    pass
+
 #gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
 gc.enable()
 
@@ -119,6 +125,34 @@ def getAreaXY(roi):
     return z 
 
 #
+# FileProcessor Class
+#
+
+class FileProcessor():
+    """FileProcessor Class
+
+    This class processes CCD files and returns a numpy array of 
+    float values for all the images. Images can be saved to disk
+    for faster processing in the future."""
+
+    def __init__(self, filenames = None, darkfilenames = None):
+        self.filenames = filenames
+        self.darkfilenames = darkfilenames
+    def setFromSpec(self, scan):
+        """Set the filenames from a SpecScan object"""
+        self.filenames = scan.getCCDFilenames()
+        self.darkfilenames = scan.getCCDFilenames(dark = 1)
+    def process(self):
+        print "Processing images......."
+        self.images = princeton.readMultiSPE(self.filenames,
+                                             self.darkfilenames[0])
+        print "Done. Array size %s (%.3f Mb)" % (str(self.images.shape), 
+                                               self.images.nbytes / 1024**2) 
+
+    def getImage(self):
+        """Get the image data"""
+        return self.images
+#
 # image processor class
 #
 
@@ -167,6 +201,8 @@ class ImageProcessor():
         self.gridData = None
         self.gridOccu = None
         self.totSet = None
+
+        self.fileProcessor = None
 
     def readConfigFile(self, filename):
         config = MyConfigParser()
@@ -429,6 +465,9 @@ class ImageProcessor():
     # get set functions for input output
     #
 
+    def setFileProcessor(self, fp = None):
+        self.fileProcessor = fp
+
     def setInfoFile(self, infoFile):
         """Set the path and file name for the info file about the current processing
 
@@ -505,27 +544,27 @@ class ImageProcessor():
         """Read in the considered region of interest of the image
         dark image subtraction and normalization by ring current"""
 
-        if imNum % 10 == 0:
-            print '%s%d image #%03d: read image' % (self.setName, self.setNum, imNum)
+        #if imNum % 10 == 0:
+        #    print '%s%d image #%03d: read image' % (self.setName, self.setNum, imNum)
 
         # get dark image (first CCD image)
-        if self.darkVal is None:
-            self.darkVal  = PrincetonSPEFile(self.darkFileNames[0])[0].astype(numpy.float)
+        #if self.darkVal is None:
+        #    self.darkVal  = PrincetonSPEFile(self.darkFileNames[0])[0].astype(numpy.float)
         
         # get file name and read image of data point
-        pointMon = self.intentNorm[imNum]
-        fileName = self.imFileNames[imNum]
-        pointVal = PrincetonSPEFile(fileName)[0].astype(numpy.float) - self.darkVal
+        #fileName = self.imFileNames[imNum]
+        #pointVal = PrincetonSPEFile(fileName)[0].astype(numpy.float) - self.darkVal
+
+        pointVal = self.fileProcessor.getImage()[imNum] 
 
         # considered region of interest
         if self.conRoi == None:
             self.conRoi   = [1, pointVal.shape[1], 1, pointVal.shape[0]]
 
         # get considered part of the image
+        pointMon = self.intentNorm[imNum]
         conIm    = getAreaSet(pointVal, self.conRoi) / pointMon
-        
         del pointVal
-        #gc.collect()
 
         return conIm
 
@@ -578,7 +617,7 @@ class ImageProcessor():
     
         return delta, gamma
 
-    def _processOneImage(self, imNum, mode = None):
+    def _processOneImage(self, outArray, imNum, mode = None):
         """Process one image to (Qx, Qy, Qz, I)
 
         mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
@@ -599,7 +638,6 @@ class ImageProcessor():
 
         # (delta, gamma)-values at each pixel
         delPix, gamPix = self._XY2delgam(delta, gamma)        
-  
         # diffractometer for angle to q calculations
         scanDiff = Diffractometer()
         scanDiff.setLambda(self.waveLen)
@@ -620,14 +658,10 @@ class ImageProcessor():
             print 'choose  theta- (1), phi- (2), cartesian- (3) or hkl-frame (4)'
 
         # out put (Qx, Qy, Qz, I)
-        totIm = np.zeros((intent.size, 4))
-        totIm[:,:3] = Qxyz
-        totIm[:,3]  = intent
-
+        outArray[:,:3] = Qxyz
+        outArray[:,3]  = intent
         del Qxyz 
         del intent
-
-        return totIm
 
     def _calcVecDataSet(self):
         """Calculats the vector data set for the grid points"""
@@ -818,7 +852,7 @@ class ImageProcessor():
     #
     # process part
     #
-
+    
     def processOneSet(self, procSelect = None, mode = None):
         """Process selcted images of the full set into (Qx, Qy, Qz, I)
 
@@ -831,24 +865,20 @@ class ImageProcessor():
             procSelect = self.procImSelect
         if mode == None:
             mode = self.frameMode
-
-        # prepare size of full dataset and get data of first scan
-        procSize  = len(procSelect)
-        totFirst = self._processOneImage(procSelect[0])
-        imSize   = totFirst.shape[0]
-        npts     = procSize * imSize
+            
+        imSize = self.fileProcessor.getImage()[0].size
+        npts = imSize * len(procSelect)
 
         if self.totSet is None:
             self.totSet = np.zeros((npts, 4))
 
-        # go through all selected images and get data sets
         j = 0
         k = imSize
-        self.totSet[j:k,:] = totFirst
-        for i in procSelect[1:]:
+        for i in procSelect:
+            print "*** Processing image %d" % i
+            self._processOneImage(self.totSet[j:k,:], i, mode = mode)
             j = j + imSize
             k = k + imSize
-            self.totSet[j:k, :] = self._processOneImage(i, mode = mode)
 
         # for info file
         self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
@@ -1109,14 +1139,19 @@ class ImageProcessor():
 
 if __name__ == "__main__":
 
-    sf   = spec.SpecDataFile('/home/tardis/spartzsch/2010_09_X1A2/ymn2o5_sep10_1', 
-			     ccdpath = '/mounts/davros/nasshare/images/sept10')
-    scan = sf[244]
+    sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/ymn2o5_oct10/ymn2o5_oct10_1', 
+			     ccdpath = '/mounts/davros/nasshare/images/oct10')
+    scan = sf[119]
 
+    fp = FileProcessor()
+    fp.setFromSpec(scan)
+    fp.process()
+    
     testData = ImageProcessor()
 
     testData.setDetectorAngle(-1.24)
-    testData.setBins(4, 4)
+    testData.setBins(2, 2)
+    testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(1)
@@ -1128,7 +1163,6 @@ if __name__ == "__main__":
     #testData.plotImages()
     
     #imSet  = testData.processOneSet(procSelect = [40])
-    #totSet = testData.processOneSet()
     #testData.makeGridData(procSelect = [40])
     testData.makeGridData()
 
@@ -1157,15 +1191,15 @@ if __name__ == "__main__":
     # test with plotter directly
     testPlotter = PlotGrid(testData)
 
-    testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
-    testPlotter.plotImages()
+    #testPlotter.setPlotIm(plotImSelect = range(121), plotImHor = 4, plotImVer = 3)
+    #testPlotter.plotImages()
 
-    testPlotter.setPlot1DFit(True)
-    testPlotter.plotGrid1D('sum')
+    #testPlotter.setPlot1DFit(True)
+    #testPlotter.plotGrid1D('sum')
     testPlotter.plotGrid2D('sum')
 
-    print '\n\n'
-    print testData.makeInfo()
+    #print '\n\n'
+    #print testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')
 
     plt.show()
