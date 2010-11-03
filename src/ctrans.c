@@ -27,34 +27,45 @@
 #include "ctrans.h"
 
 static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
-  static char *kwlist[] = { "angles", "ccd_size", "ccd_pixsize", "ccd_cen", "ccd_bin", "dist", "wavelength", NULL };
-  PyObject *angles, *_angles;
+  static char *kwlist[] = { "angles", "mode", "ccd_size", "ccd_pixsize", 
+			    "ccd_cen", "ccd_bin", "dist", "wavelength", 
+			    "UBinv", NULL };
+  PyObject *angles, *_angles, *_ubinv, *ubinv;
   PyObject *qOut = NULL;
   CCD ccd;
   npy_intp dims[2];
   npy_intp nimages;
   int i;
   int ndelgam;
+  int mode;
 
   _float lambda;
 
   _float *delgam;
   _float *anglesp;
   _float *qOutp;
+  _float *ubinvp;
 
-  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O(ii)(dd)(ii)(ii)dd", kwlist,
+  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "Oi(ii)(dd)(ii)(ii)ddO", kwlist,
 				  &_angles,
+				  &mode,
 				  &ccd.xSize, &ccd.ySize,
 				  &ccd.xPixSize, &ccd.yPixSize, 
 				  &ccd.xCen, &ccd.yCen,
 				  &ccd.xBin, &ccd.yBin,
 				  &ccd.dist,
-				  &lambda)){
+				  &lambda,
+				  &_ubinv)){
     return NULL;
   }
 
   angles = PyArray_FROMANY(_angles, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
   if(!angles){
+    return NULL;
+  }
+
+  ubinv = PyArray_FROMANY(_ubinv, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
+  if(!ubinv){
     return NULL;
   }
   
@@ -70,25 +81,24 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
 
   // Allocate memory for delta/gamma pairs
   
-  delgam = (_float*)malloc(ndelgam * sizeof(double) * 2);
+  delgam = (_float*)malloc(ndelgam * sizeof(_float) * 2);
   if(!delgam){
     // Add error message here
     return NULL;
   }
 
-  anglesp = (double *)PyArray_DATA(angles);
-  qOutp = (double *)PyArray_DATA(qOut);
+  anglesp = (_float *)PyArray_DATA(angles);
+  qOutp = (_float *)PyArray_DATA(qOut);
+  ubinvp = (_float *)PyArray_DATA(ubinv);
   for(i=0;i<nimages;i++){
     // For each image process
     calcDeltaGamma(delgam, &ccd, anglesp[0], anglesp[5]);
     calcQTheta(delgam, anglesp[1], anglesp[4], qOutp, ndelgam, lambda);
+    if(mode > 1)
+      calcQPhiFromQTheta(qOutp, ndelgam, anglesp[2], anglesp[3]);
     anglesp+=6;
     qOutp+=(ndelgam * 4); 
   }
-
-  //fprintf(stderr, "delgam = %p\n", delgam);
-
-  //fprintf(stderr,"Done\n");
 
   free(delgam);
   
@@ -129,9 +139,48 @@ int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int
   return true;
 }
 
-int calcQPhiFromQTheta(_float* diffAngles, _float *qTheta, _float *qPhi, _int n, _float lambda){
+int calcQPhiFromQTheta(_float *qTheta, _int n, _float chi, _float phi){
+  _float r[3][3];
+  int i, j, k;
+  _float *qThetap;
+  _float qp[3];
+
+  r[0][0] = cos(chi);
+  r[0][1] = 0.0;
+  r[0][2] = -1.0 * sin(chi);
+  r[1][0] = sin(phi) * sin(chi);
+  r[1][1] = cos(phi);
+  r[1][2] = sin(phi) * cos(chi);
+  r[2][0] = cos(phi) * sin(chi);
+  r[2][1] = -1.0 * sin(phi);
+  r[2][2] = cos(phi) * cos(chi);
+
+  matmulti(qTheta, r, 1);
   
-  return false;
+  return true;
+}
+
+int matmulti(_float *val, _float mat[][3], int skip){
+  _float *v;
+  _float qp[3];
+
+  v = val;
+
+  for(i=0;i<n;i++){
+    for(k=0;k<3;k++){
+      qp[k] = 0.0;
+      for(j=0;j<3;j++){
+	qp[k] += mat[k][j] * v[j];
+      }
+    }
+    for(k=0;k<3;k++){
+      v[k] = qp[k];
+    }
+    v += 3;
+    v += skip;
+  }
+
+  return true;
 }
 
 int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen){

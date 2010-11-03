@@ -889,13 +889,15 @@ class ImageProcessor():
         """
 
         print "---- Converting to Q"
-        self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
+        self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
+                                    angles      = self.settingAngles * np.pi / 180.0, 
                                     ccd_size    = (self.detSizeX, self.detSizeY),
                                     ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
                                     ccd_cen     = (int(self.detX0), int(self.detY0)),
                                     ccd_bin     = (self.binX, self.binY),
                                     dist        = self.detDis,
-                                    wavelength  = self.waveLen)
+                                    wavelength  = self.waveLen,
+                                    UBinv       = self.UBmat.inv())
         print "---- DONE"
         print self.totSet
         self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())

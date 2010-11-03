@@ -29,19 +29,133 @@
 #include "princeton.h"
 
 static PyObject* load_multiprinceton(PyObject *self, PyObject *args, PyObject *kwargs){
-  static char *kwlist[] = {"filenames", "dark"};
+  static char *kwlist[] = {"filenames", "dark", NULL};
   PyObject *array = NULL;
-  PyObject * 
-  
-  const char* darkimage;
+  PyObject *filenames = NULL;
+  char *darkimage;
+  char *filename;
+  int nimages, i, j;
+  FILE *fp, *dfp;
+  uint16_t dims[2] = {0, 0};
+  int32_t nImages = 0;
+  npy_intp arraySize[3] = {0, 0, 0};
+  uint16_t *buffer = NULL;
+  uint16_t *darkBuffer = NULL;
+  double *arrayPtr = NULL;
 
-  if(!PyArg_ParseTuppleAndKeywords(args, kwargs, "O|s", kwlist
-				   &filenames, &darkimage)){
+  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "Os", kwlist,
+				  &filenames, &darkimage)){
     return NULL;
   }
 
+  if(!PyList_Check(filenames)){
+    return NULL;
+  }
+
+  nimages = PyList_Size(filenames);
+
+  for(i=0;i<nimages; i++){
+    filename = PyString_AsString(PyList_GetItem(filenames, i));
+    if(!filename){
+      if(buffer)
+	free(buffer);
+      if(darkBuffer)
+	free(darkBuffer);
+      return NULL;
+    }
+
+    if((fp = fopen(filename, "rb")) == NULL){
+      PyErr_SetString(PyExc_IOError, "Unable to open file.");
+      if(buffer)
+	free(buffer);
+      if(darkBuffer)
+	free(darkBuffer);
+      return NULL;
+    }
   
+    if(i == 0){
+      fseek(fp, XDIM_OFFSET, SEEK_SET);
+      fread(&dims[0], sizeof(uint16_t), 1, fp);
+      fseek(fp, YDIM_OFFSET, SEEK_SET);
+      fread(&dims[1], sizeof(uint16_t), 1, fp);
+      fseek(fp, NFRAMES_OFFSET, SEEK_SET);
+      fread(&nImages, sizeof(int32_t), 1, fp);
+
+      arraySize[0] = nimages;
+      arraySize[1] = dims[1];
+      arraySize[2] = dims[0];
+      array = PyArray_SimpleNew(3, arraySize, NPY_DOUBLE);
+      arrayPtr = PyArray_DATA(array);
+      if(!(buffer = malloc(dims[0] * dims[1] * sizeof(uint16_t)))){
+	PyErr_SetString(PyExc_MemoryError, "Unable to allocate memory");
+	Py_XDECREF(array);
+	return NULL;
+      }
+
+      if(darkimage){
+	if(!(darkBuffer = malloc(dims[0] * dims[1] * sizeof(uint16_t)))){
+	  PyErr_SetString(PyExc_MemoryError, "Unable to allocate memory");
+	  Py_XDECREF(array);
+	  if(buffer)
+	    free(buffer);
+	  if(darkBuffer)
+	    free(darkBuffer);
+	  return NULL;
+	}
+	
+	if((dfp = fopen(darkimage, "rb")) == NULL){
+	  PyErr_SetString(PyExc_IOError, "Unable to open file.");
+	  if(buffer)
+	    free(buffer);
+	  if(darkBuffer)
+	    free(darkBuffer);
+	  return NULL;
+	}
+	
+	fseek(dfp, DATA_OFFSET, SEEK_SET);
+	if(!fread(darkBuffer, sizeof(uint16_t), dims[0] * dims[1], fp)){
+	  PyErr_SetString(PyExc_IOError, "Unable to read data.");
+	  Py_XDECREF(array);
+	  if(buffer)
+	    free(buffer);
+	  if(darkBuffer)
+	    free(darkBuffer);
+	  return NULL;
+	}
+
+	fclose(dfp);
+      }
+    }
+    
+    fseek(fp, DATA_OFFSET, SEEK_SET);
+    if(!fread(buffer, sizeof(uint16_t), dims[0] * dims[1], fp)){
+      PyErr_SetString(PyExc_IOError, "Unable to read data.");
+      Py_XDECREF(array);
+      if(buffer)
+	free(buffer);
+      if(darkBuffer)
+	free(darkBuffer);
+      return NULL;
+    }
   
+    if(darkBuffer){
+      for(j=0;j<(dims[0] * dims[1]);j++){
+	arrayPtr[j] = (double)buffer[j] - (double)darkBuffer[j];
+      }
+    } else {
+      for(j=0;j<(dims[0] * dims[1]);j++){
+	arrayPtr[j] = (double)buffer[j];
+      }
+    }
+    arrayPtr += (dims[0] * dims[1]);
+    fclose(fp);
+  }
+
+  if(buffer)
+    free(buffer);
+  if(darkBuffer)
+    free(darkBuffer);
+  return array;
 }
 
 static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs){
@@ -85,22 +199,6 @@ static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs
 	fseek(fp, NFRAMES_OFFSET, SEEK_SET);
 	fread(&nImages, sizeof(int32_t), 1, fp);
 	
-	/*
-	
-	data = (uint16_t*)malloc(dims[0] * dims[1] * nImages * sizeof(uint16_t));
-	if(!data){
-		PyErr_SetString(PyExc_MemoryError, "Unable to allocate memory.");
-		return NULL;
-	}
-	
-	fseek(fp, DATA_OFFSET, SEEK_SET);
-	if(!fread(data, sizeof(uint16_t), dims[0] * dims[1] * nImages, fp)){
-		PyErr_SetString(PyExc_IOError, "Unable to read data.");
-		free(data);
-		return NULL;
-	}
-	*/
-	
 	arraySize[0] = nImages;
 	arraySize[1] = dims[1];
 	arraySize[2] = dims[0];
@@ -111,21 +209,10 @@ static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs
 	fseek(fp, DATA_OFFSET, SEEK_SET);
 	if(!fread(arrayPtr, sizeof(uint16_t), dims[0] * dims[1] * nImages, fp)){
 		PyErr_SetString(PyExc_IOError, "Unable to read data.");
-		free(data);
+		Py_XDECREF(array);
 		return NULL;
 	}
 	
-	/*
-	dataPtr = data;
-	
-	for(i=0;i<(dims[0] * dims[1] * nImages);i++){
-		*(arrayPtr++) = (double)*(dataPtr++);
-	}
-	
-	if(!data){
-		free(data);
-	}
-	*/
 	return array;
 }
 
