@@ -210,6 +210,8 @@ class ImageProcessor():
 
         self.fileProcessor = None
 
+        self.processMode = 'fast'
+
     def readConfigFile(self, filename):
         config = MyConfigParser()
         config.read(filename)
@@ -865,43 +867,44 @@ class ImageProcessor():
         procSelect : list with the images which will be processed, take object default if None
         mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
 
-        """
-        print '\n%s%d: process to %s' % (self.setName, self.setNum, self.setEntLabel)
+        
+        if self.processMode == 'builtin':
 
-        if procSelect == None:
-            procSelect = self.procImSelect
-        if mode == None:
-            mode = self.frameMode
+            print '\n%s%d: process to %s' % (self.setName, self.setNum, self.setEntLabel)
+
+            if procSelect == None:
+                procSelect = self.procImSelect
+            if mode == None:
+                mode = self.frameMode
             
-        imSize = self.fileProcessor.getImage()[0].size
-        npts = imSize * len(procSelect)
+            imSize = self.fileProcessor.getImage()[0].size
+            npts = imSize * len(procSelect)
 
-        if self.totSet is None:
-            self.totSet = np.zeros((npts, 4))
+            if self.totSet is None:
+                self.totSet = np.zeros((npts, 4))
 
-        j = 0
-        k = imSize
-        for i in procSelect:
-            print "*** Processing image %d" % i
-            self._processOneImage(self.totSet[j:k,:], i, mode = mode)
-            j = j + imSize
-            k = k + imSize
-        """
+            j = 0
+            k = imSize
+            for i in procSelect:
+                print "*** Processing image %d" % i
+                self._processOneImage(self.totSet[j:k,:], i, mode = mode)
+                j = j + imSize
+                k = k + imSize
+        
+        else:
+            print "---- Converting to Q"
+            self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
+                                        angles      = self.settingAngles * np.pi / 180.0, 
+                                        ccd_size    = (self.detSizeX, self.detSizeY),
+                                        ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
+                                        ccd_cen     = (int(self.detX0), int(self.detY0)),
+                                        ccd_bin     = (self.binX, self.binY),
+                                        dist        = self.detDis,
+                                        wavelength  = self.waveLen,
+                                        UBinv       = np.matrix(self.UBmat).I)
+            print "---- DONE"
+            self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
 
-        print "---- Converting to Q"
-        self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
-                                    angles      = self.settingAngles * np.pi / 180.0, 
-                                    ccd_size    = (self.detSizeX, self.detSizeY),
-                                    ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
-                                    ccd_cen     = (int(self.detX0), int(self.detY0)),
-                                    ccd_bin     = (self.binX, self.binY),
-                                    dist        = self.detDis,
-                                    wavelength  = self.waveLen,
-                                    UBinv       = self.UBmat.inv())
-        print "---- DONE"
-        print self.totSet
-        self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
-        print self.totSet
         # for info file
         self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
 
@@ -1163,7 +1166,7 @@ if __name__ == "__main__":
 
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/ymn2o5_oct10/ymn2o5_oct10_1', 
 			     ccdpath = '/mounts/davros/nasshare/images/oct10')
-    scan = sf[119]
+    scan = sf[318]
 
     fp = FileProcessor()
     fp.setFromSpec(scan)
@@ -1172,12 +1175,13 @@ if __name__ == "__main__":
     testData = ImageProcessor()
 
     testData.setDetectorAngle(-1.24)
-    testData.setBins(2, 2)
+    testData.setBins(4, 4)
     testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
-    testData.setFrameMode(1)
+    testData.setFrameMode(4)
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
+    #testData.processMode = 'builtin'
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
 

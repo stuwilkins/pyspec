@@ -45,6 +45,7 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   _float *anglesp;
   _float *qOutp;
   _float *ubinvp;
+  _float UBI[3][3];
 
   if(!PyArg_ParseTupleAndKeywords(args, kwargs, "Oi(ii)(dd)(ii)(ii)ddO", kwlist,
 				  &_angles,
@@ -68,6 +69,14 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   if(!ubinv){
     return NULL;
   }
+  ubinvp = (_float *)PyArray_DATA(ubinv);
+  for(i=0;i<3;i++){
+    UBI[i][0] = -1.0 * ubinvp[2];
+    UBI[i][1] = ubinvp[1];
+    UBI[i][2] = ubinvp[0];
+    ubinvp+=3;
+  }
+  
   
   nimages = PyArray_DIM(angles, 0);
   ndelgam = ccd.xSize * ccd.ySize;
@@ -89,13 +98,17 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
 
   anglesp = (_float *)PyArray_DATA(angles);
   qOutp = (_float *)PyArray_DATA(qOut);
-  ubinvp = (_float *)PyArray_DATA(ubinv);
+  
   for(i=0;i<nimages;i++){
     // For each image process
     calcDeltaGamma(delgam, &ccd, anglesp[0], anglesp[5]);
     calcQTheta(delgam, anglesp[1], anglesp[4], qOutp, ndelgam, lambda);
-    if(mode > 1)
+    if(mode > 1){
       calcQPhiFromQTheta(qOutp, ndelgam, anglesp[2], anglesp[3]);
+    }
+    if(mode == 4){
+      calcHKLFromQPhi(qOutp, ndelgam, UBI);
+    }
     anglesp+=6;
     qOutp+=(ndelgam * 4); 
   }
@@ -157,6 +170,11 @@ int calcQPhiFromQTheta(_float *qTheta, _int n, _float chi, _float phi){
   return true;
 }
 
+int calcHKLFromQPhi(_float *qPhi, _int n, _float mat[][3]){
+  matmulti(qPhi, n, mat, 1);
+  return true;
+}
+
 int matmulti(_float *val, int n, _float mat[][3], int skip){
   _float *v;
   _float qp[3];
@@ -187,12 +205,15 @@ int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen){
   _float *delgamp;
   _float xPix, yPix;
 
-  xPix = ccd->xBin * ccd->xPixSize / ccd->dist;
-  yPix = ccd->yBin * ccd->yPixSize / ccd->dist;
+  xPix = (_float)ccd->xPixSize / ccd->dist;
+  yPix = (_float)ccd->yPixSize / ccd->dist;
   delgamp = delgam;
 
-  //fprintf(stderr, "xPix = %lf, yPix %lf\n", xPix, yPix); 
-
+  //fprintf(stderr, "xBin = %d\n", ccd->xBin);
+  //fprintf(stderr, "xPixSize = %lf\n", ccd->xPixSize);
+  //fprintf(stderr, "dist = %lf\n", ccd->dist);
+  //fprintf(stderr, "xPix = %e, yPix %e\n", xPix, yPix); 
+  //fprintf(stderr, "DelCen = %lf, GamCen = %lf\n", delCen, gamCen);
   for(j=0;j<ccd->ySize;j++){
     for(i=0;i<ccd->xSize;i++){
       //fprintf(stderr, "DelCen = %lf\n", delCen);
