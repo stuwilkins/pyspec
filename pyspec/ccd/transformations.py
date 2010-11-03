@@ -205,11 +205,6 @@ class ImageProcessor():
         self._makeModeInfo()
         self.opProcInfo  = ''
 
-        self.darkVal = None
-        self.gridData = None
-        self.gridOccu = None
-        self.totSet = None
-
         self.fileProcessor = None
 
         self.processMode = 'fast'
@@ -894,9 +889,11 @@ class ImageProcessor():
                 k = k + imSize
         
         else:
-            if self.totSet is not None:
+            try:
                 print "**** 1 totSet references ", sys.getrefcount(self.totSet)
                 del self.totSet
+            except:
+                pass
 
             print "---- Converting to Q"
             t1 = time.time()
@@ -957,10 +954,14 @@ class ImageProcessor():
 
         # 3D grid of the data set 
         print "*** Gridding Data ***"
-        if self.gridData is not None:
+        try:
             del self.gridData
-        if self.gridOccu is not None:
+        except:
+            pass
+        try:
             del self.gridOccu
+        except:
+            pass
         gc.collect(2)
 
         gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet,Qmin, Qmax, dQN, norm = 1)
