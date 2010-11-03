@@ -29,6 +29,8 @@
 #define true -1
 #define false 0
 
+#define NTHREADS 8
+
 typedef double _float;
 typedef int _int;
 
@@ -44,6 +46,20 @@ typedef struct {
   _float dist;       // Sample - Detector distance. 
 } CCD;
 
+typedef struct {
+  _float* delgam;
+  CCD *ccd;
+  _float *anglesp;
+  _float *qOutp;
+  int ndelgam;
+  _float lambda;
+  int mode;
+  int imstart;
+  int imend;
+  _float UBI[3][3];
+} imageThreadData;
+
+void *processImageThread(void* ptr);
 int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int n, _float lambda);
 int calcQPhiFromQTheta(_float *qTheta, _int n, _float chi, _float phi);
 int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen);

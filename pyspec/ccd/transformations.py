@@ -22,6 +22,7 @@
 
 import os
 import gc
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from   pyspec import spec, fit, fitfuncs
@@ -893,6 +894,7 @@ class ImageProcessor():
         
         else:
             print "---- Converting to Q"
+            t1 = time.time()
             self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
                                         angles      = self.settingAngles * np.pi / 180.0, 
                                         ccd_size    = (self.detSizeX, self.detSizeY),
@@ -902,7 +904,8 @@ class ImageProcessor():
                                         dist        = self.detDis,
                                         wavelength  = self.waveLen,
                                         UBinv       = np.matrix(self.UBmat).I)
-            print "---- DONE"
+            t2 = time.time()
+            print "---- DONE (Processed in %f seconds)" % (t2 - t1)
             self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
 
         # for info file
@@ -1166,7 +1169,7 @@ if __name__ == "__main__":
 
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/ymn2o5_oct10/ymn2o5_oct10_1', 
 			     ccdpath = '/mounts/davros/nasshare/images/oct10')
-    scan = sf[318]
+    scan = sf[122]
 
     fp = FileProcessor()
     fp.setFromSpec(scan)
@@ -1175,11 +1178,11 @@ if __name__ == "__main__":
     testData = ImageProcessor()
 
     testData.setDetectorAngle(-1.24)
-    testData.setBins(4, 4)
+    testData.setBins(2, 2)
     testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
-    testData.setFrameMode(4)
+    testData.setFrameMode(1)
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
     #testData.processMode = 'builtin'
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])

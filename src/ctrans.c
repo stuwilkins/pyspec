@@ -24,6 +24,7 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <math.h>
+#include <pthread.h>
 #include "ctrans.h"
 
 static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
@@ -35,17 +36,21 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   CCD ccd;
   npy_intp dims[2];
   npy_intp nimages;
-  int i;
+  int i, j, t, stride;
   int ndelgam;
   int mode;
 
   _float lambda;
 
-  _float *delgam;
+  _float *delgam[NTHREADS];
   _float *anglesp;
   _float *qOutp;
   _float *ubinvp;
   _float UBI[3][3];
+
+  pthread_t thread[NTHREADS];
+  int iret[NTHREADS];
+  imageThreadData threadData[NTHREADS];
 
   if(!PyArg_ParseTupleAndKeywords(args, kwargs, "Oi(ii)(dd)(ii)(ii)ddO", kwlist,
 				  &_angles,
@@ -88,34 +93,71 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
     return NULL;
   }
 
-  // Allocate memory for delta/gamma pairs
-  
-  delgam = (_float*)malloc(ndelgam * sizeof(_float) * 2);
-  if(!delgam){
-    // Add error message here
-    return NULL;
-  }
-
   anglesp = (_float *)PyArray_DATA(angles);
   qOutp = (_float *)PyArray_DATA(qOut);
   
-  for(i=0;i<nimages;i++){
-    // For each image process
-    calcDeltaGamma(delgam, &ccd, anglesp[0], anglesp[5]);
-    calcQTheta(delgam, anglesp[1], anglesp[4], qOutp, ndelgam, lambda);
-    if(mode > 1){
-      calcQPhiFromQTheta(qOutp, ndelgam, anglesp[2], anglesp[3]);
+  stride = nimages / NTHREADS;
+  for(t=0;t<NTHREADS;t++){
+    // Setup threads
+    // Allocate memory for delta/gamma pairs
+    delgam[t] = (_float*)malloc(ndelgam * sizeof(_float) * 2);
+    if(!delgam[t]){
+      // Add error message here
+      return NULL;
     }
-    if(mode == 4){
-      calcHKLFromQPhi(qOutp, ndelgam, UBI);
+    threadData[t].delgam = delgam[t];
+    threadData[t].ccd = &ccd;
+    threadData[t].anglesp = anglesp;
+    threadData[t].qOutp = qOutp;
+    threadData[t].ndelgam = ndelgam;
+    threadData[t].lambda = lambda;
+    threadData[t].mode = mode;
+    threadData[t].imstart = stride * t;
+    for(i=0;i<3;i++){
+      for(j=0;j<3;j++){
+	threadData[t].UBI[j][i] = UBI[j][i];
+      }
     }
-    anglesp+=6;
-    qOutp+=(ndelgam * 4); 
+    if(t == (NTHREADS - 1)){
+      threadData[t].imend = nimages;
+    } else {
+      threadData[t].imend = stride * (t + 1);
+    }
+    iret[t] = pthread_create( &thread[t], NULL, 
+			      processImageThread, (void*) &threadData[t]);
+
+    anglesp += (6 * stride);
+    qOutp += (ndelgam * 4 * stride);
   }
 
-  free(delgam);
-  
+  for(t=0;t<NTHREADS;t++){
+    pthread_join(thread[t], NULL);
+    free(delgam[t]);
+  }
   return Py_BuildValue("O", qOut);
+}
+
+void *processImageThread(void* ptr){
+  imageThreadData *data;
+  int i;
+  data = (imageThreadData*) ptr;
+  
+  //fprintf(stderr, "From %d To %d\n", data->imstart, data->imend);
+  for(i=data->imstart;i<data->imend;i++){
+    // For each image process
+    calcDeltaGamma(data->delgam, data->ccd, data->anglesp[0], data->anglesp[5]);
+    calcQTheta(data->delgam, data->anglesp[1], data->anglesp[4], data->qOutp, 
+	       data->ndelgam, data->lambda);
+    if(data->mode > 1){
+      calcQPhiFromQTheta(data->qOutp, data->ndelgam, 
+			 data->anglesp[2], data->anglesp[3]);
+    }
+    if(data->mode == 4){
+      calcHKLFromQPhi(data->qOutp, data->ndelgam, data->UBI);
+    }
+    data->anglesp+=6;
+    data->qOutp+=(data->ndelgam * 4); 
+  }
 }
 
 int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int n, _float lambda){
