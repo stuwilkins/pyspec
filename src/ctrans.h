@@ -47,7 +47,7 @@ typedef struct {
 int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int n, _float lambda);
 int calcQPhiFromQTheta(_float *qTheta, _int n, _float chi, _float phi);
 int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen);
-int matmulti(_float *val, _float mat[][3], int skip);
+int matmulti(_float *val, int n, _float mat[][3], int skip);
 
 unsigned long c_grid3d(double *dout, unsigned long *nout, double *data, double *grid_start, double *grid_stop, int max_data, int *n_grid, int norm_data);
 

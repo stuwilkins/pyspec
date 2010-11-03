@@ -141,9 +141,6 @@ int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int
 
 int calcQPhiFromQTheta(_float *qTheta, _int n, _float chi, _float phi){
   _float r[3][3];
-  int i, j, k;
-  _float *qThetap;
-  _float qp[3];
 
   r[0][0] = cos(chi);
   r[0][1] = 0.0;
@@ -155,14 +152,15 @@ int calcQPhiFromQTheta(_float *qTheta, _int n, _float chi, _float phi){
   r[2][1] = -1.0 * sin(phi);
   r[2][2] = cos(phi) * cos(chi);
 
-  matmulti(qTheta, r, 1);
+  matmulti(qTheta, n, r, 1);
   
   return true;
 }
 
-int matmulti(_float *val, _float mat[][3], int skip){
+int matmulti(_float *val, int n, _float mat[][3], int skip){
   _float *v;
   _float qp[3];
+  int i,j,k;
 
   v = val;
 
