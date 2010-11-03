@@ -23,6 +23,7 @@
 
 #include <Python.h>
 #include <numpy/arrayobject.h>
+#include <stdlib.h>
 #include <math.h>
 #include <pthread.h>
 #include "ctrans.h"
@@ -69,11 +70,14 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   if(!angles){
     return NULL;
   }
-
+  Py_XDECREF(_angles);
+  
   ubinv = PyArray_FROMANY(_ubinv, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
   if(!ubinv){
     return NULL;
   }
+  Py_XDECREF(_ubinv);
+
   ubinvp = (_float *)PyArray_DATA(ubinv);
   for(i=0;i<3;i++){
     UBI[i][0] = -1.0 * ubinvp[2];
@@ -100,12 +104,7 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   for(t=0;t<NTHREADS;t++){
     // Setup threads
     // Allocate memory for delta/gamma pairs
-    delgam[t] = (_float*)malloc(ndelgam * sizeof(_float) * 2);
-    if(!delgam[t]){
-      // Add error message here
-      return NULL;
-    }
-    threadData[t].delgam = delgam[t];
+    
     threadData[t].ccd = &ccd;
     threadData[t].anglesp = anglesp;
     threadData[t].qOutp = qOutp;
@@ -123,26 +122,38 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
     } else {
       threadData[t].imend = stride * (t + 1);
     }
-    iret[t] = pthread_create( &thread[t], NULL, 
-			      processImageThread, (void*) &threadData[t]);
+    delgam[t] = (_float*)malloc(ndelgam * sizeof(_float) * 2);
+    fprintf(stderr, "Creating %p\n", delgam[t]);
+    if(!delgam[t]){
+      // Add error message here
+      return NULL;
+    }
+    threadData[t].delgam = delgam[t];
 
+    iret[t] = pthread_create( &thread[t], NULL, 
+			      processImageThread, 
+			      (void*) &threadData[t]);
+    
     anglesp += (6 * stride);
     qOutp += (ndelgam * 4 * stride);
   }
 
   for(t=0;t<NTHREADS;t++){
-    pthread_join(thread[t], NULL);
+    if(pthread_join(thread[t], NULL)){
+      fprintf(stderr, "ERROR : Cannot join thread %d", t);
+    }
+    fprintf(stderr, "Free %p\n", delgam[t]);
     free(delgam[t]);
   }
-  return Py_BuildValue("O", qOut);
+  
+  return Py_BuildValue("N", qOut);
 }
 
 void *processImageThread(void* ptr){
   imageThreadData *data;
   int i;
   data = (imageThreadData*) ptr;
-  
-  //fprintf(stderr, "From %d To %d\n", data->imstart, data->imend);
+  fprintf(stderr, "From %d To %d delgam = %p\n", data->imstart, data->imend, data->delgam);
   for(i=data->imstart;i<data->imend;i++){
     // For each image process
     calcDeltaGamma(data->delgam, data->ccd, data->anglesp[0], data->anglesp[5]);
@@ -158,6 +169,7 @@ void *processImageThread(void* ptr){
     data->anglesp+=6;
     data->qOutp+=(data->ndelgam * 4); 
   }
+  pthread_exit(NULL);
 }
 
 int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int n, _float lambda){

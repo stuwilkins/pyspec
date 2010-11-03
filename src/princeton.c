@@ -91,6 +91,7 @@ static PyObject* load_multiprinceton(PyObject *self, PyObject *args, PyObject *k
 	Py_XDECREF(array);
 	return NULL;
       }
+      fprintf(stderr, "Malloc\n");
 
       if(darkimage){
 	if(!(darkBuffer = malloc(dims[0] * dims[1] * sizeof(uint16_t)))){
@@ -155,7 +156,7 @@ static PyObject* load_multiprinceton(PyObject *self, PyObject *args, PyObject *k
     free(buffer);
   if(darkBuffer)
     free(darkBuffer);
-  return array;
+  return Py_BuildValue("N", array);
 }
 
 static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs){
@@ -168,8 +169,6 @@ static PyObject* load_princeton(PyObject *self, PyObject *args, PyObject *kwargs
 	
 	uint16_t dims[2]			= {0, 0};
 	int32_t nImages				= 0;
-	
-	uint16_t *data				= NULL;
 	
 	npy_intp arraySize[3]		= {0, 0, 0};
 	

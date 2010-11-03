@@ -23,6 +23,7 @@
 import os
 import gc
 import time
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from   pyspec import spec, fit, fitfuncs
@@ -893,6 +894,10 @@ class ImageProcessor():
                 k = k + imSize
         
         else:
+            if self.totSet is not None:
+                print "**** 1 totSet references ", sys.getrefcount(self.totSet)
+                del self.totSet
+
             print "---- Converting to Q"
             t1 = time.time()
             self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
@@ -907,6 +912,7 @@ class ImageProcessor():
             t2 = time.time()
             print "---- DONE (Processed in %f seconds)" % (t2 - t1)
             self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
+            print "**** 2 totSet references ", sys.getrefcount(self.totSet)
 
         # for info file
         self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
@@ -932,6 +938,8 @@ class ImageProcessor():
         self.processOneSet(procSelect = procSelect, mode = mode)
         print "Total data is %f MBytes\n" % (self.totSet.nbytes / 1024.0**2)
 
+        print "Totset refcount", sys.getrefcount(self.totSet)
+
         # prepare min, max,...
         if self.Qmin == None:
             self.Qmin = np.array([ self.totSet[:,0].min(), self.totSet[:,1].min(), self.totSet[:,2].min() ])
@@ -939,6 +947,8 @@ class ImageProcessor():
             self.Qmax = np.array([ self.totSet[:,0].max(), self.totSet[:,1].max(), self.totSet[:,2].max() ])
         if self.dQN  == None:
             self.dQN = [100, 100, 100]
+
+        print "Totset refcount", sys.getrefcount(self.totSet)
 
         # use alias for grid options
         Qmin = self.Qmin
@@ -967,6 +977,8 @@ class ImageProcessor():
         self.gridData = gridData
         self.gridOccu = gridOccu
         self.gridOut  = gridOut
+
+        del self.totSet
 
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()
