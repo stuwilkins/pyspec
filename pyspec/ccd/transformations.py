@@ -812,10 +812,12 @@ class ImageProcessor():
             for i in range(allRes.shape[0]):
                 fitNames.append('Fit %02d' % i)
 
-        fitInfo = '%s%s\n\t a \t\t b \t\t cen \t\t width \t\t area' % (fitTitle, fitType)
-        line    = '\n%s \t ' + 4*'%.5e\t ' + '%.5e'
+        dQ = (self.Qmax - self.Qmin) / self.dQN
+
+        fitInfo = '%s%s\n\t a \t\t b \t\t cen \t\t width \t\t width/step \t area' % (fitTitle, fitType)
+        line    = '\n%s \t ' + 4*'%.5e\t ' + '%.2f\t\t ' + '%.5e'
         for i in range(allRes.shape[0]):
-            fitInfo += line % (fitNames[i], allRes[i,0], allRes[i,1], allRes[i,2], allRes[i,3], allRes[i,4])
+            fitInfo += line % (fitNames[i], allRes[i,0], allRes[i,1], allRes[i,2], allRes[i,3], allRes[i,3]/dQ[i], allRes[i,4])
 
         return fitInfo
 
@@ -1217,7 +1219,7 @@ if __name__ == "__main__":
     #testData.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
     #testData.setPlotFlags(7, 7)
     #testData.setLogFlags(0, 3)
-    #testData.setFit1D(False)
+    #testData.setFit1D(True)
     #testData.setHistBin(50)
  
     #testData.plotGrid1DSum()
@@ -1236,12 +1238,12 @@ if __name__ == "__main__":
     #testPlotter.setPlotIm(plotImSelect = range(121), plotImHor = 4, plotImVer = 3)
     #testPlotter.plotImages()
 
-    #testPlotter.setPlot1DFit(True)
-    #testPlotter.plotGrid1D('sum')
+    testPlotter.setPlot1DFit(True)
+    testPlotter.plotGrid1D('sum')
     testPlotter.plotGrid2D('sum')
 
-    #print '\n\n'
-    #print testData.makeInfo()
+    print '\n\n'
+    print testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')
 
     plt.show()
