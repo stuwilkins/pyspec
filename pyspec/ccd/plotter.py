@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 from   matplotlib.colors import LogNorm
 from   pyspec  import fit, fitfuncs
 
+"""
 # Try improting 3d routines
 try:
     from enthought.mayavi import mlab
@@ -38,11 +39,18 @@ try:
 except:
     warnings.warn("*** No matplotlib mplot3d module, 3D figures is disabled ***")
     pass
+"""
 
 __version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
+
+class CCDPlot():
+    def __init__(self):
+        pass
+
+    
 
 class PlotGrid3D():
     def __init__(self, imProc = None):

@@ -43,7 +43,6 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
 
   _float lambda;
 
-  _float *delgam[NTHREADS];
   _float *anglesp;
   _float *qOutp;
   _float *ubinvp;
@@ -70,13 +69,11 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   if(!angles){
     return NULL;
   }
-  Py_XDECREF(_angles);
   
   ubinv = PyArray_FROMANY(_ubinv, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
   if(!ubinv){
     return NULL;
   }
-  Py_XDECREF(_ubinv);
 
   ubinvp = (_float *)PyArray_DATA(ubinv);
   for(i=0;i<3;i++){
@@ -122,14 +119,6 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
     } else {
       threadData[t].imend = stride * (t + 1);
     }
-    delgam[t] = (_float*)malloc(ndelgam * sizeof(_float) * 2);
-    fprintf(stderr, "Creating %p\n", delgam[t]);
-    if(!delgam[t]){
-      // Add error message here
-      return NULL;
-    }
-    threadData[t].delgam = delgam[t];
-
     iret[t] = pthread_create( &thread[t], NULL, 
 			      processImageThread, 
 			      (void*) &threadData[t]);
@@ -142,8 +131,6 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
     if(pthread_join(thread[t], NULL)){
       fprintf(stderr, "ERROR : Cannot join thread %d", t);
     }
-    fprintf(stderr, "Free %p\n", delgam[t]);
-    free(delgam[t]);
   }
   
   return Py_BuildValue("N", qOut);
@@ -152,12 +139,18 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
 void *processImageThread(void* ptr){
   imageThreadData *data;
   int i;
+  _float *delgam;
   data = (imageThreadData*) ptr;
-  fprintf(stderr, "From %d To %d delgam = %p\n", data->imstart, data->imend, data->delgam);
+  delgam = (_float*)malloc(data->ndelgam * sizeof(_float) * 2);
+  if(!delgam){
+    fprintf(stderr, "MALLOC ERROR\n");
+    pthread_exit(NULL);
+  }
+  fprintf(stderr, "From %d To %d delgam = %p\n", data->imstart, data->imend, delgam);
   for(i=data->imstart;i<data->imend;i++){
     // For each image process
-    calcDeltaGamma(data->delgam, data->ccd, data->anglesp[0], data->anglesp[5]);
-    calcQTheta(data->delgam, data->anglesp[1], data->anglesp[4], data->qOutp, 
+    calcDeltaGamma(delgam, data->ccd, data->anglesp[0], data->anglesp[5]);
+    calcQTheta(delgam, data->anglesp[1], data->anglesp[4], data->qOutp, 
 	       data->ndelgam, data->lambda);
     if(data->mode > 1){
       calcQPhiFromQTheta(data->qOutp, data->ndelgam, 
@@ -169,6 +162,7 @@ void *processImageThread(void* ptr){
     data->anglesp+=6;
     data->qOutp+=(data->ndelgam * 4); 
   }
+  free(delgam);
   pthread_exit(NULL);
 }
 

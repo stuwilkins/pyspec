@@ -32,8 +32,8 @@ static PyObject* load_multiprinceton(PyObject *self, PyObject *args, PyObject *k
   static char *kwlist[] = {"filenames", "dark", NULL};
   PyObject *array = NULL;
   PyObject *filenames = NULL;
-  char *darkimage;
-  char *filename;
+  char *darkimage = NULL;
+  char *filename = NULL;
   int nimages, i, j;
   FILE *fp, *dfp;
   uint16_t dims[2] = {0, 0};
@@ -43,7 +43,7 @@ static PyObject* load_multiprinceton(PyObject *self, PyObject *args, PyObject *k
   uint16_t *darkBuffer = NULL;
   double *arrayPtr = NULL;
 
-  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "Os", kwlist,
+  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O|s", kwlist,
 				  &filenames, &darkimage)){
     return NULL;
   }

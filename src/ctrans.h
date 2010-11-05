@@ -47,7 +47,6 @@ typedef struct {
 } CCD;
 
 typedef struct {
-  _float* delgam;
   CCD *ccd;
   _float *anglesp;
   _float *qOutp;

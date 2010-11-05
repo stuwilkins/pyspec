@@ -22,11 +22,13 @@
 
 import os
 import gc
+#gc.set_debug(gc.DEBUG_LEAK | gc.DEBUG_STATS)
 import time
 import sys
 import numpy as np
+from   scipy.optimize import leastsq
 import matplotlib.pyplot as plt
-from   pyspec import spec, fit, fitfuncs
+from   pyspec import fit, fitfuncs
 from   pyspec.diffractometer import Diffractometer
 from   pyspec.ccd.PrincetonSPE import *
 from   pyspec.ccd.plotter import PlotGrid
@@ -144,22 +146,74 @@ class FileProcessor():
     float values for all the images. Images can be saved to disk
     for faster processing in the future."""
 
-    def __init__(self, filenames = None, darkfilenames = None):
+    def __init__(self, filenames = None, 
+                 darkfilenames = None, spec = None):
+        self.fast = True
         self.filenames = filenames
         self.darkfilenames = darkfilenames
+        if spec is not None:
+            self.setFromSpec(spec)
     def setFromSpec(self, scan):
         """Set the filenames from a SpecScan object"""
         self.filenames = scan.getCCDFilenames()
         self.darkfilenames = scan.getCCDFilenames(dark = 1)
-    def process(self):
-        print "---- Processing images."
-        self.images = princeton.readMultiSPE(self.filenames,
-                                             self.darkfilenames[0])
+
+    def _processBackground(self, maskroi = None):
+
+        print "---- Subtracting background from images"
+        x, y = np.meshgrid(range(self.images.shape[2]), 
+                           range(self.images.shape[1]))
+
+        mask = np.ravel(np.ones(self.images.shape[1:]) == 1)
+        if maskroi is not None:
+            for m in maskroi:
+                print m
+                xmask = (x >= m[0]) & (x <= (m[0] + m[2]))
+                ymask = (y >= m[1]) & (y <= (m[1] + m[3]))
+                mask = mask & (np.ravel((xmask & ymask)) == False)
+
+        _x = np.ravel(x)[mask]
+        _y = np.ravel(y)[mask]
+        allplsq = np.array([])
+        for i in range(self.images.shape[0]):
+            guess = [1e-3, 1e-3, self.images[i].mean()]
+            z = np.ravel(self.images[i])[mask]
+            plsq = leastsq(self._processResiduals, guess, 
+                           args = (z, _y, _x))
+            self.images[i] = self.images[i] - x*plsq[0][0] - y*plsq[0][1] - plsq[0][2]
+            allplsq = np.concatenate((allplsq, plsq[0]))
+        allplsq = allplsq.reshape(-1, 3)
+        self.bgndParams = allplsq
+            
+
+    def _processResiduals(self, p, z, x, y):
+        mx, my, c = p
+        err = z - (mx * x) - (my * y) - c
+        return err
+
+    def process(self, dark = True, maskroi = None):
+        print "---- Processing images (native)."
+        if dark:
+            self.darkimage = PrincetonSPEFile(self.darkfilenames[0])[0].astype(np.float)
+        images = []
+        for iname in self.filenames:
+            image = PrincetonSPEFile(iname)[0].astype(np.float)
+            if dark:
+                image = image - self.darkimage
+            images.append(image)
+        self.images = np.array(images)
+        
+        self._processBackground(maskroi = maskroi)
+
         print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
                                                        self.images.nbytes / 1024**2) 
-    def getImage(self):
+    def getImage(self, n = None):
         """Get the image data"""
-        return self.images
+        if n is None:
+            return self.images
+        else:
+            return self.images[n]
+
 #
 # image processor class
 #
@@ -899,19 +953,22 @@ class ImageProcessor():
 
             print "---- Converting to Q"
             t1 = time.time()
-            self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
-                                        angles      = self.settingAngles * np.pi / 180.0, 
-                                        ccd_size    = (self.detSizeX, self.detSizeY),
-                                        ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
-                                        ccd_cen     = (int(self.detX0), int(self.detY0)),
-                                        ccd_bin     = (self.binX, self.binY),
-                                        dist        = self.detDis,
-                                        wavelength  = self.waveLen,
-                                        UBinv       = np.matrix(self.UBmat).I)
+            totSet = ctrans.ccdToQ(mode        = self.frameMode,
+                                   angles      = self.settingAngles * np.pi / 180.0, 
+                                   ccd_size    = (self.detSizeX, self.detSizeY),
+                                   ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
+                                   ccd_cen     = (int(self.detX0), int(self.detY0)),
+                                   ccd_bin     = (self.binX, self.binY),
+                                   dist        = self.detDis,
+                                   wavelength  = self.waveLen,
+                                   UBinv       = np.matrix(self.UBmat).I)
             t2 = time.time()
             print "---- DONE (Processed in %f seconds)" % (t2 - t1)
-            self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
-            print "**** 2 totSet references ", sys.getrefcount(self.totSet)
+            totSet[:,3] = np.ravel(self.fileProcessor.getImage())
+            print "**** 2 totSet references ", sys.getrefcount(totSet)
+            print gc.get_referents(totSet)
+            print totSet.flags
+            self.totSet = totSet
 
         # for info file
         self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
@@ -982,6 +1039,7 @@ class ImageProcessor():
         self.gridOut  = gridOut
 
         del self.totSet
+        gc.collect()
 
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()
@@ -1182,22 +1240,27 @@ class ImageProcessor():
 
 if __name__ == "__main__":
 
+    from pyspec import spec
+    #sf   = spec.SpecDataFile('/home/tardis/swilkins/data/lbco5/lbco125.01', 
+    #			     ccdpath = '/mounts/davros/nasshare/images/nov10')
+    #scan = sf[91]
+
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/ymn2o5_oct10/ymn2o5_oct10_1', 
-			     ccdpath = '/mounts/davros/nasshare/images/oct10')
-    scan = sf[122]
+    			     ccdpath = '/mounts/davros/nasshare/images/oct10')
+    scan = sf[320]
 
     fp = FileProcessor()
     fp.setFromSpec(scan)
-    fp.process()
-    
+    fp.process(maskroi =[[100, 100, 100, 100]])
+    print fp.bgndParams
     testData = ImageProcessor()
 
     testData.setDetectorAngle(-1.24)
-    testData.setBins(2, 2)
+    testData.setBins(4, 4)
     testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
-    testData.setFrameMode(1)
+    testData.setFrameMode(4)
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
     #testData.processMode = 'builtin'
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
@@ -1241,9 +1304,19 @@ if __name__ == "__main__":
     testPlotter.setPlot1DFit(True)
     testPlotter.plotGrid1D('sum')
     testPlotter.plotGrid2D('sum')
-
+    testPlotter.plotGrid1D('cut')
+    testPlotter.plotGrid2D('cut')
+    
     print '\n\n'
     print testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')
 
     plt.show()
+
+    #raw_input('Waiting...')
+
+    #del testData
+    #del fp
+    #gc.collect()
+    #raw_input('Waiting...')
+     
