@@ -30,7 +30,7 @@ from   scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from   pyspec import fit, fitfuncs
 from   pyspec.diffractometer import Diffractometer
-from   pyspec.ccd.PrincetonSPE import *
+from   pyspec.ccd.files import *
 from   pyspec.ccd.plotter import PlotGrid
 try:
     import pyspec.ccd.ctrans as ctrans

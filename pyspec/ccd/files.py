@@ -1,5 +1,5 @@
 #
-# PrincetonSPE.py (c) Stuart B. Wilkins 2010
+# files.py (c) Stuart B. Wilkins 2010
 #
 # $Id$
 # $HeadURL$
