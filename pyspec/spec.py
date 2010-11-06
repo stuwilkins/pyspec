@@ -546,6 +546,7 @@ class SpecScan:
                     if __verbose__ & 0x02:
                         print "oooo Setting variable %s" % i
                     setattr(self,i , self.scandata.values[i])
+                self.values = self.scandata.values
 
 
     def concatenate(self, a):
@@ -695,8 +696,8 @@ class SpecData:
     """Class defining the data contained in a scan"""
     def __init__(self):
         self.values = {}
-    def __call__(self, key):
-        print key
+    #def __call__(self, key):
+    #    print key
 
     def setValue(self, key, data, setdata = True):
         self.values[key] = data
@@ -893,9 +894,7 @@ class SpecPlot:
                     ylabel(self.scan.cols[x2col])
             else:
                 dy = max(self.ploty) - min(self.ploty)
-                print "dy = ", dy
                 mde = mean(self.plote)
-                print "mde = ", mde
                 if (mde > dy) | isnan(mde) :
                     errors = False
                     print "---- Errorbars disabled due to large errors"

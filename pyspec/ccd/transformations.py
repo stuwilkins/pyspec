@@ -147,30 +147,47 @@ class FileProcessor():
     for faster processing in the future."""
 
     def __init__(self, filenames = None, 
-                 darkfilenames = None, spec = None):
+                 darkfilenames = None, 
+                 norm = None,
+                 spec = None, mon = 'Monitor'):
+        """Initialize the class
+
+        filenames      : list of filenames for all images
+        darkfilenames  : list of filenames for the dark images
+        spec           : SpecScan object from which to obtain data"""
         self.fast = True
         self.filenames = filenames
         self.darkfilenames = darkfilenames
+        self.normData = None
         if spec is not None:
             self.setFromSpec(spec)
-    def setFromSpec(self, scan):
-        """Set the filenames from a SpecScan object"""
+        if norm is not None:
+            self.normData = norm
+        self.bgndParams = np.array([])
+
+    def setFromSpec(self, scan, mon = 'Monitor'):
+        """Set the filenames from a SpecScan instance
+
+        scan    : SpecScan instance
+        norm    : spec counter to normalize against"""
         self.filenames = scan.getCCDFilenames()
         self.darkfilenames = scan.getCCDFilenames(dark = 1)
+        self.normData = scan.values[mon]
 
-    def _processBackground(self, maskroi = None):
+    def _processBgnd(self, maskroi = None, mask = None):
 
-        print "---- Subtracting background from images"
+        bgndfunc = self._residualsLinear
+
         x, y = np.meshgrid(range(self.images.shape[2]), 
                            range(self.images.shape[1]))
 
-        mask = np.ravel(np.ones(self.images.shape[1:]) == 1)
-        if maskroi is not None:
-            for m in maskroi:
-                print m
-                xmask = (x >= m[0]) & (x <= (m[0] + m[2]))
-                ymask = (y >= m[1]) & (y <= (m[1] + m[3]))
-                mask = mask & (np.ravel((xmask & ymask)) == False)
+        if mask is None:
+            mask = np.ravel(np.ones(self.images.shape[1:]) == 1)
+            if maskroi is not None:
+                for m in maskroi:
+                    xmask = (x >= m[0]) & (x <= (m[0] + m[2]))
+                    ymask = (y >= m[1]) & (y <= (m[1] + m[3]))
+                    mask = mask & (np.ravel((xmask & ymask)) == False)
 
         _x = np.ravel(x)[mask]
         _y = np.ravel(y)[mask]
@@ -178,32 +195,48 @@ class FileProcessor():
         for i in range(self.images.shape[0]):
             guess = [1e-3, 1e-3, self.images[i].mean()]
             z = np.ravel(self.images[i])[mask]
-            plsq = leastsq(self._processResiduals, guess, 
-                           args = (z, _y, _x))
+            plsq = leastsq(bgndfunc, guess, args = (z, _y, _x))
             self.images[i] = self.images[i] - x*plsq[0][0] - y*plsq[0][1] - plsq[0][2]
             allplsq = np.concatenate((allplsq, plsq[0]))
         allplsq = allplsq.reshape(-1, 3)
-        self.bgndParams = allplsq
-            
+        self.bgndParams = allplsq            
 
-    def _processResiduals(self, p, z, x, y):
+    def _residualsLinear(self, p, z, x, y):
         mx, my, c = p
         err = z - (mx * x) - (my * y) - c
         return err
 
-    def process(self, dark = True, maskroi = None):
+    def processBgnd(self, maskroi = None, mask = None):
+        """Process the background by fitting each image
+
+        maskroi : list of 4 element tuples or lists for ROI to mask
+        mask    : (n x m) array for the background mask"""
+        print "---- Subtracting background from images"
+        self._processBgnd(maskroi = maskroi, mask = mask)
+        print "---- Done."
+
+    def process(self, dark = True):
+        """Read in images and process into 3D array.
+        
+        dark : if True, subtract the dark images from the data"""
+
         print "---- Processing images (native)."
         if dark:
             self.darkimage = PrincetonSPEFile(self.darkfilenames[0])[0].astype(np.float)
         images = []
-        for iname in self.filenames:
+        if self.normData is None:
+            normData = ones(len(self.filenames))
+            print "---- Normalizing data."
+        else:
+            normData = self.normData
+
+        for iname, normVal in zip(self.filenames, normData):
             image = PrincetonSPEFile(iname)[0].astype(np.float)
             if dark:
                 image = image - self.darkimage
+            image = image / normVal
             images.append(image)
         self.images = np.array(images)
-        
-        self._processBackground(maskroi = maskroi)
 
         print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
                                                        self.images.nbytes / 1024**2) 
@@ -213,6 +246,26 @@ class FileProcessor():
             return self.images
         else:
             return self.images[n]
+
+    def save(self, filename, compressed = False):
+        """Save an image sequance to a numpy binary file
+        
+        filename   : filename to save to.
+        compressed : if True save as compressed file"""
+        
+        obj = {'images'   : self.images,
+               'normData' : self.normData}
+
+        np.savez(filename, **obj)
+        print "*** Image saved to %s" % filename
+
+    def load(self, filename):
+        """Load images from previous save operation
+
+        filename : filename of images"""
+        
+        print "Loading image from %s" % filename
+        print np.load(filename)
 
 #
 # image processor class
@@ -1251,8 +1304,11 @@ if __name__ == "__main__":
 
     fp = FileProcessor()
     fp.setFromSpec(scan)
-    fp.process(maskroi =[[100, 100, 100, 100]])
-    print fp.bgndParams
+    fp.process()
+    fp.processBgnd(maskroi =[[100, 100, 100, 100]])
+    fp.save('/mounts/timelord/storage/tmpimage.npz')
+    fp.load('/mounts/timelord/storage/tmpimage.npz')
+
     testData = ImageProcessor()
 
     testData.setDetectorAngle(-1.24)
