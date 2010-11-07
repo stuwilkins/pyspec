@@ -367,9 +367,9 @@ class PlotGrid():
                     minPosVal = (intentArea[i] > 0.0).min()
                     negPart   = intentArea[i] <= 0
                     negPart   = np.ones(negPart.shape) * minPosVal
-                    cax  = ax.imshow(intentArea[i], norm=LogNorm(), extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
+                    cax  = ax.imshow(intentArea[i], norm=LogNorm(), extent = [minSetAx1[i], maxSetAx1[i], maxSetAx0[i], minSetAx0[i]])
                 else:
-                    cax  = ax.imshow(intentArea[i], extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
+                    cax  = ax.imshow(intentArea[i], extent = [minSetAx1[i], maxSetAx1[i], maxSetAx0[i], minSetAx0[i]])
                 fig.colorbar(cax)
                 ax.set_aspect(1./ax.get_data_ratio())
                 ax.set_xlabel(labelsAx1[i], fontsize = 18)
@@ -384,9 +384,9 @@ class PlotGrid():
             for i in range(3):
                 ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
                 if self.logFlag2D & 2:
-                    cax  = ax.imshow(occuArea[i], norm=LogNorm(), extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
+                    cax  = ax.imshow(occuArea[i], norm=LogNorm(), extent = [minSetAx1[i], maxSetAx1[i], maxSetAx0[i], minSetAx0[i]])
                 else:
-                    cax  = ax.imshow(occuArea[i], extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
+                    cax  = ax.imshow(occuArea[i], extent = [minSetAx1[i], maxSetAx1[i], maxSetAx0[i], minSetAx0[i]])
                 fig.colorbar(cax)
                 ax.set_aspect(1./ax.get_data_ratio())
                 ax.set_xlabel(labelsAx1[i], fontsize = 18)
@@ -537,6 +537,7 @@ class PlotGrid():
             plotTitle = '2D average over 3 area cuts around maximum position'
         for i in range(3):
             gridData2D[i] = np.ma.array(gridData2D[i], mask = (gridOccu2D[i] == 0))
+            gridOccu2D[i] = np.ma.array(gridOccu2D[i], mask = (gridOccu2D[i] == 0))
         self.setPlot2DData(gridData2D, gridOccu2D, plotTitle = plotTitle)
         # plot, get figure and axes back
         fig2, allax2 = self.plot2DData()
@@ -563,16 +564,21 @@ class PlotGrid():
 if __name__ == "__main__":
 
     from pyspec import spec
-    from pyspec.ccd.transformations import ImageProcessor
+    from pyspec.ccd.transformations import FileProcessor, ImageProcessor
 
-    sf   = spec.SpecDataFile('/home/tardis/spartzsch/2010_09_X1A2/ymn2o5_sep10_1', 
+    sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/2010_09_X1A2/ymn2o5_sep10_1', 
 			     ccdpath = '/mounts/davros/nasshare/images/sept10')
     scan = sf[244]
+
+    fp = FileProcessor()
+    fp.setFromSpec(scan)
+    fp.process()
 
     testData = ImageProcessor()
 
     testData.setDetectorAngle(-1.24)
     testData.setBins(4, 4)
+    testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(1)
@@ -581,7 +587,7 @@ if __name__ == "__main__":
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
-    #testData.makeGridData()
+    testData.makeGridData()
 
     #testPlotter = PlotGrid3D(testData)
     #testPlotter.plot3D()
@@ -590,15 +596,15 @@ if __name__ == "__main__":
     testPlotter = PlotGrid(testData)
 
     #testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
-    testPlotter.plotImages(plotImSelect = [40])
-    testPlotter.plotImages()
+    #testPlotter.plotImages(plotImSelect = [40])
+    #testPlotter.plotImages()
 
     testPlotter.setLogFlags(7, 7)
     testPlotter.setPlot1DFit(True)
     #testPlotter.plotGrid1D('sum')
     #testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
-    #testPlotter.plotGrid2D('sum')
+    testPlotter.plotGrid2D('sum')
     #testPlotter.plotGrid2D('cut')
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
