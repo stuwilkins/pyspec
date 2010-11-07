@@ -98,7 +98,7 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   dims[1] = 4;
   if(!_outarray){
     // Create new numpy array
-    fprintf(stderr, "**** Creating new array\n");
+    // fprintf(stderr, "**** Creating new array\n");
     qOut = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
     if(!qOut){
       goto cleanup;
@@ -368,9 +368,10 @@ unsigned long c_grid3d(double *dout, unsigned long *nout, double *data,
 	int pos;
 	unsigned long n_outside = 0;
 	
+	/*
 	fprintf(stderr, "Gridding in 3D : grid pts = %i x %i x %i, data pts = %i\n", 
 		n_grid[0], n_grid[1], n_grid[2], max_data);
-	
+	*/
 	dout_ptr = dout;
 	nout_ptr = nout;
 	

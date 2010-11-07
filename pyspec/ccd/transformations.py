@@ -1005,9 +1005,11 @@ class ImageProcessor():
         else:
             ccdToQkwArgs = {}
             if self.totSet is not None:
-                ccdToQkwArgs['outarray'] = self.totSet
+                del self.totSet
+                gc.collect()
+                #ccdToQkwArgs['outarray'] = self.totSet
                 
-            print "---- Converting to Q"
+            print "**** Converting to Q"
             t1 = time.time()
             self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
                                         angles      = self.settingAngles * np.pi / 180.0, 
@@ -1045,10 +1047,8 @@ class ImageProcessor():
             mode = self.frameMode
 
         self.processOneSet(procSelect = procSelect, mode = mode)
-        print "Total data is %f MBytes\n" % (self.totSet.nbytes / 1024.0**2)
-
-        print "Totset refcount", sys.getrefcount(self.totSet)
-
+        print "---- Total data is %f MBytes\n" % (self.totSet.nbytes / 1024.0**2)
+        
         # prepare min, max,...
         if self.Qmin == None:
             self.Qmin = np.array([ self.totSet[:,0].min(), self.totSet[:,1].min(), self.totSet[:,2].min() ])
@@ -1057,23 +1057,22 @@ class ImageProcessor():
         if self.dQN  == None:
             self.dQN = [100, 100, 100]
 
-        print "Totset refcount", sys.getrefcount(self.totSet)
-
         # use alias for grid options
         Qmin = self.Qmin
         Qmax = self.Qmax
         dQN  = self.dQN
 
         # 3D grid of the data set 
-        print "*** Gridding Data ***"
-
+        print "**** Gridding Data."
+        t1 = time.time()
         gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet,Qmin, Qmax, dQN, norm = 1)
-        print "*** DONE ***"
+        t2 = time.time()
+        print "---- DONE (Processed in %f seconds)" % (t2 - t1)
         emptNb = (gridOccu == 0).sum()
         if gridOut != 0:
-            print "Warning : There are %.2e points outside the grid (%.2e bins in the grid)" % (gridOut, gridData.size)
+            print "---- Warning : There are %.2e points outside the grid (%.2e bins in the grid)" % (gridOut, gridData.size)
         if emptNb:
-            print "Warning : There are %.2e values zero in the grid" % emptNb
+            print "---- Warning : There are %.2e values zero in the grid" % emptNb
 
         # mask the gridded data set
         #gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
