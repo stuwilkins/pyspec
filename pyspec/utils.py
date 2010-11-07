@@ -112,12 +112,19 @@ def multifit(sf, scans, var, *args, **kwargs):
     return alldata, allerrors
 
 def pickleit(filename, object):
+    """Pickle a python object
+
+    filename : filename to pickle to
+    object   : Python object to pickle"""
     output = open(filename, 'wb')
     for o in object:
         pickle.dump(o, output)
     output.close()
 
 def unpickleit(filename):
+    """Unpickle a python object (created with pickleit)
+    
+    filename : filename to pickle to"""
     o = []
     f = open(filename, 'rb')
     while(1):

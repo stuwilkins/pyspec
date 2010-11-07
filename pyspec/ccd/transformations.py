@@ -997,7 +997,7 @@ class ImageProcessor():
             j = 0
             k = imSize
             for i in procSelect:
-                print "*** Processing image %d" % i
+                print "**** Processing image %d" % i
                 self._processOneImage(self.totSet[j:k,:], i, mode = mode)
                 j = j + imSize
                 k = k + imSize
@@ -1009,7 +1009,7 @@ class ImageProcessor():
                 gc.collect()
                 #ccdToQkwArgs['outarray'] = self.totSet
                 
-            print "**** Converting to Q"
+            print "\n**** Converting to Q"
             t1 = time.time()
             self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
                                         angles      = self.settingAngles * np.pi / 180.0, 

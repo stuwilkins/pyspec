@@ -15,7 +15,8 @@ options = {'build_levmar'    : False ,
 
 ext_default  = {'include_dirs' : [np.get_include()],
                 'library_dirs' : [],
-                'libraries'    : [] }
+                'libraries'    : [],
+                'define_macros': []}
 
 def parseExtensionSetup(name, config, default):
     default = copy.deepcopy(default)
@@ -43,6 +44,17 @@ if os.path.exists("setup.cfg"):
     levmar['libraries'].append('levmar')
 
     ctrans = parseExtensionSetup('ctrans', config, ext_default)
+    threads = False
+    try: threads = config.getboolean("ctrans", "usethreads")
+    except: pass
+    nthreads = 1
+    try: nthreads = config.getint("ctrans", "max_threads")
+    except: pass
+    
+    if threads:
+        ctrans['define_macros'].append(('USE_THREADS', None))
+        ctrans['define_macros'].append(('NTHREADS', nthreads))
+    
     sginfo = parseExtensionSetup('sginfo', config, ext_default)
 
 

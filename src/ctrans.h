@@ -29,7 +29,13 @@
 #define true -1
 #define false 0
 
-#define NTHREADS 4
+#ifndef USE_THREADS
+#define NTHREADS 1 
+#endif
+
+#ifndef NTHREADS
+#defile NTHREADS 2
+#endif
 
 typedef double _float;
 typedef int _int;

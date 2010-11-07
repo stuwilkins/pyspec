@@ -25,7 +25,9 @@
 #include <numpy/arrayobject.h>
 #include <stdlib.h>
 #include <math.h>
+#ifdef USE_THREADS
 #include <pthread.h>
+#endif
 #include "ctrans.h"
 
 static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
@@ -54,8 +56,10 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   _float *ubinvp;
   _float UBI[3][3];
 
+#ifdef USE_THREADS
   pthread_t thread[NTHREADS];
   int iret[NTHREADS];
+#endif
   imageThreadData threadData[NTHREADS];
 
   if(!PyArg_ParseTupleAndKeywords(args, kwargs, "Oi(ii)(dd)(dd)ddO|O", kwlist,
@@ -116,7 +120,7 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   }
   anglesp = (_float *)PyArray_DATA(angles);
   qOutp = (_float *)PyArray_DATA(qOut);
-  
+
   stride = nimages / NTHREADS;
   for(t=0;t<NTHREADS;t++){
     // Setup threads
@@ -139,19 +143,25 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
     } else {
       threadData[t].imend = stride * (t + 1);
     }
+
+#ifdef USE_THREADS
     iret[t] = pthread_create( &thread[t], NULL, 
 			      processImageThread, 
 			      (void*) &threadData[t]);
-    
+#else
+    processImageThread((void *) &threadData[t]);
+#endif
     anglesp += (6 * stride);
     qOutp += (ndelgam * 4 * stride);
   }
 
+#ifdef USE_THREADS
   for(t=0;t<NTHREADS;t++){
     if(pthread_join(thread[t], NULL)){
       fprintf(stderr, "ERROR : Cannot join thread %d", t);
     }
   }
+#endif
 
   Py_XDECREF(ubinv);
   Py_XDECREF(angles);
@@ -172,7 +182,9 @@ void *processImageThread(void* ptr){
   delgam = (_float*)malloc(data->ndelgam * sizeof(_float) * 2);
   if(!delgam){
     fprintf(stderr, "MALLOC ERROR\n");
+#ifdef USE_THREADS
     pthread_exit(NULL);
+#endif
   }
   
   for(i=data->imstart;i<data->imend;i++){
@@ -191,7 +203,9 @@ void *processImageThread(void* ptr){
     data->qOutp+=(data->ndelgam * 4); 
   }
   free(delgam);
+#ifdef USE_THREADS
   pthread_exit(NULL);
+#endif
 }
 
 int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int n, _float lambda){

@@ -7,13 +7,15 @@
 verbose=1
 
 [levmar]
-build = True
+build = False
 include_dirs = /usr/local/atlas/include:/usr/local/include
 library_dirs = /usr/local/atlas/lib:/usr/local/lib
 libraries = lapack,f77blas,cblas,atlas,gcc_s
 
 [ctrans]
 build = True
+usethreads = True
+max_threads = 2
 
 [sginfo]
 build = True
