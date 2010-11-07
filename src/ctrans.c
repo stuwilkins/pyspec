@@ -30,11 +30,17 @@
 
 static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   static char *kwlist[] = { "angles", "mode", "ccd_size", "ccd_pixsize", 
-			    "ccd_cen", "ccd_bin", "dist", "wavelength", 
-			    "UBinv", NULL };
-  PyObject *angles, *_angles, *_ubinv, *ubinv;
+			    "ccd_cen", "dist", "wavelength", 
+			    "UBinv", "outarray", NULL };
+  PyObject *angles = NULL;
+  PyObject *_angles = NULL;
+  PyObject *_ubinv = NULL;
+  PyObject *ubinv = NULL;
+  //PyObject *outarray = NULL;
+  PyObject *_outarray = NULL;
   PyObject *qOut = NULL;
   CCD ccd;
+  //PyArray_Dims arrayDims;
   npy_intp dims[2];
   npy_intp nimages;
   int i, j, t, stride;
@@ -52,27 +58,29 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   int iret[NTHREADS];
   imageThreadData threadData[NTHREADS];
 
-  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "Oi(ii)(dd)(ii)(ii)ddO", kwlist,
+  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "Oi(ii)(dd)(dd)ddO|O", kwlist,
 				  &_angles,
 				  &mode,
 				  &ccd.xSize, &ccd.ySize,
 				  &ccd.xPixSize, &ccd.yPixSize, 
 				  &ccd.xCen, &ccd.yCen,
-				  &ccd.xBin, &ccd.yBin,
 				  &ccd.dist,
 				  &lambda,
-				  &_ubinv)){
+				  &_ubinv,
+				  &_outarray)){
     return NULL;
   }
 
-  angles = PyArray_FROMANY(_angles, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
+  angles = PyArray_FROMANY(_angles, NPY_DOUBLE, 2, 2, NPY_IN_ARRAY);
   if(!angles){
-    return NULL;
+    PyErr_SetString(PyExc_ValueError, "angles must be a 2-D array of floats");
+    goto cleanup;
   }
   
-  ubinv = PyArray_FROMANY(_ubinv, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
+  ubinv = PyArray_FROMANY(_ubinv, NPY_DOUBLE, 2, 2, NPY_IN_ARRAY);
   if(!ubinv){
-    return NULL;
+    PyErr_SetString(PyExc_ValueError, "ubinv must be a 2-D array of floats");
+    goto cleanup;
   }
 
   ubinvp = (_float *)PyArray_DATA(ubinv);
@@ -83,17 +91,29 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
     ubinvp+=3;
   }
   
-  
   nimages = PyArray_DIM(angles, 0);
   ndelgam = ccd.xSize * ccd.ySize;
 
   dims[0] = nimages * ndelgam;
   dims[1] = 4;
-  qOut = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
-  if(!qOut){
-    return NULL;
+  if(!_outarray){
+    // Create new numpy array
+    fprintf(stderr, "**** Creating new array\n");
+    qOut = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if(!qOut){
+      goto cleanup;
+    }
+  } else {
+    qOut = PyArray_FROMANY(_outarray, NPY_DOUBLE, 2, 2, NPY_INOUT_ARRAY);
+    if(!qOut){
+      PyErr_SetString(PyExc_ValueError, "outarray must be a 2-D array of floats");
+      goto cleanup;
+    }
+    if(PyArray_Size(qOut) != (4 * nimages * ndelgam)){
+      PyErr_SetString(PyExc_ValueError, "outarray is of the wrong size");
+      goto cleanup;
+    }
   }
-
   anglesp = (_float *)PyArray_DATA(angles);
   qOutp = (_float *)PyArray_DATA(qOut);
   
@@ -132,8 +152,16 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
       fprintf(stderr, "ERROR : Cannot join thread %d", t);
     }
   }
-  
+
+  Py_XDECREF(ubinv);
+  Py_XDECREF(angles);
   return Py_BuildValue("N", qOut);
+
+ cleanup:
+  Py_XDECREF(ubinv);
+  Py_XDECREF(angles);
+  Py_XDECREF(qOut);
+  return NULL;
 }
 
 void *processImageThread(void* ptr){
@@ -146,7 +174,7 @@ void *processImageThread(void* ptr){
     fprintf(stderr, "MALLOC ERROR\n");
     pthread_exit(NULL);
   }
-  fprintf(stderr, "From %d To %d delgam = %p\n", data->imstart, data->imend, delgam);
+  
   for(i=data->imstart;i<data->imend;i++){
     // For each image process
     calcDeltaGamma(delgam, data->ccd, data->anglesp[0], data->anglesp[5]);
@@ -186,13 +214,13 @@ int calcQTheta(_float* diffAngles, _float theta, _float mu, _float *qTheta, _int
     del = *(angles++);
     gam = *(angles++);
     *qt = (-1.0 * sin(gam) * kl) - (sin(mu) * kl);
-    //fprintf(stderr, " %lf", *qt);
+ 
     qt++;
     *qt = (cos(del - theta) * cos(gam) * kl) - (cos(theta) * cos(mu) * kl);
-    //fprintf(stderr, " %lf", *qt);
+ 
     qt++;
     *qt = (sin(del - theta) * cos(gam) * kl) + (sin(theta) * cos(mu) * kl);
-    //fprintf(stderr, " %lf\n", *qt);
+ 
     qt++;
     qt++;
   }
@@ -253,24 +281,14 @@ int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen){
   _float *delgamp;
   _float xPix, yPix;
 
-  xPix = (_float)ccd->xPixSize / ccd->dist;
-  yPix = (_float)ccd->yPixSize / ccd->dist;
+  xPix = ccd->xPixSize / ccd->dist;
+  yPix = ccd->yPixSize / ccd->dist;
   delgamp = delgam;
 
-  //fprintf(stderr, "xBin = %d\n", ccd->xBin);
-  //fprintf(stderr, "xPixSize = %lf\n", ccd->xPixSize);
-  //fprintf(stderr, "dist = %lf\n", ccd->dist);
-  //fprintf(stderr, "xPix = %e, yPix %e\n", xPix, yPix); 
-  //fprintf(stderr, "DelCen = %lf, GamCen = %lf\n", delCen, gamCen);
   for(j=0;j<ccd->ySize;j++){
     for(i=0;i<ccd->xSize;i++){
-      //fprintf(stderr, "DelCen = %lf\n", delCen);
-      *delgamp = delCen - atan( (j - ccd->yCen) * yPix);
-      //fprintf(stderr, "Delta = %lf", *delgamp);
-      delgamp++;
-      *delgamp = gamCen - atan( (i - ccd->xCen) * xPix); 
-      //fprintf(stderr, " Gamma = %lf\n", *delgamp);
-      delgamp++;
+      *(delgamp++) = delCen - atan( ((_float)j - ccd->yCen) * yPix);
+      *(delgamp++) = gamCen - atan( ((_float)i - ccd->xCen) * xPix); 
     }
   }
 
@@ -278,55 +296,62 @@ int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen){
 } 
 
 static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs){
-	PyObject *gridout = NULL, *Nout = NULL;
-	PyObject *gridI = NULL;
-	PyObject *_I;
-	
-	static char *kwlist[] = { "data", "xrange", "yrange", "zrange", "norm", NULL };
-
-	npy_intp data_size;
-	npy_intp dims[3];
-	
-	double grid_start[3];
-	double grid_stop[3];
-	int grid_nsteps[3];
-	int norm_data = 0;
-
-	unsigned long n_outside;
-	
-	if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O(ddd)(ddd)(iii)|i", kwlist,
-					&_I, 
-					&grid_start[0], &grid_start[1], &grid_start[2],
-					&grid_stop[0], &grid_stop[1], &grid_stop[2],
-					&grid_nsteps[0], &grid_nsteps[1], &grid_nsteps[2],
-					&norm_data)){
-	  return NULL;
-	}	
-	
-	gridI = PyArray_FROMANY(_I, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
-	if(!gridI){
-		return NULL;
-	}
-	
-	data_size = PyArray_DIM(gridI, 0);
-	
-	dims[0] = grid_nsteps[0];
-	dims[1] = grid_nsteps[1];
-	dims[2] = grid_nsteps[2];
-	gridout = PyArray_ZEROS(3, dims, NPY_DOUBLE, 0);
-	if(!gridout){
-		return NULL;
-	}
-	Nout = PyArray_ZEROS(3, dims, NPY_ULONG, 0);
-	if(!Nout){
-		return NULL;
-	}
-	
-	n_outside = c_grid3d(PyArray_DATA(gridout), PyArray_DATA(Nout), 
-			     PyArray_DATA(gridI),
-			     grid_start, grid_stop, data_size, grid_nsteps, norm_data);
-	
-	return Py_BuildValue("NNl", gridout, Nout, n_outside); 
+  PyObject *gridout = NULL, *Nout = NULL;
+  PyObject *gridI = NULL;
+  PyObject *_I;
+  
+  static char *kwlist[] = { "data", "xrange", "yrange", "zrange", "norm", NULL };
+  
+  npy_intp data_size;
+  npy_intp dims[3];
+  
+  double grid_start[3];
+  double grid_stop[3];
+  int grid_nsteps[3];
+  int norm_data = 0;
+  
+  unsigned long n_outside;
+  
+  if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O(ddd)(ddd)(iii)|i", kwlist,
+				  &_I, 
+				  &grid_start[0], &grid_start[1], &grid_start[2],
+				  &grid_stop[0], &grid_stop[1], &grid_stop[2],
+				  &grid_nsteps[0], &grid_nsteps[1], &grid_nsteps[2],
+				  &norm_data)){
+    return NULL;
+  }	
+  
+  gridI = PyArray_FROMANY(_I, NPY_DOUBLE, 0, 0, NPY_IN_ARRAY);
+  if(!gridI){
+    goto cleanup;
+  }
+  
+  data_size = PyArray_DIM(gridI, 0);
+  
+  dims[0] = grid_nsteps[0];
+  dims[1] = grid_nsteps[1];
+  dims[2] = grid_nsteps[2];
+  gridout = PyArray_ZEROS(3, dims, NPY_DOUBLE, 0);
+  if(!gridout){
+    goto cleanup;
+  }
+  Nout = PyArray_ZEROS(3, dims, NPY_ULONG, 0);
+  if(!Nout){
+    goto cleanup;
+  }
+  
+  n_outside = c_grid3d(PyArray_DATA(gridout), PyArray_DATA(Nout), 
+		       PyArray_DATA(gridI),
+		       grid_start, grid_stop, data_size, grid_nsteps, norm_data);
+  
+  Py_XDECREF(gridI);
+  return Py_BuildValue("NNl", gridout, Nout, n_outside); 
+  
+ cleanup:
+  Py_XDECREF(gridI);
+  Py_XDECREF(gridout);
+  Py_XDECREF(Nout);
+  return NULL;
 }
 
 unsigned long c_grid3d(double *dout, unsigned long *nout, double *data, 

@@ -37,10 +37,8 @@ typedef int _int;
 typedef struct {
   int xSize;         // X size in pixels.
   int ySize;         // Y size in pixels.
-  int xBin;          // X Binning.
-  int yBin;          // Y Binning.
-  int xCen;
-  int yCen;
+  _float xCen;
+  _float yCen;
   _float xPixSize;   // X Pixel Size (microns)
   _float yPixSize;   // Y Pixel Size (microns)
   _float dist;       // Sample - Detector distance. 

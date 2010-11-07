@@ -1,1 +1,1 @@
-__all__ = ['plotter', 'transformations', PrincetonSPE']
+__all__ = ['plotter', 'transformations', 'files']

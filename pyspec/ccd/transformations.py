@@ -279,7 +279,8 @@ class ImageProcessor():
     the set of reciprocal vectors and intensities is gridded on a regular cuboid
     the needed informations can be provided by a spec scan from the pyspec package"""
 
-    def __init__(self, configfile = None, ccdname = 'CCD'):
+    def __init__(self, configfile = None, ccdname = 'CCD',
+                 spec = None, fp = None):
         # set parameters to configure the CCD setup
         # detector distance 30cm and detector pixel size 20um
 
@@ -311,10 +312,10 @@ class ImageProcessor():
         self._makeSetInfo()
         self._makeModeInfo()
         self.opProcInfo  = ''
-
+        # Define variables
         self.fileProcessor = None
-
         self.processMode = 'fast'
+        self.totSet = None
 
     def readConfigFile(self, filename):
         config = MyConfigParser()
@@ -499,7 +500,12 @@ class ImageProcessor():
     def setFrameMode(self, mode):
         """Set the mode of the output frame for (Qx, Qy, Qz)
 
-        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame)"""
+        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame)
+        mode : 'theta', 'phi', 'cart', 'hkl'"""
+
+        if isinstance(mode, str):
+            if mode == 'theta':
+                self.framMode = 1
 
         self.frameMode = mode
         self._preAxesLabels()
@@ -676,7 +682,6 @@ class ImageProcessor():
         # get considered part of the image
         pointMon = self.intentNorm[imNum]
         conIm    = getAreaSet(pointVal, self.conRoi) / pointMon
-        del pointVal
 
         return conIm
 
@@ -772,8 +777,8 @@ class ImageProcessor():
         # out put (Qx, Qy, Qz, I)
         outArray[:,:3] = Qxyz
         outArray[:,3]  = intent
-        del Qxyz 
-        del intent
+        #del Qxyz 
+        #del intent
 
     def _calcVecDataSet(self):
         """Calculats the vector data set for the grid points"""
@@ -998,30 +1003,25 @@ class ImageProcessor():
                 k = k + imSize
         
         else:
-            try:
-                print "**** 1 totSet references ", sys.getrefcount(self.totSet)
-                del self.totSet
-            except:
-                pass
-
+            ccdToQkwArgs = {}
+            if self.totSet is not None:
+                ccdToQkwArgs['outarray'] = self.totSet
+                
             print "---- Converting to Q"
             t1 = time.time()
-            totSet = ctrans.ccdToQ(mode        = self.frameMode,
-                                   angles      = self.settingAngles * np.pi / 180.0, 
-                                   ccd_size    = (self.detSizeX, self.detSizeY),
-                                   ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
-                                   ccd_cen     = (int(self.detX0), int(self.detY0)),
-                                   ccd_bin     = (self.binX, self.binY),
-                                   dist        = self.detDis,
-                                   wavelength  = self.waveLen,
-                                   UBinv       = np.matrix(self.UBmat).I)
+            self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
+                                        angles      = self.settingAngles * np.pi / 180.0, 
+                                        ccd_size    = (self.detSizeX, self.detSizeY),
+                                        ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
+                                        ccd_cen     = (self.detX0, self.detY0),
+                                        dist        = self.detDis,
+                                        wavelength  = self.waveLen,
+                                        UBinv       = np.matrix(self.UBmat).I,
+                                        **ccdToQkwArgs)
             t2 = time.time()
             print "---- DONE (Processed in %f seconds)" % (t2 - t1)
-            totSet[:,3] = np.ravel(self.fileProcessor.getImage())
-            print "**** 2 totSet references ", sys.getrefcount(totSet)
-            print gc.get_referents(totSet)
-            print totSet.flags
-            self.totSet = totSet
+            self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
+            #print gc.get_referents(totSet)
 
         # for info file
         self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
@@ -1066,15 +1066,6 @@ class ImageProcessor():
 
         # 3D grid of the data set 
         print "*** Gridding Data ***"
-        try:
-            del self.gridData
-        except:
-            pass
-        try:
-            del self.gridOccu
-        except:
-            pass
-        gc.collect(2)
 
         gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet,Qmin, Qmax, dQN, norm = 1)
         print "*** DONE ***"
@@ -1091,8 +1082,8 @@ class ImageProcessor():
         self.gridOccu = gridOccu
         self.gridOut  = gridOut
 
-        del self.totSet
-        gc.collect()
+        #del self.totSet
+        #gc.collect()
 
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()
@@ -1306,8 +1297,8 @@ if __name__ == "__main__":
     fp.setFromSpec(scan)
     fp.process()
     fp.processBgnd(maskroi =[[100, 100, 100, 100]])
-    fp.save('/mounts/timelord/storage/tmpimage.npz')
-    fp.load('/mounts/timelord/storage/tmpimage.npz')
+    #fp.save('/mounts/timelord/storage/tmpimage.npz')
+    #fp.load('/mounts/timelord/storage/tmpimage.npz')
 
     testData = ImageProcessor()
 

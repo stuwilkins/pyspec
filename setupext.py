@@ -11,7 +11,6 @@ __id__        = "$Id$"
 
 options = {'build_levmar'    : False ,
            'build_ctrans'   : False ,
-           'build_princeton' : False ,
            'build_sginfo'    : False }
 
 ext_default  = {'include_dirs' : [np.get_include()],
@@ -37,8 +36,6 @@ if os.path.exists("setup.cfg"):
     except: pass
     try: options['build_ctrans'] = config.getboolean("ctrans","build")
     except: pass
-    try: options['build_princeton'] = config.getboolean("princeton","build")
-    except: pass
     try: options['build_sginfo'] = config.getboolean("sginfo","build")
     except: pass
 
@@ -46,7 +43,6 @@ if os.path.exists("setup.cfg"):
     levmar['libraries'].append('levmar')
 
     ctrans = parseExtensionSetup('ctrans', config, ext_default)
-    princeton = parseExtensionSetup('princeton', config, ext_default)
     sginfo = parseExtensionSetup('sginfo', config, ext_default)
 
 
@@ -61,11 +57,6 @@ if options['build_ctrans']:
                                  depends = ['src/ctrans.h'],
                                  **ctrans))
 
-if options['build_princeton']:
-    ext_modules.append(Extension('princeton', ['src/princeton.c'],
-                                 depends = ['src/princeton.h'],
-				 **princeton))
-
 if options['build_sginfo']:
     ext_modules.append(Extension('pyspec.calcs.sginfo', 
                                  ['src/sginfomodule.c',
@@ -73,4 +64,5 @@ if options['build_sginfo']:
                                   'src/sgio.c',
                                   'src/sgfind.c',
                                   'src/sghkl.c',
-                                  'src/sgsi.c']))
+                                  'src/sgsi.c'],
+                                 **sginfo))
