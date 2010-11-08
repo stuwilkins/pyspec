@@ -38,11 +38,9 @@ static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs){
   PyObject *_angles = NULL;
   PyObject *_ubinv = NULL;
   PyObject *ubinv = NULL;
-  //PyObject *outarray = NULL;
   PyObject *_outarray = NULL;
   PyObject *qOut = NULL;
   CCD ccd;
-  //PyArray_Dims arrayDims;
   npy_intp dims[2];
   npy_intp nimages;
   int i, j, t, stride;
