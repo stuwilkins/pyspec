@@ -71,6 +71,247 @@ class PlotGrid3D():
                        extent = extent)
 
 
+class PlotImages():
+    """Plot CCD-images"""
+
+    def __init__(self, imProc):
+        # image Processor to get all the needed data
+        self._imProc = imProc
+        # image selection
+        self._plotSelect = None
+        # Figure layout
+        self._figSize  = (11, 8.5)
+        self._plotHor  = 4
+        self._plotVer  = 3
+        self._plotOrd  = 'hv'
+        # plotting intensities / histograms
+        self._plotFlag = 1
+        # logarithmic plot flag
+        self._logFlag  = 0
+        # No. of bins for histograms
+        self._histBin  = 50
+
+    #
+    # set/get part
+    #
+
+    def setPlotSelect(self, plotSelect = None):
+        """Set the selcected images
+
+        plotSelect : list with the raw images which will be plotted, all if None"""
+        
+        if plotSelect == None:
+            self._plotSelect = range(self._imProc.setSize)
+        else:
+            self._plotSelect = plotSelect
+    
+    def getPlotSelect(self):
+        """Get the selcected images
+
+        plotSelect : list with the raw images which will be plotted, all if None"""
+        
+        return self._plotSelect
+
+    def setPlotLayout(self, figSize = (11, 8.5), plotHor = 4, plotVer = 3, plotOrd = 'hv'):
+        """Set the options for the ploting window
+
+        figSize : figure size (width, height) in inches, e.g. (11, 8.5)
+        plotHor : no. of horizontal images per window  , e.g. 4
+        plotVer : no. of vertical   images per window  , e.g. 3
+        plotOrd : order of plotting, horizontal-vertical ('hv') of vertical-horizontal ('vh')"""
+        
+        self._figSize = figSize
+        self._plotHor = plotHor
+        self._plotVer = plotVer
+        self._plotOrd = plotOrd
+        
+    def getPlotLayout(self):
+        """Get the options for the ploting window
+
+        figSize : figure size (width, height) in inches, e.g. (11, 8.5)
+        plotHor : no. of horizontal images per window  , e.g. 4
+        plotVer : no. of vertical   images per window  , e.g. 3
+        plotOrd : order of plotting, horizontal-vertical ('hv') of vertical-horizontal ('vh')"""
+        
+        return self._figSize, self._plotHor, self._plotVer, self._plotOrd
+
+    def setPlotFlag(self, flag = 1):
+        """Set the ploting flag
+
+        flag : flag to select plots
+      
+        binary code, flag & 1: intensity, flag & 2: histogram"""
+        
+        self._plotFlag = flag
+    
+    def getPlotFlag(self):
+        """Get the ploting flag
+
+        flag : flag to select plots
+      
+        binary code, flag & 1: intensity, flag & 2: histogram"""
+        
+        return self._plotFlag
+
+    def setLogFlag(self, flag = 0):
+        """Set whether data are plotted on linear (0) or logarithmic (1) scale
+
+        flag : flag to select between linear and logarithmic plotting
+
+        binary code, flag & 1: intensity, flag & 2: histogram"""
+        
+        self._logFlag = flag
+        
+    def getLogFlag(self):
+        """Get whether data are plotted on linear (0) or logarithmic (1) scale
+
+        flag : flag to select between linear and logarithmic plotting
+
+        binary code, flag & 1: intensity, flag & 2: histogram"""
+        
+        return self._logFlag
+
+    def setHistBin(self, histBin = 50):
+        """Set the no. of bins for the histograms
+
+        hisBin : no. of bins for the histograms of the occupation numbers"""
+        
+        self._histBin = histBin
+
+    def getHistBin(self):
+        """Get the no. of bins for the histograms
+
+        hisBin : no. of bins for the histograms of the occupation numbers"""
+        
+        return self._histBin
+
+    #
+    # plot functions
+    #
+
+    def _plot2DData(self):
+        """Plots the selcted images and histograms
+
+        retrurns
+        allfig : list of plt.figure objects of the plotting windows
+        allax  : list of plt.axes objects which carry the figures"""
+        
+        # prepare plots
+        plotNum = self._plotHor * self._plotVer
+        # plotting order
+        if self._plotOrd == 'vh':
+            axNum = np.ravel( np.array(range(plotNum)).reshape(self._plotVer, self._plotHor).T ) + 1
+        else:
+            axNum = np.array(range(plotNum)) + 1
+        j = 0
+        allfig = []
+        allax  = []
+
+        # go through images numbers which should be plotted
+        for i in range(self._totImNum):
+
+            # considered image
+            image  = self._images[i]
+            # image No. as title of each image
+            pTitle = self._pTitles[i] 
+            
+            # prepare plot window
+            if j%plotNum == 0:
+                fig = plt.figure(figsize = self._figSize)
+                fig.suptitle(self._plotTitle, fontsize = 24)
+                allfig.append(fig)
+
+            # intensities
+            if self._plotFlag & 1:
+                # new subplot
+                ax = plt.subplot(self._plotVer, self._plotHor, axNum[j%plotNum])
+                allax.append(ax)
+                # plot the image
+                if self._logFlag & 1 :
+                    minPosVal = (image > 0.0).min()
+                    negPart   = image <= 0
+                    negPart   = np.ones(negPart.shape) * minPosVal
+                    cax  = ax.imshow(image, norm=LogNorm(), extent = self._plotExtent)
+                else:
+                    cax = ax.imshow(image, extent = self._plotExtent)
+                # add a colorbar
+                fig.colorbar(cax, format = '%.1e')
+                # make the shape a square
+                ax.set_aspect(1./ax.get_data_ratio())
+                # show the image with number as title    
+                ax.set_title(pTitle, fontsize = 18)
+                
+                # increment the plot image counter
+                j += 1
+
+            # prepare plot window
+            if j%plotNum == 0:
+                fig = plt.figure(figsize = self._figSize)
+                fig.suptitle(self._plotTitle, fontsize = 24)
+                allfig.append(fig)
+
+            # histograms
+            if self._plotFlag & 2:
+                # new subplot
+                ax = plt.subplot(self._plotVer, self._plotHor, axNum[j%plotNum])
+                allax.append(ax)
+                # plot hsitogram of the image
+                ax.hist(np.ravel(image), self._histBin, log=self._logFlag & 2, facecolor='green')
+                # show the image with number as title
+                ax.set_title(pTitle, fontsize = 18)
+                # layout of the axes
+                ax.xaxis.set_major_formatter(plt.FormatStrFormatter('%.1e'))
+                ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.1e'))
+                                 
+                # increment the plot image counter
+                j += 1
+
+        return allfig, allax
+
+    #
+    # plot jobs
+    #
+
+    def plotImages(self, plotSelect = None, plotType = 'norm'):
+        """Select the plotting of the images
+
+        plotSelect : selction of the images for plotting, use object default if None
+        plotType   : plot raw images ('raw'), dark image substracted ('dark'),
+                     normalized by ring current ('norm'), background substracted ('back')
+
+        retrurns
+        allfig : list of plt.figure objects of the plotting windows
+        allax  : list of plt.axes objects which carry the figures"""
+
+        # title of the full windows
+        self._plotTitle  = '%s%s' % (self._imProc.setName, self._imProc.setNum)
+
+        # read in first image to get conRoi if not set
+        if self._imProc.conRoi == None:
+            self._imProc._readImage(0)
+        self._plotExtent = [self._imProc.conRoi[0], self._imProc.conRoi[0] + self._imProc.conRoi[1],
+                            self._imProc.conRoi[2] + self._imProc.conRoi[3], self._imProc.conRoi[2]]
+
+        # selection of images by passed, default or set size
+        if plotSelect == None:
+            plotSelect = self._plotSelect
+        if plotSelect == None:
+            plotSelect = range(self._imProc.setSize)
+        self._totImNum = len(plotSelect)
+            
+        # image No. as title of each image
+        self._pTitles = ['test']*self._totImNum
+        for i in range(self._totImNum):
+            self._pTitles[i] = 'image # %d' % (plotSelect[i]) 
+
+        # considered images
+        if plotType == 'norm':
+            self._images  = self._imProc.fileProcessor.getImage()[plotSelect]
+
+        allfig, allax = self._plot2DData()
+
+        return allfig, allax
+
 class PlotGrid():
     """Plot Grid Class
 
@@ -96,10 +337,7 @@ class PlotGrid():
         self._defaultFigureSize = (11, 8.5)
         # plot the 1D fits
         self.plot1DFit  = False
-        # plot of raw figures
-        self.plotImSelect = None
-        self.plotImHor = 4
-        self.plotImVer = 3
+        
 
     #
     # set part
@@ -176,29 +414,6 @@ class PlotGrid():
         hisBin : no. of bins for the histograms of the occupation numbers"""
         
         return self.histBin
-
-    def setPlotIm(self, plotImSelect = None, plotImHor = 4, plotImVer = 3):
-        """Set the options for ploting the raw images
-
-        plotImSelect : list with the raw images which will be plotted, all if None
-        plotImHor    : no. of horizontal images per window, e.g. 4
-        plotImVer    : no. of vertical   images per window, e.g. 3"""
-        
-        if plotImSelect == None:
-            self.plotImSelect = range(self.setSize)
-        else:
-            self.plotImSelect = plotImSelect
-        self.plotImHor    = plotImHor
-        self.plotImVer    = plotImVer
-        
-    def getPlotIm(self):
-        """Get the options for ploting the raw images
-
-        plotImSelect : list with the raw images which will be plotted, all if None
-        plotImHor    : no. of horizontal images per window, e.g. 4
-        plotImVer    : no. of vertical   images per window, e.g. 3"""
-        
-        return self.plotImSelect, self.plotImHor, self.plotImVer
 
     def setPlot1DAxes(self, valSetAx0, labelsAx0):
         """Sets the axes for the 1D plots"""
@@ -412,60 +627,6 @@ class PlotGrid():
 
         return fig, allax
 
-    def plotImages(self, plotImSelect = None):
-        """Plots the selcted images
-
-        plotImSelect : selction of the images for plotting, use object default if None
-
-        retrurns
-        allfig : list of plt.figure objects of the plotting windows
-        allax  : list of plt.axes objects which carry the figures"""
-        
-        # prepare plots
-        plotImNum = self.plotImHor * self.plotImVer
-        j = 0
-        allfig = []
-        allax  = []
-        plotImTitle  = '%s%s' % (self.imProc.setName, self.imProc.setNum)
-        # read in first image to get conRoi if not set
-        if self.imProc.conRoi == None:
-            self.imProc._readImage(0)
-        plotImExtent = [self.imProc.conRoi[0], self.imProc.conRoi[0] + self.imProc.conRoi[1],
-                        self.imProc.conRoi[2], self.imProc.conRoi[2] + self.imProc.conRoi[3]]
-
-        # selection of images by passed, default or set size
-        if plotImSelect == None:
-            plotImSelect = self.plotImSelect
-        if plotImSelect == None:
-            plotImSelect = range(self.imProc.setSize)
-
-        # go through images numbers which should be plotted
-        for i in plotImSelect:
-
-            # label for y-axis
-            yLabel = 'image # %d' % (i)
-
-            if j%plotImNum == 0:
-                # prepare plot window
-                fig = plt.figure(figsize = self._defaultFigureSize)
-                fig.suptitle(plotImTitle, fontsize = 24)
-                allfig.append(fig)
-
-            # new subplot
-            ax = plt.subplot(self.plotImVer, self.plotImHor, j%plotImNum+1)
-            plt.subplots_adjust(hspace = 0.4)
-            allax.append(ax)
-            ax.imshow(self.imProc._readImage(i), extent = plotImExtent)
-
-            # show the image with number as y-label    
-            ax.set_ylabel(yLabel, fontsize = 18)
-                     
-            # increment the plot image counter
-            j += 1
-
-        return allfig, allax
-
-
     #
     # plot jobs
     #
@@ -587,24 +748,20 @@ if __name__ == "__main__":
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
-    testData.makeGridData()
+    #testData.makeGridData()
 
     #testPlotter = PlotGrid3D(testData)
     #testPlotter.plot3D()
 
-    # plotter for grid and images
+    # plotter for grid
     testPlotter = PlotGrid(testData)
-
-    #testPlotter.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
-    #testPlotter.plotImages(plotImSelect = [40])
-    #testPlotter.plotImages()
 
     testPlotter.setLogFlags(7, 7)
     testPlotter.setPlot1DFit(True)
     #testPlotter.plotGrid1D('sum')
     #testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
-    testPlotter.plotGrid2D('sum')
+    #testPlotter.plotGrid2D('sum')
     #testPlotter.plotGrid2D('cut')
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
@@ -630,7 +787,16 @@ if __name__ == "__main__":
     fig2, allax2 = testPlot.plot2DData()
     """
 
-    # test with image processor
+    # plotter for images
+    testPlotIm = PlotImages(testData)
+    # cofigurations for image plotting
+    testPlotIm.setPlotSelect(plotSelect = None)
+    testPlotIm.setPlotLayout(figSize = (11, 8.5), plotHor = 3, plotVer = 2, plotOrd = 'vh')
+    testPlotIm.setPlotFlag(3)
+    testPlotIm.setLogFlag(3)
+    testPlotIm.setHistBin(histBin = 100)
+    # plot the images
+    testPlotIm.plotImages(plotSelect = range(0, 81, 20))
     
 
     plt.show()
