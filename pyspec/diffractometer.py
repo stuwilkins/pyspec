@@ -37,7 +37,8 @@ gamma : along +Z*    -> S**   (gamma-frame)
 """
 
 __version__   = "$Revision$"
-__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>" +
+                "Sven Partzsch <SvenPartzsch@gmx.de>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
