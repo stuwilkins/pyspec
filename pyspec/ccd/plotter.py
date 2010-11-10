@@ -89,11 +89,17 @@ class PlotGrid3D():
 class PlotImages():
     """Plot CCD-images"""
 
-    def __init__(self, imProc):
+    def __init__(self, fileProc, imProc):
+        
+        # file Processor to get all the needed data
+        self._fProc = fileProc
         # image Processor to get all the needed data
         self._imProc = imProc
-        # image selection
+        
+        # image selection and type
         self._plotSelect = None
+        self._plotType   = None
+        
         # Figure layout
         self._figSize  = (11, 8.5)
         self._plotHor  = 4
@@ -110,22 +116,32 @@ class PlotImages():
     # set/get part
     #
 
-    def setPlotSelect(self, plotSelect = None):
-        """Set the selcected images
+    def setPlotContent(self, plotSelect = None, plotType = None):
+        """Set the image content for the plotting
 
-        plotSelect : list with the raw images which will be plotted, all if None"""
+        plotSelect : list with the raw images which will be plotted, all if None
+        plotType   : plot raw images ('raw'), dark image substracted ('dark'),
+                     normalized ('norm'), background substracted ('back')
+                     'norm' if None"""
         
         if plotSelect == None:
             self._plotSelect = range(self._imProc.setSize)
         else:
             self._plotSelect = plotSelect
+        if plotType == None:
+            self._plotType = 'norm'
+        else:
+            self._plotType = plotType
     
-    def getPlotSelect(self):
-        """Get the selcected images
+    def getPlotContent(self):
+        """Get the image content for the plotting
 
-        plotSelect : list with the raw images which will be plotted, all if None"""
+        plotSelect : list with the raw images which will be plotted, all if None
+        plotType   : plot raw images ('raw'), dark image substracted ('dark'),
+                     normalized ('norm'), background substracted ('back')
+                     'norm' if None"""
         
-        return self._plotSelect
+        return self._plotSelect, self._plotType
 
     def setPlotLayout(self, figSize = (11, 8.5), plotHor = 4, plotVer = 3, plotOrd = 'hv'):
         """Set the options for the ploting window
@@ -246,9 +262,9 @@ class PlotImages():
                     minPosVal = (image > 0.0).min()
                     negPart   = image <= 0
                     negPart   = np.ones(negPart.shape) * minPosVal
-                    cax  = ax.imshow(image, norm=LogNorm(), extent = self._plotExtent)
+                    cax  = ax.imshow(image, norm=LogNorm())#, extent = self._plotExtent)
                 else:
-                    cax = ax.imshow(image, extent = self._plotExtent)
+                    cax = ax.imshow(image)#, extent = self._plotExtent)
                 # add a colorbar
                 fig.colorbar(cax, format = '%.1e')
                 # make the shape a square
@@ -287,25 +303,26 @@ class PlotImages():
     # plot jobs
     #
 
-    def plotImages(self, plotSelect = None, plotType = 'norm'):
+    def plotImages(self, plotSelect = None, plotType = None):
         """Select the plotting of the images
 
         plotSelect : selction of the images for plotting, use object default if None
         plotType   : plot raw images ('raw'), dark image substracted ('dark'),
-                     normalized by ring current ('norm'), background substracted ('back')
+                     normalized ('norm'), background substracted ('back')
+                     object default or 'norm' if None
 
         retrurns
         allfig : list of plt.figure objects of the plotting windows
         allax  : list of plt.axes objects which carry the figures"""
 
+        # selcect the plotting type
+        if plotType == None:
+            plotType = self._plotType
+            if plotType == None:
+                plotType = 'norm'
+
         # title of the full windows
         self._plotTitle  = '%s%s' % (self._imProc.setName, self._imProc.setNum)
-
-        # read in first image to get conRoi if not set
-        if self._imProc.conRoi == None:
-            self._imProc._readImage(0)
-        self._plotExtent = [self._imProc.conRoi[0], self._imProc.conRoi[0] + self._imProc.conRoi[1],
-                            self._imProc.conRoi[2] + self._imProc.conRoi[3], self._imProc.conRoi[2]]
 
         # selection of images by passed, default or set size
         if plotSelect == None:
@@ -320,9 +337,33 @@ class PlotImages():
             self._pTitles[i] = 'image # %d' % (plotSelect[i]) 
 
         # considered images
-        if plotType == 'norm':
-            self._images  = self._imProc.fileProcessor.getImage()[plotSelect]
+        if plotType == 'raw':
+            self._fProc.normData = None
+            self._fProc.process(dark = False)
+            self._images = self._fProc.getImage(plotSelect)
+            #print 'raw images still under construction'
+        elif plotType == 'dark':
+            self._fProc.normData = None
+            self._fProc.process(dark = True)
+            self._images = self._fProc.getImage(plotSelect)
+            #print 'dark image substracted images still under construction'
+        elif plotType == 'norm':
+            self._fProc.process(dark = True)
+            self._images = self._fProc.getImage(plotSelect)
+        elif plotType == 'back':
+            print 'background corrected images still under construction'
+        else:
+            print "Warning : %s is no proper plotType!" % (plotType)
+            print "Choose  : raw images ('raw'), dark image substracted ('dark')"
+            print "          normalized ('norm'), background substracted ('back')"
 
+        # read in first image to get conRoi if not set
+        #if self._imProc.conRoi == None:
+        #    self._imProc._readImage(0)
+        #self._plotExtent = [self._imProc.conRoi[0], self._imProc.conRoi[0] + self._imProc.conRoi[1],
+  #                          self._imProc.conRoi[2] + self._imProc.conRoi[3], self._imProc.conRoi[2]]
+
+        # plot the considered images
         allfig, allax = self._plot2DData()
 
         return allfig, allax
@@ -748,7 +789,7 @@ if __name__ == "__main__":
 
     fp = FileProcessor()
     fp.setFromSpec(scan)
-    fp.process()
+    #fp.process()
 
     testData = ImageProcessor()
 
@@ -803,15 +844,15 @@ if __name__ == "__main__":
     """
 
     # plotter for images
-    testPlotIm = PlotImages(testData)
+    testPlotIm = PlotImages(fp, testData)
     # cofigurations for image plotting
-    testPlotIm.setPlotSelect(plotSelect = None)
+    #testPlotIm.setPlotSelect(plotSelect = None, plotType = None)
     testPlotIm.setPlotLayout(figSize = (11, 8.5), plotHor = 3, plotVer = 2, plotOrd = 'vh')
     testPlotIm.setPlotFlag(3)
     testPlotIm.setLogFlag(3)
     testPlotIm.setHistBin(histBin = 100)
     # plot the images
-    testPlotIm.plotImages(plotSelect = range(0, 81, 20))
+    testPlotIm.plotImages(plotSelect = range(0, 81, 20), plotType = 'dark')
     
 
     plt.show()

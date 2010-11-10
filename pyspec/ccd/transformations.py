@@ -225,7 +225,7 @@ class FileProcessor():
             self.darkimage = PrincetonSPEFile(self.darkfilenames[0])[0].astype(np.float)
         images = []
         if self.normData is None:
-            normData = ones(len(self.filenames))
+            normData = np.ones(len(self.filenames))
             print "---- Normalizing data."
         else:
             normData = self.normData
