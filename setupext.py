@@ -1,4 +1,5 @@
 import os
+import sys
 import ConfigParser
 import numpy as np
 import copy
@@ -18,6 +19,8 @@ ext_default  = {'include_dirs' : [np.get_include()],
                 'libraries'    : [],
                 'define_macros': []}
 
+setup_files = ['setup.cfg.%s' % sys.platform, 'setup.cfg']
+
 def parseExtensionSetup(name, config, default):
     default = copy.deepcopy(default)
     try: default['include_dirs'] = config.get(name, "include_dirs").split(os.pathsep)
@@ -28,10 +31,17 @@ def parseExtensionSetup(name, config, default):
     except: pass
 
     return default
-    
-if os.path.exists("setup.cfg"):
+
+setupfile = None
+for f in setup_files:
+    if os.path.exists(f):
+        setupfile = f
+        break
+
+if setupfile is not None:
+    print 'Reading config file %s' % setupfile
     config = ConfigParser.SafeConfigParser()
-    config.read("setup.cfg")
+    config.read(setupfile)
 
     try: options['build_levmar'] = config.getboolean("levmar","build")
     except: pass

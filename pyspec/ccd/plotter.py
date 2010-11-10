@@ -49,8 +49,23 @@ __id__        = "$Id$"
 class CCDPlot():
     def __init__(self):
         pass
+    def _draw():
+        f = figure()
 
-    
+        self.ax1 = axes([0.3, 0.3, 0.6, 0.6])
+        self.ax2 = axes([0.1, 0.3, 0.1, 0.6])
+        ax3 = axes([0.3, 0.1, 0.6, 0.1])
+
+    ar = a[45:140, 50:180]- 26000
+
+    ax1.imshow(log10(ar))
+    ax2.semilogx(ar[:,65], arange(len(ar[:,65])))
+    ax2.set_ylim([0, len(ar[:,65])])
+    ax2.set_ylim(ax2.get_ylim()[::-1])
+    ax2.set_xlim([5e2, 1e5])
+    ax3.semilogy(ar[47,:])
+    ax3.set_xlim([0, len(ar[47,:])])
+    ax3.set_ylim([5e2, 1e5])
 
 class PlotGrid3D():
     def __init__(self, imProc = None):
