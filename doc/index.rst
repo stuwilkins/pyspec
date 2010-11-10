@@ -13,7 +13,6 @@ since then has morphed into a suite of python classes for data
 analysis. This has lead to the "bacronym" for pyspec being "python
 routines for x-ray spectra analysis".
 
-
 Contents:
 
 .. toctree::
@@ -22,9 +21,7 @@ Contents:
    intro
    tutorial
    spec
-   ccd_transformations
-   ccd_plotting
-   diffractometer
+   ccd
 
 
 Indices and tables
