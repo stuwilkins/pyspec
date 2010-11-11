@@ -47,25 +47,127 @@ __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
 class CCDPlot():
-    def __init__(self):
-        pass
-    def _draw():
-        f = figure()
+    def __init__(self, data = None, log = False):
+        self._data = data
+        self._imageNum = 0
+        self._log = log
+        self._pos = None
 
-        self.ax1 = axes([0.3, 0.3, 0.6, 0.6])
-        self.ax2 = axes([0.1, 0.3, 0.1, 0.6])
-        ax3 = axes([0.3, 0.1, 0.6, 0.1])
+    def _buttonPressed(self, event):
+        if event.inaxes == self.axes[0]:
+            self._pos = (event.xdata, event.ydata)
+            self._draw1D()
+            self.axes[0].figure.canvas.draw()
 
-        ar = a[45:140, 50:180]- 26000
+    def _mouseScrolled(self, event):
+        if event.inaxes == self.axes[0]:
+            self._advance(event.step)
+            if event.step > 0:
+                self._advance(1)
+            if event.step < 0:
+                self._advance(-1)
 
-        ax1.imshow(log10(ar))
-        ax2.semilogx(ar[:,65], arange(len(ar[:,65])))
-        ax2.set_ylim([0, len(ar[:,65])])
+    def _keyPressed(self, event):
+        if event.key == 'up':
+            self._advance(1)
+        elif event.key == 'down':
+            self._advance(-1)
+                
+
+    def _advance(self, n):
+        """Advance the data frame by n"""
+        n = self._imageNum + n
+        if n >= self._data.shape[0]:
+            n = self._data.shape[0] - 1
+        if n < 0:
+            n = 0
+            
+        self._imageNum = n
+        self._draw2D()
+        self._draw1D()
+        self.axes[0].figure.canvas.draw()
+
+    def draw(self, n = None, *args, **kwargs):
+        if n is None:
+            n = int(self._data.shape[0] / 2)
+        self._imageNum = n
+        self._makeAxes()
+        self._draw2D(*args, **kwargs)
+        self._draw1D(*args, **kwargs)
+        
+    def _makeAxes(self):
+        f = plt.figure()
+
+        ax1 = plt.axes([0.4, 0.35, 0.5, 0.55])
+        ax2 = plt.axes([0.1, 0.35, 0.15, 0.55])
+        ax3 = plt.axes([0.4, 0.1, 0.5, 0.15])
+        self.axes = (ax1, ax2, ax3)
+
+        plt.connect('button_press_event', self._buttonPressed)
+        plt.connect('scroll_event', self._mouseScrolled)
+        plt.connect('key_press_event', self._keyPressed)
+
+    def _draw2D(self):
+
+        data = self._data[self._imageNum]
+
+        ax1 = self.axes[0]
+
+        if self._log:
+            ax1.imshow(np.log10(np.abs(data)), aspect = 'auto')
+        else:
+            ax1.imshow(data, aspect = 'auto')
+
+        ax1.set_title('Image %d' % self._imageNum)
+
+    def _getMinMax(self, data):
+        data = data[np.isfinite(data)]
+        return np.array([data.min(), data.max()])
+
+    def _draw1D(self):
+
+        if self._log:
+            data = np.log10(self._data[self._imageNum])
+            
+        else:
+            data = self._data[self._imageNum]
+
+        ax2, ax3 = self.axes[1:3]
+
+        if len(ax2.lines):
+            del ax2.lines[-1]
+        if len(ax3.lines):
+            del ax3.lines[-1]
+
+        if self._pos is None:
+            self._pos = np.array(data.shape, dtype = np.int) / 2
+        
+        pos = self._pos
+        
+        ax2range = np.arange(data.shape[0])
+        ax3range = np.arange(data.shape[1])
+
+        ax2.plot(data[:,pos[0]], ax2range, 'r-')
+
+        ax2.set_ylim((ax2range.min(), ax2range.max()))
         ax2.set_ylim(ax2.get_ylim()[::-1])
-        ax2.set_xlim([5e2, 1e5])
-        ax3.semilogy(ar[47,:])
-        ax3.set_xlim([0, len(ar[47,:])])
-        ax3.set_ylim([5e2, 1e5])
+        minmax = self._getMinMax(data[:,pos[0]])
+        ax2.xaxis.set_ticks(minmax.tolist())
+        ax2.xaxis.set_ticks(np.arange(minmax[0], minmax[1], (minmax[1] - minmax[0]) / 5).tolist(),
+                            minor = True)
+        ax2.set_xlim(minmax)
+        ax2.grid(True, 'both', color = '0.75', linestyle = '--', linewidth = 0.5)
+        ax2.xaxis.set_major_formatter(plt.FormatStrFormatter("%3.2e"))
+
+        ax3.plot(ax3range, data[pos[1],:], 'r-')
+        minmax = self._getMinMax(data[pos[1],:])
+        ax3.set_xlim((ax3range.min(), ax3range.max()))
+        ax3.yaxis.set_ticks(minmax.tolist())
+        ax3.yaxis.set_ticks(np.arange(minmax[0], minmax[1], (minmax[1] - minmax[0]) / 5).tolist(),
+                            minor = True)
+        ax3.set_ylim(minmax)
+        ax3.grid(True, 'both', color = '0.75', linestyle = '--', linewidth = 0.5)
+        ax3.yaxis.set_major_formatter(plt.FormatStrFormatter("%3.2e"))
 
 class PlotGrid3D():
     def __init__(self, imProc = None):
@@ -789,8 +891,13 @@ if __name__ == "__main__":
 
     fp = FileProcessor()
     fp.setFromSpec(scan)
-    #fp.process()
+    fp.process()
 
+    """
+    p = CCDPlot(fp.getImage())
+    p.draw()
+    """
+    
     testData = ImageProcessor()
 
     testData.setDetectorAngle(-1.24)
@@ -808,7 +915,7 @@ if __name__ == "__main__":
 
     #testPlotter = PlotGrid3D(testData)
     #testPlotter.plot3D()
-
+    """
     # plotter for grid
     testPlotter = PlotGrid(testData)
 
@@ -822,7 +929,6 @@ if __name__ == "__main__":
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
 
-    """
     testData = np.array([[range(0,3),range(3,6)],[range(6,9),range(9,12)]])
     testOccu = np.array([[np.zeros(3),[2,5,7]],[[0,4,2],[7,0,8]]])
     testPlot = PlotGrid()
@@ -841,8 +947,8 @@ if __name__ == "__main__":
     # plot data for sums
     fig1, allax1 = testPlot.plot1DData()
     fig2, allax2 = testPlot.plot2DData()
-    """
 
+    """
     # plotter for images
     testPlotIm = PlotImages(fp, testData)
     # cofigurations for image plotting
@@ -854,5 +960,5 @@ if __name__ == "__main__":
     # plot the images
     testPlotIm.plotImages(plotSelect = range(0, 81, 20), plotType = 'dark')
     
-
+    
     plt.show()

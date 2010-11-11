@@ -114,6 +114,10 @@ class PrincetonSPEFile():
         """Return the array of data"""
         return self._array
 
+    def getBinnedData(self):
+        """Return the binned (sum of all frames) data"""
+        return self._array.sum(0)
+
     def readData(self):
         """Read all the data into the class"""
         self._readHeader()

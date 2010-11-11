@@ -10,4 +10,7 @@ The CCD package provides the handling of CCD images.
    :maxdepth: 2
 
    ccd_intro
+   ccd_transformations
+   ccd_plotting
+   ccd_ctrans
    

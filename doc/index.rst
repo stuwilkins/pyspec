@@ -22,6 +22,7 @@ Contents:
    tutorial
    spec
    ccd
+   diffractometer
 
 
 Indices and tables

@@ -215,14 +215,19 @@ class FileProcessor():
         self._processBgnd(maskroi = maskroi, mask = mask)
         print "---- Done."
 
-    def process(self, dark = True):
+    def process(self, dark = True, dtype = np.float):
         """Read in images and process into 3D array.
         
         dark : if True, subtract the dark images from the data"""
 
         print "---- Processing images (native)."
         if dark:
-            self.darkimage = PrincetonSPEFile(self.darkfilenames[0])[0].astype(np.float)
+            if os.path.exists(self.darkfilenames[0]):
+                self.darkimage = PrincetonSPEFile(self.darkfilenames[0]).getBinnedData().astype(dtype)
+            else:
+                print "-XX- Warning: Dark image missing"
+                dark = False
+
         images = []
         if self.normData is None:
             normData = np.ones(len(self.filenames))
@@ -231,7 +236,7 @@ class FileProcessor():
             normData = self.normData
 
         for iname, normVal in zip(self.filenames, normData):
-            image = PrincetonSPEFile(iname)[0].astype(np.float)
+            image = PrincetonSPEFile(iname).getBinnedData().astype(dtype)
             if dark:
                 image = image - self.darkimage
             image = image / normVal

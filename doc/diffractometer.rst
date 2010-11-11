@@ -22,5 +22,8 @@ rotation by :math:`\delta` along the :math:`+X'` -axis into :math:`\Sigma^*`, an
 rotation by :math:`\gamma` along the :math:`+Z^*` -axis into :math:`\Sigma^{**}`.
 
 
-.. automodule:: pyspec.diffracometer
+Diffractometer Class
+--------------------
+
+.. automodule:: pyspec.diffractometer
    :members:

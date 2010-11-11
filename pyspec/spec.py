@@ -947,7 +947,6 @@ class SpecPlotCCD():
         self.scan = specscan
         self.plt = None
 
-
     def show(self, imagen = None, size = (4, 3), dark = True,
              log = False, limits = None):
         """Plot out CCD images.
