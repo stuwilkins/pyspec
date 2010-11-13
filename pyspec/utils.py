@@ -198,3 +198,23 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4):
         tick.tick2line.set_markersize(8)
         tick.tick1line.set_markeredgewidth(1)
         tick.tick2line.set_markeredgewidth(1)
+
+def setImageRange(data, limits, bins = 100):
+    
+    h,b = np.histogram(data, bins = bins)
+    b = np.arange(data.min(), data.max(), 
+                  (data.max() - data.min()) / bins)
+    com = (h * np.arange(h.size)).sum() /  h.sum()
+    limits = (np.array(limits) / 100.0) * bins
+
+    if (com - limits[0]) < 0:
+        dmin = data.min()
+    else:
+        dmin = b[int(com - limits[0])]
+    
+    if (com + limits[1]) >= bins:
+        dmax = data.max()
+    else:
+        dmax = b[int(com + limits[1])]
+
+    return dmin, dmax

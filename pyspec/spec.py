@@ -130,7 +130,7 @@ class SpecDataFile:
         if ccdtail is not None:
             self.ccdtail = ccdtail
         else:
-            self.ccdtail = "_0000.spe"
+            self.ccdtail = ".spe"
         return
 
     def setCCD(self, path = None, tail = None):
@@ -433,6 +433,12 @@ class SpecScan:
         line = specfile._getLine()
         self.header = self.header + line
 
+        self.ccdAcquireTime = 0.0
+        self.ccdAcquirePeriod = 0.0
+        self.ccdNumExposures = 1
+        self.ccdNumImages = 1
+        self.ccdNumAcquisitions = 1
+
         #
         # Read the spec header and place the data into this class
         #
@@ -490,7 +496,18 @@ class SpecScan:
                     self.UB = pos.reshape(-1, 3)
                 except:
                     print "**** Unable to read UB matrix (G3)"
-
+            elif line[0:6] == "#UCCD2":
+                try:
+                    pos = line[6:].strip().split()
+                    pos = map(float, pos)
+                    self.ccdAcquireTime = pos[0]
+                    self.ccdAcquirePeriod = pos[1]
+                    self.ccdNumExposures = int(pos[2])
+                    self.ccdNumImages = int(pos[3])
+                    self.ccdNumAcquisitions = int(pos[4])
+                except:
+                    print "**** Unable to parse CCD data (UCCD2)"
+            
             line = specfile._getLine()
             self.header = self.header + line
 
@@ -667,7 +684,7 @@ class SpecScan:
         if not then the path defined in the SpecDataFile ooject
         will be used. If dark is true then the darkimages are
         returned"""
-        filenames = []
+        
         if dark:
             _dark = "-DARK"
         else:
@@ -683,10 +700,20 @@ class SpecScan:
 
         _datafile = self.datafile.filename.split(os.sep)
 
-        for i in range(self.data.shape[0]):
-            _f = "%s_%04d-%04d%s%s" % (_datafile[-1], self.scan, i, _dark, self.datafile.ccdtail)
-            filenames.append("%s%s" % (_path, _f))
+        if self.data.ndim == 1:
+            ndps = 1
+        else:
+            ndps = self.data.shape[0]
 
+        filenames = []
+        for i in range(ndps):
+            _fnames = []
+            for j in range(self.ccdNumAcquisitions):
+                _f = "%s_%04d-%04d%s_%04d%s" % (_datafile[-1], 
+                                                self.scan, i, _dark, j,
+                                                self.datafile.ccdtail)
+                _fnames.append("%s%s" % (_path, _f))
+            filenames.append(_fnames)
         self.ccdFilenames = filenames
 
         return filenames
@@ -1012,22 +1039,3 @@ class SpecPlotCCD():
                     x = 0
             
 
-def setImageRange(data, limits, bins = 100):
-    
-    h,b = numpy.histogram(data, bins = bins)
-    b = numpy.arange(data.min(), data.max(), 
-                     (data.max() - data.min()) / bins)
-    com = (h * numpy.arange(h.size)).sum() /  h.sum()
-    limits = (array(limits) / 100.0) * bins
-
-    if (com - limits[0]) < 0:
-        dmin = data.min()
-    else:
-        dmin = b[int(com - limits[0])]
-    
-    if (com + limits[1]) >= bins:
-        dmax = data.max()
-    else:
-        dmax = b[int(com + limits[1])]
-
-    return dmin, dmax

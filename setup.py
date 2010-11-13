@@ -59,5 +59,6 @@ setup(name='pyspec',
       long_description = "\n".join(doclines[2:]),
       packages=['pyspec', 'pyspec.ccd', 'pyspec.calcs'],
       package_data={'pyspec.calcs': ['data/*']},
-      ext_modules = ext_modules
+      ext_modules = ext_modules,
+      scripts=['scripts/ccdview', 'scripts/logbookprint']
 )

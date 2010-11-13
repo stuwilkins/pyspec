@@ -148,17 +148,18 @@ class FileProcessor():
 
     def __init__(self, filenames = None, 
                  darkfilenames = None, 
-                 norm = None,
+                 norm = None, format = 'SPE',
                  spec = None, mon = 'Monitor'):
         """Initialize the class
 
         filenames      : list of filenames for all images
         darkfilenames  : list of filenames for the dark images
         spec           : SpecScan object from which to obtain data"""
-        self.fast = True
+        self._format = format
         self.filenames = filenames
         self.darkfilenames = darkfilenames
         self.normData = None
+
         if spec is not None:
             self.setFromSpec(spec)
         if norm is not None:
@@ -215,36 +216,73 @@ class FileProcessor():
         self._processBgnd(maskroi = maskroi, mask = mask)
         print "---- Done."
 
-    def process(self, dark = True, dtype = np.float):
+    def process(self, dark = True, norm = True, dtype = np.float):
         """Read in images and process into 3D array.
         
         dark : if True, subtract the dark images from the data"""
 
-        print "---- Processing images (native)."
-        if dark:
-            if os.path.exists(self.darkfilenames[0]):
-                self.darkimage = PrincetonSPEFile(self.darkfilenames[0]).getBinnedData().astype(dtype)
-            else:
-                print "-XX- Warning: Dark image missing"
-                dark = False
-
         images = []
-        if self.normData is None:
-            normData = np.ones(len(self.filenames))
-            print "---- Normalizing data."
-        else:
-            normData = self.normData
+        darkimages = []
 
-        for iname, normVal in zip(self.filenames, normData):
-            image = PrincetonSPEFile(iname).getBinnedData().astype(dtype)
+        if norm:
+            if self.normData is None:
+                normData = np.ones(len(self.filenames))
+                print "XXXX No normalization data found"
+            else:
+                normData = self.normData
+                print "---- Normalizing data."
+        else:
+            normData = np.ones(len(self.filenames))
+
+        if dark:
+            print "---- Correcting for dark current"
+
+        for i, (iname, diname, normVal) in enumerate(zip(self.filenames, self.darkfilenames, normData)):
+            if type(iname) == list:
+                _images = []
+                _darkimages = []
+                for j, (_in, _din) in enumerate(zip(iname, diname)):
+                    print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames),
+                                                                                               j + 1, len(iname)),
+                    image = self._getRawImage(_in).astype(dtype)
+                    _images.append(image)
+                    if os.path.exists(_din):
+                        darkimage =  self._getRawImage(_din).astype(dtype)
+                        _darkimages.append(darkimage)
+                        print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.filenames),
+                                                                                                   j + 1, len(iname)),
+                image = np.array(_images).sum(0)
+                if len(_darkimages):
+                    darkimage = np.array(_darkimages).sum(0)
+                    darkimages.append(darkimage)
+            else:
+                image = self._getRawImage(iname).astype(dtype)
+                if os.path.exists(diname):
+                    darkimage =  self._getRawImage(diname).astype(dtype)
+                    darkimages.append(darkimage)
+                print "---- Reading image %-3d of %-3d\r" % (i, len(self.filenames)),
             if dark:
-                image = image - self.darkimage
-            image = image / normVal
+                if len(darkimages):
+                    image = image - darkimages[-1]
+                else:
+                    print "XXXX Unable to dark currect correct. No Image found"
+            
+            if norm:
+                image = image / normVal
             images.append(image)
+        print "---- Processed %d images (%d dark images)" % (len(images), len(darkimages))
+
         self.images = np.array(images)
 
         print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
                                                        self.images.nbytes / 1024**2) 
+
+    def _getRawImage(self, iname):
+        """Read raw image"""
+        if self._format == 'SPE':
+            return PrincetonSPEFile(iname).getBinnedData()
+        else:
+            raise Exception("Unknown file format \"%s.\"" % self._format)
     def getImage(self, n = None):
         """Get the image data"""
         if n is None:

@@ -23,7 +23,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from   matplotlib.colors import LogNorm
-from   pyspec  import fit, fitfuncs
+from   pyspec  import fit, fitfuncs, utils
 
 """
 # Try improting 3d routines
@@ -52,6 +52,23 @@ class CCDPlot():
         self._imageNum = 0
         self._log = log
         self._pos = None
+        self.ilimit = [0.0, 25.0]
+        self.iscale = None
+
+    def setILimit(self, ilimit):
+        self.ilimit = ilimit
+    def setIScale(self, iscale):
+        self.iscale = iscale
+
+    def printInstructions(self):
+        print "Interactive plot:\n"
+        print "   up              : Advance one image"
+        print "   down            : Advance one image"
+        print "   +               : Increase +ve limit"
+        print "   _               : Decrease +ve limit"
+        print "   =               : Increase -ve limit"
+        print "   -               : Decrease -ve limit"
+        
 
     def _buttonPressed(self, event):
         if event.inaxes == self.axes[0]:
@@ -59,21 +76,29 @@ class CCDPlot():
             self._draw1D()
             self.axes[0].figure.canvas.draw()
 
-    def _mouseScrolled(self, event):
-        if event.inaxes == self.axes[0]:
-            self._advance(event.step)
-            if event.step > 0:
-                self._advance(1)
-            if event.step < 0:
-                self._advance(-1)
+    def _scale(self, n, step):
+        self.ilimit[n] = self.ilimit[n] + (step)
+        if self.ilimit[n] > 50:
+            self.ilimit[n] = 50
+        if self.ilimit[n] < 0:
+            self.ilimit[n] = 0
+        self._draw2D()
+        self.axes[0].figure.canvas.draw()
 
     def _keyPressed(self, event):
         if event.key == 'up':
             self._advance(1)
         elif event.key == 'down':
             self._advance(-1)
+        elif event.key == "+" :
+            self._scale(1, 5)
+        elif event.key == "_" :
+            self._scale(1, -5)
+        elif event.key == "=" :
+            self._scale(0, -5) 
+        elif event.key == "_" :
+            self._scale(0, 5)
                 
-
     def _advance(self, n):
         """Advance the data frame by n"""
         n = self._imageNum + n
@@ -96,15 +121,16 @@ class CCDPlot():
         self._draw1D(*args, **kwargs)
         
     def _makeAxes(self):
-        f = plt.figure()
+        f = plt.figure(figsize = (10, 6.5), dpi = 80)
 
-        ax1 = plt.axes([0.4, 0.35, 0.5, 0.55])
+        ax1 = plt.axes([0.4, 0.35, 0.45, 0.55])
         ax2 = plt.axes([0.1, 0.35, 0.15, 0.55])
-        ax3 = plt.axes([0.4, 0.1, 0.5, 0.15])
-        self.axes = (ax1, ax2, ax3)
+        ax3 = plt.axes([0.4, 0.1, 0.45, 0.15])
+        ax4 = plt.axes([0.875, 0.35, 0.025, 0.55])
+        self.axes = (ax1, ax2, ax3, ax4)
 
         plt.connect('button_press_event', self._buttonPressed)
-        plt.connect('scroll_event', self._mouseScrolled)
+        #plt.connect('scroll_event', self._mouseScrolled)
         plt.connect('key_press_event', self._keyPressed)
 
     def _draw2D(self):
@@ -112,12 +138,28 @@ class CCDPlot():
         data = self._data[self._imageNum]
 
         ax1 = self.axes[0]
+        ax4 = self.axes[3]
+
+        if self.iscale is not None:
+            vmin = self.iscale[0]
+            vmax = self.iscale[1]
+        elif self.ilimit is not None:
+            vmin, vmax = utils.setImageRange(data, self.ilimit)
+        else:
+            vmin = data.min()
+            vmax = data.max()
+            
 
         if self._log:
-            ax1.imshow(np.log10(np.abs(data)), aspect = 'auto')
+            ii = ax1.imshow(np.log10(np.abs(data)), aspect = 'auto',
+                            vmin = vmin, vmax = vmax)
+            plt.colorbar(ii, cax = ax4, format = "%.2e")
         else:
-            ax1.imshow(data, aspect = 'auto')
+            ii = ax1.imshow(data, aspect = 'auto', 
+                            vmin = vmin, vmax = vmax)
+            plt.colorbar(ii, cax = ax4, format = "%.2e")
 
+        
         ax1.set_title('Image %d' % self._imageNum)
 
     def _getMinMax(self, data):
@@ -186,7 +228,6 @@ class PlotGrid3D():
         mlab.contour3d(data, contours = hm, vmax = ma,
                        transparent = True, vmin = mb,
                        extent = extent)
-
 
 class PlotImages():
     """Plot CCD-images"""
@@ -893,7 +934,7 @@ if __name__ == "__main__":
     fp.setFromSpec(scan)
     fp.process()
 
-    """
+    
     p = CCDPlot(fp.getImage())
     p.draw()
     """
@@ -915,7 +956,7 @@ if __name__ == "__main__":
 
     #testPlotter = PlotGrid3D(testData)
     #testPlotter.plot3D()
-    """
+    
     # plotter for grid
     testPlotter = PlotGrid(testData)
 
@@ -948,7 +989,7 @@ if __name__ == "__main__":
     fig1, allax1 = testPlot.plot1DData()
     fig2, allax2 = testPlot.plot2DData()
 
-    """
+    
     # plotter for images
     testPlotIm = PlotImages(fp, testData)
     # cofigurations for image plotting
@@ -960,5 +1001,5 @@ if __name__ == "__main__":
     # plot the images
     testPlotIm.plotImages(plotSelect = range(0, 81, 20), plotType = 'dark')
     
-    
+    """
     plt.show()
