@@ -911,7 +911,7 @@ if __name__ == "__main__":
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
-    #testData.makeGridData()
+    testData.makeGridData()
 
     #testPlotter = PlotGrid3D(testData)
     #testPlotter.plot3D()
@@ -921,11 +921,11 @@ if __name__ == "__main__":
 
     testPlotter.setLogFlags(7, 7)
     testPlotter.setPlot1DFit(True)
-    #testPlotter.plotGrid1D('sum')
-    #testPlotter.plotGrid1D('cut')
+    testPlotter.plotGrid1D('sum')
+    testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
-    #testPlotter.plotGrid2D('sum')
-    #testPlotter.plotGrid2D('cut')
+    testPlotter.plotGrid2D('sum')
+    testPlotter.plotGrid2D('cut')
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
 
@@ -959,6 +959,6 @@ if __name__ == "__main__":
     testPlotIm.setHistBin(histBin = 100)
     # plot the images
     testPlotIm.plotImages(plotSelect = range(0, 81, 20), plotType = 'dark')
-    
+    """
     
     plt.show()

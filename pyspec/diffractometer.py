@@ -22,22 +22,10 @@
 import numpy as np
 import exceptions
 
-"""
-used lab frame:
-Z up, Y along X-ray beam, X = Y x Z
-sample rotations
-mu    : along +Z     -> S'    (mu-frame)
-theta : along +X'    -> S''   (theta-frame)
-chi   : along +Y''   -> S'''  (chi-frame)
-phi   : along +X'''  -> S'''' (phi-frame)
-detector rotations
-mu    : along +Z     -> S'    (mu-frame)
-delta : along +X'    -> S*    (delta-frame)
-gamma : along +Z*    -> S**   (gamma-frame)
-"""
 
 __version__   = "$Revision$"
-__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>, Sven Partzsch <SvenPartzsch@gmx.de>"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>" +\
+                "Sven Partzsch <SvenPartzsch@gmx.de>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
@@ -45,14 +33,26 @@ class Diffractometer():
     """Diffractometer class
 
     This class provides various functions to perform calculations to
-    and from the sample and instrument frames"""
+    and from the sample and instrument frames
+
+    used lab frame:
+    Z up, Y along X-ray beam, X = Y x Z;
+    sample rotations:
+    mu    : along +Z     -> S'    (mu-frame),
+    theta : along +X'    -> S''   (theta-frame),
+    chi   : along +Y''   -> S'''  (chi-frame),
+    phi   : along +X'''  -> S'''' (phi-frame);
+    detector rotations:
+    mu    : along +Z     -> S'    (mu-frame),
+    delta : along +X'    -> S*    (delta-frame),
+    gamma : along +Z*    -> S**   (gamma-frame)"""
 
     # HC_OVER_E to convert from E to Lambda
     hc_over_e = 12398.4
-    # transformation from sixc to tardis
-    sixcToTardis = np.array([ [ 0, 0, -1],
-                              [ 0, 1,  0],
-                              [ 1, 0,  0] ])
+    # transformation from sixc to fourc (tardis)
+    sixcToFourc = np.array([ [ 0, 0, -1],
+                             [ 0, 1,  0],
+                             [ 1, 0,  0] ])
 
     def __init__(self, mode = 'sixc'):
         """Initialize the class
@@ -125,7 +125,13 @@ class Diffractometer():
     #
     
     def _calc_QTheta(self):
-        """Calculate (Qx, Qy, Qz) set in theta-frame from angles"""
+        """Calculate (Qx, Qy, Qz) set in theta-frame from angles
+
+        k0      = (0, kl, 0), kl: wave vector length,
+        ki''    = rotX(-theta)*rotZ(-mu)*k0,
+        kf''    = rotX(-theta+delta)*rotZ(gamma)*k0,
+        QTheta = Q'' = kf'' - ki'' """
+
         # wave vector length in 1/A
         kl = 2 * np.pi / self._waveLen
         # wave vector for all diffractometer angles zero
@@ -169,7 +175,9 @@ class Diffractometer():
         return self.QTheta
     
     def getQPhi(self):
-        """Calculate (Qx, Qy, Qz) set in phi-frame from (Qx, Qy, Qz) set in theta-frame"""
+        """Calculate (Qx, Qy, Qz) set in phi-frame from (Qx, Qy, Qz) set in theta-frame
+
+        QPhi = rotZ(-phi) rotY(-chi) QTheta """
 
         # alias for used angles
         chi = self._settingAngles[:,2]
@@ -177,6 +185,8 @@ class Diffractometer():
         # alias for q-vector in theta-frame
         QTh = self.QTheta
         
+        # QPhi = rotZ(-phi) rotY(-chi) QTheta
+        # matrix coefficients are calculated by hand for convenience
         r11 =               np.cos(chi)
         r12 =  0.0
         r13 =              -np.sin(chi)
@@ -195,15 +205,20 @@ class Diffractometer():
         return QPhi
 
     def getQCart(self):
-        """Calculate (Qx, Qy, Qz) set in cartesian reciprocal space from (Qx, Qy, Qz) set in theta-frame"""
+        """Calculate (Qx, Qy, Qz) set in cartesian reciprocal space from (Qx, Qy, Qz) set in theta-frame
+
+        still under construction """
+        
         # still under construction
 
-        #return (np.dot( self.sixcToTardis.T, self.getQPhi().T ) ).T
+        #return (np.dot( self.sixcToFourc.T, self.getQPhi().T ) ).T
 
     def getQHKL(self):
-        """Calc HKL values from (Qx, Qy, Qz) set in theta-frame with UB-matrix"""
+        """Calc HKL values from (Qx, Qy, Qz) set in theta-frame with UB-matrix
+
+        QHKL = UB^-1 sixcToFourc^T QPhi"""
  
-        return ( self.UBinv * np.dot( self.sixcToTardis.T, self.getQPhi().T )  ).T
+        return ( self.UBinv * np.dot( self.sixcToFourc.T, self.getQPhi().T )  ).T
 
 
 
