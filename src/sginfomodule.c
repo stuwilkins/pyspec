@@ -5,12 +5,12 @@
 PyObject *exception = NULL;
 
 PyArrayObject* SeitzToPython(T_RTMx *seitz, int nValues){
-  int twod[] = {nValues, 4, 4};
+  npy_intp twod[] = {nValues, 4, 4};
   float lastrow[] = {0.0, 0.0, 0.0, 1.0};
   float *p;  
   PyArrayObject* SeitzMx;
 
-  SeitzMx = (PyArrayObject *)PyArray_SimpleNew(3, twod, PyArray_FLOAT);
+  SeitzMx = (PyArrayObject *)PyArray_SimpleNew(3, twod, NPY_FLOAT);
 
   for(twod[0]=0; twod[0] < nValues; twod[0]++){
     for(twod[1]=0; twod[1] < 3; twod[1]++){
@@ -38,8 +38,8 @@ PyArrayObject* SeitzToPython(T_RTMx *seitz, int nValues){
   return SeitzMx;
 }
 
-PyArrayObject* TrVectorToPython(T_LatticeInfo *lattice, int nValues){
-  int twod[] = {nValues, 3};
+PyArrayObject* TrVectorToPython(const T_LatticeInfo *lattice, int nValues){
+  npy_intp twod[] = {nValues, 3};
   float *p;  
   PyArrayObject* TrVector;
 

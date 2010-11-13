@@ -959,6 +959,6 @@ if __name__ == "__main__":
     testPlotIm.setHistBin(histBin = 100)
     # plot the images
     testPlotIm.plotImages(plotSelect = range(0, 81, 20), plotType = 'dark')
-    """
+    
     
     plt.show()
