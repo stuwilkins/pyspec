@@ -543,6 +543,12 @@ class SpecScan:
 
         self.scanno = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.scan
 
+        self.ccdAcquireTime = numpy.ones(self.data.shape[0]) * self.ccdAcquireTime
+        self.ccdAcquirePeriod = numpy.ones(self.data.shape[0]) * self.ccdAcquirePeriod
+        self.ccdNumExposures = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.ccdNumExposures 
+        self.ccdNumImages = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.ccdNumImages
+        self.ccdNumAcquisitions = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.ccdNumAcquisitions
+
         # Now set the motors
         self._setcols()
 
@@ -573,6 +579,11 @@ class SpecScan:
 
         self.data = vstack((self.data, a.data))
         self.scanno = concatenate((self.scanno, a.scanno))
+        self.ccdAcquireTime = concatenate((self.ccdAcquireTime, a.ccdAcquireTime))
+        self.ccdAcquirePeriod = concatenate((self.ccdAcquirePeriod, a.ccdAcquirePeriod))
+        self.ccdNumExposures = concatenate((self.ccdNumExposures, a.ccdNumExposures))
+        self.ccdNumImages = concatenate((self.ccdNumImages, a.ccdNumImages))
+        self.ccdNumAcquisitions = concatenate((self.ccdNumAcquisitions, a.ccdNumAcquisitions))
         self._setcols()
 
     def bin(self, a, binbreak = None):
