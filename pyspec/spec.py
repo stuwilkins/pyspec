@@ -144,9 +144,7 @@ class SpecDataFile:
     def setMode(self, mode = 'concatenate'):
         """Set the mdoe to deal with multiple scans
 
-        'mode' can be either 'concatenate' or 'bin'
-
-        """
+        'mode' can be either 'concatenate' or 'bin'"""
         if mode == 'concatenate':
             self.mode = 'concat'
             print "**** Multiple scans will be concatenated."
@@ -177,7 +175,6 @@ class SpecDataFile:
         line = self.file.readline()
         while line[0:2] != "#S":
             if line[0:2] == "#O":
-                #self.motors = self.motors + line.strip()[4:].split()
                 self.motors = self.motors + splitSpecString(line[4:])
             line = self.file.readline()
 
@@ -407,8 +404,7 @@ class SpecScan:
 
         # Define the SIXC angles
 
-        self.sixcAngleNames = ['Delta', 'Theta', 'Chi',
-                               'Phi', 'Mu', 'Gamma']
+        self.sixcAngleNames = ['Delta', 'Theta', 'Chi', 'Phi', 'Mu', 'Gamma']
 
         line = specfile._getLine()
 
@@ -513,7 +509,6 @@ class SpecScan:
 
         if line[0:2] == "#L":
             # Comment line just before data
-            #self.cols = line[3:].strip().split()
             self.cols = splitSpecString(line[3:])
             print "---- %s" % line.strip()
 
@@ -542,6 +537,11 @@ class SpecScan:
                 self.header = self.header + line
 
             line = specfile._getLine()
+
+        if self.data.ndim == 1:
+            self.data = numpy.array([self.data])
+
+        self.scanno = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.scan
 
         # Now set the motors
         self._setcols()
@@ -572,6 +572,7 @@ class SpecScan:
         self.header = self.header + a.header
 
         self.data = vstack((self.data, a.data))
+        self.scanno = concatenate((self.scanno, a.scanno))
         self._setcols()
 
     def bin(self, a, binbreak = None):
@@ -706,11 +707,11 @@ class SpecScan:
             ndps = self.data.shape[0]
 
         filenames = []
-        for i in range(ndps):
+        for i, scan in enumerate(self.scanno):
             _fnames = []
             for j in range(self.ccdNumAcquisitions):
                 _f = "%s_%04d-%04d%s_%04d%s" % (_datafile[-1], 
-                                                self.scan, i, _dark, j,
+                                                scan, i, _dark, j,
                                                 self.datafile.ccdtail)
                 _fnames.append("%s%s" % (_path, _f))
             filenames.append(_fnames)
