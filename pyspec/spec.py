@@ -718,7 +718,7 @@ class SpecScan:
             ndps = self.data.shape[0]
 
         filenames = []
-        for i, scan, cna in enumerate(zip(self.scanno, self.ccdNumAcquisitions)):
+        for i, (scan, cna) in enumerate(zip(self.scanno, self.ccdNumAcquisitions)):
             _fnames = []
             for j in range(cna):
                 _f = "%s_%04d-%04d%s_%04d%s" % (_datafile[-1], 
