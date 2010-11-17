@@ -56,7 +56,7 @@ __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
-class MyConfigParser(ConfigParser):
+class CCDParamsConfigParser(ConfigParser):
     def readAllLocations(self, filename):
         _f = os.path.split(filename)
 
@@ -78,6 +78,7 @@ class MyConfigParser(ConfigParser):
             
     def getWithDefault(self,section, option, default):
         return Config.get(section, option, vars = { option : default })
+    
     def _getWithConvert(self,_conv_fcn, section, option, default):
         try:
             val = self.getWithDefault(section, option, default)
@@ -283,8 +284,9 @@ class FileProcessor():
             return PrincetonSPEFile(iname).getBinnedData()
         else:
             raise Exception("Unknown file format \"%s.\"" % self._format)
+
     def getImage(self, n = None):
-        """Get the image data"""
+        """Return the image data"""
         if n is None:
             return self.images
         else:
@@ -351,7 +353,6 @@ class ImageProcessor():
         self.fitType     = 'lor2a'
         # output information
         self.opTitle     = 'Image Processing'
-        self.projName    = ''
         self._makeSetInfo()
         self._makeModeInfo()
         self.opProcInfo  = ''
@@ -361,27 +362,13 @@ class ImageProcessor():
         self.totSet = None
 
     def readConfigFile(self, filename):
-        config = MyConfigParser()
+        config = CCDParamsConfigParser()
         config.read(filename)
         config.get(self.ccdname, '', vars = {})
         
     #
     # set and get part
     #
-
-    def setProjName(self, projName):
-        """Set the name of the current project
-
-        projName: name of the current project"""
-
-        self.projName = projName
-
-    def getProjName(self, projName):
-        """Get the name of the current project
-
-        projName: name of the current project"""
-
-        return self.projName
 
     def setDetectorProp(self, detPixSizeX, detPixSizeY, detSizeX, detSizeY, detX0, detY0):
         """Set properties of used detector
@@ -401,7 +388,7 @@ class ImageProcessor():
         self.detY0       = detY0
 
     def getDetectorProp(self):
-        """Get properties of used detector
+        """Get properties of used detector returned as a tuple
 
         detPixSizeX : detector pixel size in detector X-direction (float in mm)
         detPixSizeY : detector pixel size in detector Y-direction (float in mm)
@@ -522,7 +509,7 @@ class ImageProcessor():
     def getSpecScan(self):
         """Get the pyspec scan object which was used for the set settings
         
-        conScan : pyspec scan object which contains the needed information"""
+        returns pyspec scan object which contains the needed information"""
 
         return self.conScan
 
@@ -548,7 +535,15 @@ class ImageProcessor():
 
         if isinstance(mode, str):
             if mode == 'theta':
-                self.framMode = 1
+                self.frameMode = 1
+            elif mode == 'phi':
+                self.frameMode = 2
+            elif mode == 'cart':
+                self.frameMode = 3
+            elif mode == 'hkl':
+                self.frameMode = 4
+            else:
+                raise Exception("Unknown mode %s." % mode)
 
         self.frameMode = mode
         self._preAxesLabels()
@@ -585,9 +580,9 @@ class ImageProcessor():
         Qmax : maximum values of the cuboid [Qx, Qy, Qz]_max
         dQN  : no. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
 
-        self.Qmin = Qmin
-        self.Qmax = Qmax
-        self.dQN  = dQN
+        self.Qmin = array(Qmin)
+        self.Qmax = array(Qmax)
+        self.dQN  = array(dQN)
 
     def getGridOptions(self):
         """Get the options for the gridding of the dataset
@@ -604,6 +599,20 @@ class ImageProcessor():
         qVal : list of the Qx, Qy, and Qz values"""
 
         return self.qVal
+
+    def getGridMesh(self):
+        """Return the grid vectors as a mesh.
+
+        Returns the grid x,y,z coordinates as 3 3D arrays of values"""
+        
+        grid = np.mgrid[0:self.dQn[0], 0:self.dQn[1], 0:self.dQn[2]]
+        r = (self.Qmax - self.Qmin) / self.dQN
+
+        X = grid[0] * r[0]
+        Y = grid[1] * r[1]
+        Z = grid[2] * r[2]
+        
+        return X, Y, Z
 
     def setFit1D(self, fit1D = 0, fitType = 'lor2a'):
         """Set whether 1D lines get fitted (1)
@@ -937,15 +946,6 @@ class ImageProcessor():
             self.opModeInfo = 'Frame Mode 3: (Qx, Qy, Qz) in cartesian-frame and (1/Angstrom)'
         if mode == 4:
             self.opModeInfo = 'Frame Mode 4: (H, K, L) in hkl-frame and (reciprocal lattice units)'
-
-    def _makeHeaderInfo(self):
-        """Create header for output files"""
-
-        if self.projName == '':
-            opGap = ''
-        else:
-            opGap = ' - '
-        self.opHeader = '%s%s%s\n%s\n%s' % (self.opTitle, opGap, self.projName, self.opSetInfo, self.opModeInfo)
 
     def _makeFitInfo1D(self, allRes, fitType = None, fitTitle = None, fitNames = None):
         """Create information output for the fit results in 1D

@@ -58,6 +58,7 @@ import time
 import sys
 import os
 import numpy
+import copy
 from numpy import *
 from scipy import *
 from pylab import *
@@ -249,7 +250,7 @@ class SpecDataFile:
         for s in self.findex.keys():
             self.getScan(s, *args, **kwargs)
 
-    def getScan(self, item, setkeys = True):
+    def getScan(self, item, setkeys = True, persistent = False):
         """Get a scan from the data file
 
         This routine gets a scan from the data file and loads it into the
@@ -274,29 +275,31 @@ class SpecDataFile:
             items = item.tolist()
         else:
             raise Exception("item can only be <int>, <float>, <list>, <array> or <tuple>")
-
+        
         self.file = open(self.filename, 'rb')
         rval = []
         n = 0
         for i in items:
-            if self.scandata.has_key(i) is False:
-                if __verbose__:
+            if __verbose__:
                     print "**** Reading scan/item %s" % i
+            if self.scandata.has_key(i) is False:
                 self._moveto(i)
                 self.scandata[i] = SpecScan(self, i, setkeys)
+
             rval.append(self.scandata[i])
 
+        self.file.close()
+                
         if len(rval) > 1:
+            newscan = copy.deepcopy(rval[0])
             for i in range(len(rval)-1):
                 if self.mode == 'concat':
-                    rval[0].concatenate(rval[i+1])
+                    newscan.concatenate(rval[i+1])
                 elif self.mode == 'bin':
-                    rval[0].bin(rval[i+1], binbreak = 'Seconds')
+                    newscan.bin(rval[i+1], binbreak = 'Seconds')
                 else:
                     raise Exception("Unknown mode to deal with multiple scans.")
-            rval = [rval[0]]
-
-        self.file.close()
+            rval = [newscan]
 
         if self.userFuncs is not None:
             for uF in self.userFuncs:
@@ -311,46 +314,6 @@ class SpecDataFile:
         if __verbose__ & 0x10:
             print "xxxx %s" % line.strip()
         return line
-
-    def multifit(self, scans, funcs = None, mvar = None):
-
-        cnt = 1
-
-        results = None
-
-        for i in scans:
-            print i
-            subplot(220 + cnt)
-
-            s = self[int(i)]
-
-            if funcs != None:
-                onefit = s.plot(notitles = True).fit(funcs)
-            else:
-                s.plot(notitles = True)
-
-            if mvar != None:
-                mvarval = mean(s.scandata.values[mvar])
-                title("%s = %f" % (mvar, mvarval))
-            if cnt == 4:
-                cnt = 1
-                figure()
-            else:
-                cnt += 1
-
-            if mvar != None:
-                onestack = array([mvarval])
-            else:
-                onestack = array([])
-
-            onestack = hstack((onestack, array([i]), onefit[0,:], onefit[1,:]))
-
-            if results == None:
-                results = onestack
-            else:
-                results = vstack((results, onestack))
-
-        return results
 
 class SpecScan:
     """Class defining a SPEC scan
@@ -390,8 +353,6 @@ class SpecScan:
         item           : [item]     Scan item.
         setkeys        : [bool]     If true set items of the class
                                     from all variables.
-
-
         """
 
         # Keep track of the datafile
@@ -576,14 +537,15 @@ class SpecScan:
         # Could put check in here for cols matching ?!?
 
         self.header = self.header + a.header
-
         self.data = vstack((self.data, a.data))
         self.scanno = concatenate((self.scanno, a.scanno))
+
         self.ccdAcquireTime = concatenate((self.ccdAcquireTime, a.ccdAcquireTime))
         self.ccdAcquirePeriod = concatenate((self.ccdAcquirePeriod, a.ccdAcquirePeriod))
         self.ccdNumExposures = concatenate((self.ccdNumExposures, a.ccdNumExposures))
         self.ccdNumImages = concatenate((self.ccdNumImages, a.ccdNumImages))
         self.ccdNumAcquisitions = concatenate((self.ccdNumAcquisitions, a.ccdNumAcquisitions))
+
         self._setcols()
 
     def bin(self, a, binbreak = None):
@@ -735,8 +697,6 @@ class SpecData:
     """Class defining the data contained in a scan"""
     def __init__(self):
         self.values = {}
-    #def __call__(self, key):
-    #    print key
 
     def setValue(self, key, data, setdata = True):
         self.values[key] = data
