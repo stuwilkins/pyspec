@@ -42,7 +42,7 @@ except:
 """
 
 __version__   = "$Revision$"
-__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>, Sven Partzsch <SvenPartzsch@gmx.de>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
@@ -937,6 +937,7 @@ if __name__ == "__main__":
     
     p = CCDPlot(fp.getImage())
     p.draw()
+    
     """
     
     testData = ImageProcessor()
@@ -1002,4 +1003,5 @@ if __name__ == "__main__":
     testPlotIm.plotImages(plotSelect = range(0, 81, 20), plotType = 'dark')
     
     """
+    
     plt.show()

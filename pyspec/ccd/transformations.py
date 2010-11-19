@@ -52,7 +52,7 @@ except:
 gc.enable()
 
 __version__   = "$Revision$"
-__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
+__author__    = "Stuart B. Wilkins <stuwilkins@mac.com>, Sven Partzsch <SvenPartzsch@gmx.de>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
@@ -348,6 +348,8 @@ class ImageProcessor():
         self.setFrameMode(1)
         # gridder options
         self.setGridOptions()
+        # cut indicies
+        self.cutInd = None
         # 1D fit options
         self.fit1D       = False
         self.fitType     = 'lor2a'
@@ -580,9 +582,9 @@ class ImageProcessor():
         Qmax : maximum values of the cuboid [Qx, Qy, Qz]_max
         dQN  : no. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
 
-        self.Qmin = array(Qmin)
-        self.Qmax = array(Qmax)
-        self.dQN  = array(dQN)
+        self.Qmin = np.array(Qmin)
+        self.Qmax = np.array(Qmax)
+        self.dQN  = np.array(dQN)
 
     def getGridOptions(self):
         """Get the options for the gridding of the dataset
@@ -613,6 +615,22 @@ class ImageProcessor():
         Z = grid[2] * r[2]
         
         return X, Y, Z
+
+    def setCutInd(self, cutInd):
+        """Set the cut indicies
+
+        cutInd : cut indices, [nx, ny, nz]
+                 if None, indicies of maximum is taken"""
+
+        self.cutInd = cutInd
+
+    def getCutInd(self):
+        """Get the cut indicies
+
+        cutInd : cut indices, [nx, ny, nz]
+                 if None, indicies of maximum is taken"""
+
+        return self.cutInd
 
     def setFit1D(self, fit1D = 0, fitType = 'lor2a'):
         """Set whether 1D lines get fitted (1)
@@ -1163,35 +1181,51 @@ class ImageProcessor():
 
         return gridData2DSum, gridOccu2DSum
     
-    def get1DCut(self):
+    def get1DCut(self, cutInd = None):
         """1D Lines of the grid data and occupations at the position of the maximum intensity
+
+        cutInd : cut indices, [nx, ny, nz], if None, default
+                 if default None, indicies of maximum is taken
 
         returns
         gridData1DCut : intensity set  in the order Qx, Qy, Qz as list
         gridOccu1DCut : occupation no. in the order Qx, Qy, Qz as list"""
 
-        gridData1DCut = [self.gridData[:,self.maxInd[1],self.maxInd[2]],
-                         self.gridData[self.maxInd[0],:,self.maxInd[2]],
-                         self.gridData[self.maxInd[0],self.maxInd[1],:]]
-        gridOccu1DCut = [self.gridOccu[:,self.maxInd[1],self.maxInd[2]],
-                         self.gridOccu[self.maxInd[0],:,self.maxInd[2]],
-                         self.gridOccu[self.maxInd[0],self.maxInd[1],:]]
+        if cutInd == None:
+            cutInd = self.cutInd
+        if cutInd == None:
+            cutInd = self.maxInd   
+
+        gridData1DCut = [self.gridData[:,self.cutInd[1],self.cutInd[2]],
+                         self.gridData[self.cutInd[0],:,self.cutInd[2]],
+                         self.gridData[self.cutInd[0],self.cutInd[1],:]]
+        gridOccu1DCut = [self.gridOccu[:,self.cutInd[1],self.cutInd[2]],
+                         self.gridOccu[self.cutInd[0],:,self.cutInd[2]],
+                         self.gridOccu[self.cutInd[0],self.cutInd[1],:]]
 
         return gridData1DCut, gridOccu1DCut
     
     def get2DCut(self):
         """2D Areas of the grid data and occupations at the position of the maximum intensity
 
+        cutInd : cut indices, [nx, ny, nz], if None, default
+                 if default None, indicies of maximum is taken
+
         returns
         gridData2DCut : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
         gridOccu2DCut : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
 
-        gridData2DCut = [self.gridData[self.maxInd[0],:,:],
-                         self.gridData[:,self.maxInd[1],:],
-                         self.gridData[:,:,self.maxInd[2]]]
-        gridOccu2DCut = [self.gridOccu[self.maxInd[0],:,:],
-                         self.gridOccu[:,self.maxInd[1],:],
-                         self.gridOccu[:,:,self.maxInd[2]]]
+        if cutInd == None:
+            cutInd = self.cutInd
+        if cutInd == None:
+            cutInd = self.maxInd 
+
+        gridData2DCut = [self.gridData[self.cutInd[0],:,:],
+                         self.gridData[:,self.cutInd[1],:],
+                         self.gridData[:,:,self.cutInd[2]]]
+        gridOccu2DCut = [self.gridOccu[self.cutInd[0],:,:],
+                         self.gridOccu[:,self.cutInd[1],:],
+                         self.gridOccu[:,:,self.cutInd[2]]]
 
         return gridData2DCut, gridOccu2DCut
 
@@ -1199,9 +1233,17 @@ class ImageProcessor():
         """1D averaged Lines of the grid data and occupations at the position of the maximum
         intensity and its eight neighbored lines 
 
+        cutInd : cut indices, [nx, ny, nz], if None, default
+                 if default None, indicies of maximum is taken
+
         returns
         gridData1DCutAv : intensity set  in the order Qx, Qy, Qz as list
         gridOccu1DCutAv : occupation no. in the order Qx, Qy, Qz as list"""
+
+        if cutInd == None:
+            cutInd = self.cutInd
+        if cutInd == None:
+            cutInd = self.maxInd 
 
         # initialize with correct size as zeros
         gridData1DCutAv = [np.zeros(self.dQN[0]),np.zeros(self.dQN[1]),np.zeros(self.dQN[2])]
@@ -1211,12 +1253,12 @@ class ImageProcessor():
         # go through the neighbors
         for i in range(3):
             for j in range(3):
-                gridData1DCutAv[0] += self.gridData[:,self.maxInd[1]+i-1,self.maxInd[2]+j-1]/9.0
-                gridData1DCutAv[1] += self.gridData[self.maxInd[0]+i-1,:,self.maxInd[2]+j-1]/9.0
-                gridData1DCutAv[2] += self.gridData[self.maxInd[0]+i-1,self.maxInd[1]+j-1,:]/9.0
-                gridOccu1DCutAv[0] += self.gridOccu[:,self.maxInd[1]+i-1,self.maxInd[2]+j-1]/9.0
-                gridOccu1DCutAv[1] += self.gridOccu[self.maxInd[0]+i-1,:,self.maxInd[2]+j-1]/9.0
-                gridOccu1DCutAv[2] += self.gridOccu[self.maxInd[0]+i-1,self.maxInd[1]+j-1,:]/9.0
+                gridData1DCutAv[0] += self.gridData[:,self.cutInd[1]+i-1,self.cutInd[2]+j-1]/9.0
+                gridData1DCutAv[1] += self.gridData[self.cutInd[0]+i-1,:,self.cutInd[2]+j-1]/9.0
+                gridData1DCutAv[2] += self.gridData[self.cutInd[0]+i-1,self.cutInd[1]+j-1,:]/9.0
+                gridOccu1DCutAv[0] += self.gridOccu[:,self.cutInd[1]+i-1,self.cutInd[2]+j-1]/9.0
+                gridOccu1DCutAv[1] += self.gridOccu[self.cutInd[0]+i-1,:,self.cutInd[2]+j-1]/9.0
+                gridOccu1DCutAv[2] += self.gridOccu[self.cutInd[0]+i-1,self.cutInd[1]+j-1,:]/9.0
         
         return gridData1DCutAv, gridOccu1DCutAv
 
@@ -1224,9 +1266,17 @@ class ImageProcessor():
         """2D average Areas of the grid data and occupations at the position of the maximum
         intensity and the their two neighbors
 
+        cutInd : cut indices, [nx, ny, nz], if None, default
+                 if default None, indicies of maximum is taken
+
         returns
         gridData2DCutAv : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
         gridOccu2DCutAv : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
+
+        if cutInd == None:
+            cutInd = self.cutInd
+        if cutInd == None:
+            cutInd = self.maxInd 
 
         # initialize with correct size as zeros
         gridData2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1])))[0],
@@ -1238,12 +1288,12 @@ class ImageProcessor():
         print gridData2DCutAv[0].shape
         # go through the neighbors
         for i in range(3):
-            gridData2DCutAv[0] += self.gridData[self.maxInd[0]+i-1,:,:]/3.0
-            gridData2DCutAv[1] += self.gridData[:,self.maxInd[1]+i-1,:]/3.0
-            gridData2DCutAv[2] += self.gridData[:,:,self.maxInd[2]+i-1]/3.0
-            gridOccu2DCutAv[0] += self.gridOccu[self.maxInd[0]+i-1,:,:]/3.0
-            gridOccu2DCutAv[1] += self.gridOccu[:,self.maxInd[1]+i-1,:]/3.0
-            gridOccu2DCutAv[2] += self.gridOccu[:,:,self.maxInd[2]+i-1]/3.0
+            gridData2DCutAv[0] += self.gridData[self.cutInd[0]+i-1,:,:]/3.0
+            gridData2DCutAv[1] += self.gridData[:,self.cutInd[1]+i-1,:]/3.0
+            gridData2DCutAv[2] += self.gridData[:,:,self.cutInd[2]+i-1]/3.0
+            gridOccu2DCutAv[0] += self.gridOccu[self.cutInd[0]+i-1,:,:]/3.0
+            gridOccu2DCutAv[1] += self.gridOccu[:,self.cutInd[1]+i-1,:]/3.0
+            gridOccu2DCutAv[2] += self.gridOccu[:,:,self.cutInd[2]+i-1]/3.0
         return gridData2DCutAv, gridOccu2DCutAv
 
     def getIntIntensity(self):
