@@ -781,9 +781,9 @@ class PlotGrid():
                     minPosVal = (intentArea[i] > 0.0).min()
                     negPart   = intentArea[i] <= 0
                     negPart   = np.ones(negPart.shape) * minPosVal
-                    cax  = ax.imshow(intentArea[i], norm=LogNorm(), extent = [minSetAx1[i], maxSetAx1[i], maxSetAx0[i], minSetAx0[i]])
+                    cax  = ax.imshow(intentArea[i], norm=LogNorm(), origin = 'lower', extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
                 else:
-                    cax  = ax.imshow(intentArea[i], extent = [minSetAx1[i], maxSetAx1[i], maxSetAx0[i], minSetAx0[i]])
+                    cax  = ax.imshow(intentArea[i], origin = 'lower', extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
                 fig.colorbar(cax)
                 ax.set_aspect(1./ax.get_data_ratio())
                 ax.set_xlabel(labelsAx1[i], fontsize = 18)
@@ -935,10 +935,10 @@ if __name__ == "__main__":
     fp.process()
 
     
-    p = CCDPlot(fp.getImage())
-    p.draw()
+    #p = CCDPlot(fp.getImage())
+    #p.draw()
     
-    """
+    
     
     testData = ImageProcessor()
 
@@ -971,9 +971,11 @@ if __name__ == "__main__":
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
 
+    """
+
     testData = np.array([[range(0,3),range(3,6)],[range(6,9),range(9,12)]])
     testOccu = np.array([[np.zeros(3),[2,5,7]],[[0,4,2],[7,0,8]]])
-    testPlot = PlotGrid()
+    testPlot = PlotGrid(testData)
     testPlot.setPlotFlags(7, 7)
     testPlot.setLogFlags(0, 3)
     # axes configuration
