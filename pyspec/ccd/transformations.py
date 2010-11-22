@@ -582,9 +582,9 @@ class ImageProcessor():
         Qmax : maximum values of the cuboid [Qx, Qy, Qz]_max
         dQN  : no. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
 
-        self.Qmin = np.array(Qmin)
-        self.Qmax = np.array(Qmax)
-        self.dQN  = np.array(dQN)
+        self.Qmin = Qmin
+        self.Qmax = Qmax
+        self.dQN  = dQN
 
     def getGridOptions(self):
         """Get the options for the gridding of the dataset
@@ -936,10 +936,6 @@ class ImageProcessor():
         except:
             self.opSetInfo += '\n'
         try:
-            self.opSetInfo += 'Sample Temperature: %.2f K\t' % (self.temperature)
-        except:
-           self.opSetInfo += '' 
-        try:
             self.opSetInfo += 'Photon Wavelength: %.2f Angst.\t' % (self.waveLen)
         except:
            self.opSetInfo += ''
@@ -1019,13 +1015,14 @@ class ImageProcessor():
             dg = (gMax - gMin) / self.dQN
         emptNb = (gOccu == 0).sum()
         
-        gridInfo = '\n\n%s sets processed to grid\n' % (self.setEntLabel) + \
-            'Grid dimension = %s \t No. of bins in the grid %.2e\n' % (dg, gData.size) + \
-            'Data points outside the grid : %.2e \t Bins with zero information : %.2e' % (gOut, emptNb)
-        gridInfo += '\n\t min \t\t max \t\t step'
-        line = '\n%s \t %.2e \t %.2e \t %.2e'
+        gridInfo = '\n\n%s sets processed to grid\n'   % (self.setEntLabel) + \
+            'No. of bins in the grid : \t %.2e\n'      % (gData.size) + \
+            'Data points outside the grid : \t %.2e\n' % (gOut) + \
+            'Bins with zero information : \t %.2e'     % (emptNb)
+        gridInfo += '\n\t min \t\t max \t\t step \t\t width'
+        line = '\n%s' + 4*' \t %.2e'
         for i in range(gMin.size):
-            gridInfo += line % (self.qLabel[i], gMin[i], gMax[i], dg[i])
+            gridInfo += line % (self.qLabel[i], gMin[i], gMax[i], dg[i], gMax[i]-gMin[i])
 
         return gridInfo
 
@@ -1119,14 +1116,14 @@ class ImageProcessor():
             self.dQN = [100, 100, 100]
 
         # use alias for grid options
-        Qmin = self.Qmin
-        Qmax = self.Qmax
-        dQN  = self.dQN
+        Qmin = np.array(self.Qmin)
+        Qmax = np.array(self.Qmax)
+        dQN  = np.array(self.dQN)
 
         # 3D grid of the data set 
         print "**** Gridding Data."
         t1 = time.time()
-        gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet,Qmin, Qmax, dQN, norm = 1)
+        gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet, Qmin, Qmax, dQN, norm = 1)
         t2 = time.time()
         print "---- DONE (Processed in %f seconds)" % (t2 - t1)
         emptNb = (gridOccu == 0).sum()
@@ -1196,16 +1193,16 @@ class ImageProcessor():
         if cutInd == None:
             cutInd = self.maxInd   
 
-        gridData1DCut = [self.gridData[:,self.cutInd[1],self.cutInd[2]],
-                         self.gridData[self.cutInd[0],:,self.cutInd[2]],
-                         self.gridData[self.cutInd[0],self.cutInd[1],:]]
-        gridOccu1DCut = [self.gridOccu[:,self.cutInd[1],self.cutInd[2]],
-                         self.gridOccu[self.cutInd[0],:,self.cutInd[2]],
-                         self.gridOccu[self.cutInd[0],self.cutInd[1],:]]
+        gridData1DCut = [self.gridData[:, cutInd[1], cutInd[2]],
+                         self.gridData[cutInd[0], :, cutInd[2]],
+                         self.gridData[cutInd[0], cutInd[1], :]]
+        gridOccu1DCut = [self.gridOccu[:, cutInd[1], cutInd[2]],
+                         self.gridOccu[cutInd[0], :, cutInd[2]],
+                         self.gridOccu[cutInd[0], cutInd[1], :]]
 
         return gridData1DCut, gridOccu1DCut
     
-    def get2DCut(self):
+    def get2DCut(self, cutInd = None):
         """2D Areas of the grid data and occupations at the position of the maximum intensity
 
         cutInd : cut indices, [nx, ny, nz], if None, default
@@ -1220,12 +1217,12 @@ class ImageProcessor():
         if cutInd == None:
             cutInd = self.maxInd 
 
-        gridData2DCut = [self.gridData[self.cutInd[0],:,:],
-                         self.gridData[:,self.cutInd[1],:],
-                         self.gridData[:,:,self.cutInd[2]]]
-        gridOccu2DCut = [self.gridOccu[self.cutInd[0],:,:],
-                         self.gridOccu[:,self.cutInd[1],:],
-                         self.gridOccu[:,:,self.cutInd[2]]]
+        gridData2DCut = [self.gridData[cutInd[0], :, :],
+                         self.gridData[:, cutInd[1], :],
+                         self.gridData[:, :, cutInd[2]]]
+        gridOccu2DCut = [self.gridOccu[cutInd[0], :, :],
+                         self.gridOccu[:, cutInd[1], :],
+                         self.gridOccu[:, :, cutInd[2]]]
 
         return gridData2DCut, gridOccu2DCut
 
@@ -1350,8 +1347,8 @@ class ImageProcessor():
     def makeInfo(self):
         """Create the information about the current processing"""
 
-        self._makeHeaderInfo()
-        curInfo = '%s%s' % (self.opHeader, self.opProcInfo)
+        self._makeSetInfo()
+        curInfo = '%s%s' % (self.opSetInfo, self.opProcInfo)
 
         return curInfo
 
@@ -1441,10 +1438,10 @@ if __name__ == "__main__":
     #testPlotter.plotImages()
 
     testPlotter.setPlot1DFit(True)
-    testPlotter.plotGrid1D('sum')
-    testPlotter.plotGrid2D('sum')
-    testPlotter.plotGrid1D('cut')
-    testPlotter.plotGrid2D('cut')
+    #testPlotter.plotGrid1D('sum')
+    #testPlotter.plotGrid2D('sum')
+    #testPlotter.plotGrid1D('cut')
+    #testPlotter.plotGrid2D('cut')
     
     print '\n\n'
     print testData.makeInfo()
