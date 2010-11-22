@@ -798,9 +798,9 @@ class PlotGrid():
             for i in range(3):
                 ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
                 if self.logFlag2D & 2:
-                    cax  = ax.imshow(occuArea[i], norm=LogNorm(), extent = [minSetAx1[i], maxSetAx1[i], maxSetAx0[i], minSetAx0[i]])
+                    cax  = ax.imshow(occuArea[i], norm=LogNorm(), origin = 'lower', extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
                 else:
-                    cax  = ax.imshow(occuArea[i], extent = [minSetAx1[i], maxSetAx1[i], maxSetAx0[i], minSetAx0[i]])
+                    cax  = ax.imshow(occuArea[i], origin = 'lower', extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
                 fig.colorbar(cax)
                 ax.set_aspect(1./ax.get_data_ratio())
                 ax.set_xlabel(labelsAx1[i], fontsize = 18)
