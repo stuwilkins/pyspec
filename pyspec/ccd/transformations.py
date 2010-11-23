@@ -501,7 +501,7 @@ class ImageProcessor():
 
         self.conScan = conScan
         self._setBySpec()
-        self.fileProcessor.setFromSpec(scan)
+        self.fileProcessor.setFromSpec(conScan)
         self.fileProcessor.process()
    
     def getSpecScan(self):
