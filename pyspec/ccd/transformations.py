@@ -348,8 +348,9 @@ class ImageProcessor():
         self.setFrameMode(1)
         # gridder options
         self.setGridOptions()
-        # cut indicies
+        # cut indicies and position
         self.cutInd = None
+        self.setCutPos()
         # 1D fit options
         self.fit1D       = False
         self.fitType     = 'lor2a'
@@ -581,10 +582,10 @@ class ImageProcessor():
         Qmin : minimum values of the cuboid [Qx, Qy, Qz]_min
         Qmax : maximum values of the cuboid [Qx, Qy, Qz]_max
         dQN  : no. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
-
-        self.Qmin = Qmin
-        self.Qmax = Qmax
-        self.dQN  = dQN
+        
+        self.Qmin = np.array(Qmin)
+        self.Qmax = np.array(Qmax)
+        self.dQN  = np.array(dQN)
 
     def getGridOptions(self):
         """Get the options for the gridding of the dataset
@@ -631,6 +632,22 @@ class ImageProcessor():
                  if None, indicies of maximum is taken"""
 
         return self.cutInd
+    
+    def setCutPos(self, cutPos = None):
+        """Set the cut position
+
+        cutPos : cut position, [qx, qy, qz]
+                 if None, indicies of maximum is taken"""
+
+        self.cutPos = np.array(cutPos)
+
+    def getCutPos(self, cutPos):
+        """Get the cut position
+
+        cutPos : cut position, [qx, qy, qz]
+                 if None, indicies of maximum is taken"""
+
+        return self.cutPos
 
     def setFit1D(self, fit1D = 0, fitType = 'lor2a'):
         """Set whether 1D lines get fitted (1)
@@ -872,6 +889,20 @@ class ImageProcessor():
         ind0 = maxN / self.dQN[2] / self.dQN[1]
         self.maxInd = np.array([ind0, ind1, ind2])    
 
+    def _calcCutInd(self):
+        """Calculates the cutting indices from the given position"""
+        
+        if (self.cutPos != np.array(None)).all():
+            cutInd = list(((self.cutPos - self.Qmin)/(self.Qmax - self.Qmin)*self.dQN).astype(int))
+            if (cutInd < np.array(self.dQN)).all():
+                if self.cutInd != None:
+                    print 'Cutting indices had been set to %s,' % (self.cutInd)
+                    print 'but are replaced by %s calculated from cutting position %s' % (cutInd, self.cutPos)
+                self.cutInd = cutInd
+            else:
+                print 'Cutting indices %s calculated from cutting position %s not set' % (cutInd, self.cutPos)
+                print 'because bigger than grid index size %s' % (self.dQN)
+
     def _fit1DData(self, xVal, yVal, fitType = None, infoDes = ''):
         """Fit a 1D data set
 
@@ -1108,22 +1139,17 @@ class ImageProcessor():
         print "---- Total data is %f MBytes\n" % (self.totSet.nbytes / 1024.0**2)
         
         # prepare min, max,...
-        if self.Qmin == None:
+        if (self.Qmin == np.array(None)).all():
             self.Qmin = np.array([ self.totSet[:,0].min(), self.totSet[:,1].min(), self.totSet[:,2].min() ])
-        if self.Qmax == None:
+        if (self.Qmax == np.array(None)).all():
             self.Qmax = np.array([ self.totSet[:,0].max(), self.totSet[:,1].max(), self.totSet[:,2].max() ])
-        if self.dQN  == None:
+        if (self.dQN  == np.array(None)).all():
             self.dQN = [100, 100, 100]
-
-        # use alias for grid options
-        Qmin = np.array(self.Qmin)
-        Qmax = np.array(self.Qmax)
-        dQN  = np.array(self.dQN)
 
         # 3D grid of the data set 
         print "**** Gridding Data."
         t1 = time.time()
-        gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet, Qmin, Qmax, dQN, norm = 1)
+        gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
         t2 = time.time()
         print "---- DONE (Processed in %f seconds)" % (t2 - t1)
         emptNb = (gridOccu == 0).sum()
@@ -1188,11 +1214,13 @@ class ImageProcessor():
         gridData1DCut : intensity set  in the order Qx, Qy, Qz as list
         gridOccu1DCut : occupation no. in the order Qx, Qy, Qz as list"""
 
+        self._calcCutInd()
+        
         if cutInd == None:
             cutInd = self.cutInd
         if cutInd == None:
-            cutInd = self.maxInd   
-
+            cutInd = self.maxInd
+            
         gridData1DCut = [self.gridData[:, cutInd[1], cutInd[2]],
                          self.gridData[cutInd[0], :, cutInd[2]],
                          self.gridData[cutInd[0], cutInd[1], :]]
@@ -1211,6 +1239,8 @@ class ImageProcessor():
         returns
         gridData2DCut : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
         gridOccu2DCut : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
+
+        self._calcCutInd()
 
         if cutInd == None:
             cutInd = self.cutInd
@@ -1236,6 +1266,8 @@ class ImageProcessor():
         returns
         gridData1DCutAv : intensity set  in the order Qx, Qy, Qz as list
         gridOccu1DCutAv : occupation no. in the order Qx, Qy, Qz as list"""
+
+        self._calcCutInd()
 
         if cutInd == None:
             cutInd = self.cutInd
@@ -1380,32 +1412,40 @@ if __name__ == "__main__":
 
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/ymn2o5_oct10/ymn2o5_oct10_1', 
     			     ccdpath = '/mounts/davros/nasshare/images/oct10')
-    scan = sf[320]
+    scan = sf[318]
+
+    ###
+    # file processor
+    ###
 
     fp = FileProcessor()
     fp.setFromSpec(scan)
     fp.process()
-    fp.processBgnd(maskroi =[[100, 100, 100, 100]])
+    #fp.processBgnd(maskroi =[[100, 100, 100, 100]])
     #fp.save('/mounts/timelord/storage/tmpimage.npz')
     #fp.load('/mounts/timelord/storage/tmpimage.npz')
 
-    testData = ImageProcessor()
+    ###
+    # image processor and options
+    ###
 
+    testData = ImageProcessor()
     testData.setDetectorAngle(-1.24)
     testData.setBins(4, 4)
     testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(4)
-    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
+    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 120, 90])
+    testData.setCutPos([0.4750, 0.0, 0.2856])
     #testData.processMode = 'builtin'
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
 
-    #testData.setPlotIm(plotImSelect = [40], plotImHor = 4, plotImVer = 3)
-    #testData.plotImages()
+    ###
+    # grid of image set
+    ###    
     
-    #imSet  = testData.processOneSet(procSelect = [40])
     #testData.makeGridData(procSelect = [40])
     testData.makeGridData()
 
@@ -1413,36 +1453,42 @@ if __name__ == "__main__":
     #lineData, lineOccu = testData.get1DCut()
     #areaData, areaOccu = testData.get2DCut()
 
-    # plot options
-    #testData.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
-    #testData.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
-    #testData.setPlotFlags(7, 7)
-    #testData.setLogFlags(0, 3)
-    #testData.setFit1D(True)
-    #testData.setHistBin(50)
- 
-    #testData.plotGrid1DSum()
-    #testData.plotGrid2DSum()
-    #testData.plotGrid1DCut()
-    #testData.plotGrid2DCut()
-    #testData.plotGrid1DCutAv()
-    #testData.plotGrid2DCutAv()
-    #testData.plotAll()
- 
-    # test of input output file handling
+    ###
+    # test plotter
+    ###
 
-    # test with plotter directly
     testPlotter = PlotGrid(testData)
+
+    ###
+    # plot of raw images
+    ###
 
     #testPlotter.setPlotIm(plotImSelect = range(121), plotImHor = 4, plotImVer = 3)
     #testPlotter.plotImages()
 
+    ###
+    # plot grid data
+    ###
+
+    # plot options
+
+    #testPlotter.setPlotFlags(7, 7)
+    testPlotter.setLogFlags(3, 3)
+    #testPlotter.setFit1D(True)
+    #testPlotter.setHistBin(50)
     testPlotter.setPlot1DFit(True)
+
+    # plot jobs
+
     #testPlotter.plotGrid1D('sum')
     #testPlotter.plotGrid2D('sum')
-    #testPlotter.plotGrid1D('cut')
-    #testPlotter.plotGrid2D('cut')
+    testPlotter.plotGrid1D('cut')
+    testPlotter.plotGrid2D('cut')
     
+    ###
+    # processing information
+    ###
+
     print '\n\n'
     print testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')
