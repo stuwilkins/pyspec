@@ -324,23 +324,25 @@ class ImageProcessor():
     the set of reciprocal vectors and intensities is gridded on a regular cuboid
     the needed informations can be provided by a spec scan from the pyspec package"""
 
-    def __init__(self, configfile = None, ccdname = 'CCD',
-                 spec = None, fp = None):
-        # set parameters to configure the CCD setup
-        # detector distance 30cm and detector pixel size 20um
+    def __init__(self, fP, configfile = None, ccdname = 'CCD',
+                 spec = None):
+        """Initialize the image processor
+
+        fP         : file processor object for getting the images
+        configfile : 
+        ccdname    :
+        spec       : """
+        
+        # file processor to provied the needed images
+        self.fileProcessor = fP
 
         self.ccdName = ccdname
         #self.readConfigFile(configfile)
         
-        self.detDis      = 300    # in mm
-        self.detPixSizeX = 0.020  # in mm
-        self.detPixSizeY = 0.020  # in mm
-        # detector size in pixel
-        self.detSizeX    = 1300
-        self.detSizeY    = 1340
-        self.detX0       = 1300 / 2.0
-        self.detY0       = 1340 / 2.0
-        self.detAngle    = 0.0
+        # set parameters to configure the CCD setup
+        # detector distance 30cm and detector pixel size 20um
+        self.setDetectorProp(0.020, 0.020, 1300, 1340, 650.0, 670.0)
+        self.setDetectorPos(300, 0.0)
         # image treatment
         self.setName     = 'Set #'
         self.setNum      = 1
@@ -360,7 +362,7 @@ class ImageProcessor():
         self._makeModeInfo()
         self.opProcInfo  = ''
         # Define variables
-        self.fileProcessor = None
+        #self.fileProcessor = None
         self.processMode = 'fast'
         self.totSet = None
 
@@ -402,33 +404,22 @@ class ImageProcessor():
 
         return self.detPixSizeX, self.detPixSizeY, self.detSizeX, self.detSizeY, self.detX0, self.detY0
 
-    def setDetectorDis(self, detDis):
-        """Set the detector distance
+    def setDetectorPos(self, detDis = 300.0, detAng = 0.0):
+        """Set the detector position
 
-        detDis : detector distance (float in mm)"""
+        detDis : detector distance (float in mm)
+        detAng : detector miss alignement angle (float in deg)"""
         
         self.detDis = detDis
-
-    def getDetectorDis(self):
-        """Get the detector distance
-
-        detDis : detector distance (float in mm)"""
-
-        return self.detDis
-
-    def setDetectorAngle(self, detAng):
-        """Set the detector miss alignement angle in deg
-
-        detAng : detector miss alignement angle in deg"""
-
         self.detAngle = detAng
 
-    def getDetectorAngle(self, detAng):
-        """Get the detector miss alignement angle in deg
+    def getDetectorPos(self, detDis = 30.0, detAng = 0.0):
+        """Get the detector position
 
-        detAng : detector miss alignement angle in deg"""
-
-        return self.detAngle
+        detDis : detector distance (float in mm)
+        detAng : detector miss alignement angle (float in deg)"""
+        
+        return self.detDis, self.detAngle    
 
     def setBins(self, binX, binY):
         """Set no. of bins. Takes them into acount for pixel size, detector size and detector center
@@ -448,7 +439,7 @@ class ImageProcessor():
 
         return self.binX, self.binY
 
-    def setSetSettings(self, waveLen, imFilesNames, settingAngles, intentNorm, UBmat, setName, setNum, setSize):
+    def setSetSettings(self, waveLen, imFilesNames, darkFileNames, settingAngles, intentNorm, UBmat, setName, setNum, setSize):
         """Set the settings for the set 
 
         The set settings are:
@@ -462,18 +453,18 @@ class ImageProcessor():
         setNum        : no. to determine the set, e.g. 244 in the spec case
         setSize       : no. of images in the set, e.g. 81"""
 
-        self.waveLen       = conScan.wavelength
-        self.imFileNames   = conScan.getCCDFilenames()
-        self.darkFileNames = conScan.getCCDFilenames(dark = 1)
-        self.settingAngles = conScan.getSIXCAngles()
-        self.intentNorm    = conScan.Ring
-        self.UBmat         = conScan.UB
-        self.setName       = 'Scan #'
-        self.setNum        = conScan.scan
-        self.setSize       = self.settingAngles.shape[0]
+        self.waveLen       = waveLen
+        self.imFileNames   = imFilesNames
+        self.darkFileNames = darkFileNames
+        self.settingAngles = settingAngles
+        self.intentNorm    = intentNorm
+        self.UBmat         = UBmat
+        self.setName       = setName
+        self.setNum        = setNum
+        self.setSize       = setSize
 
     def getSetSettings(self, waveLen, imFilesNames, settingAngles, intentNorm, UBmat, setName, setNum, setSize):
-        """Set the settings for the set 
+        """Get the settings for the set 
 
         The set settings are:
         waveLen       : wavelength of the X-rays (float in Angstrom)
@@ -504,10 +495,14 @@ class ImageProcessor():
         UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
         setName       : name of the considered set, e.g. 'Scan #' in the spec case
         setNum        : no. to determine the set, e.g. 244 in the spec case
-        setSize       : no. of images in the set, e.g. 81"""
+        setSize       : no. of images in the set, e.g. 81
+
+        The file Processor processes the corresponding images"""
 
         self.conScan = conScan
         self._setBySpec()
+        self.fileProcessor.setFromSpec(scan)
+        self.fileProcessor.process()
    
     def getSpecScan(self):
         """Get the pyspec scan object which was used for the set settings
@@ -1419,8 +1414,8 @@ if __name__ == "__main__":
     ###
 
     fp = FileProcessor()
-    fp.setFromSpec(scan)
-    fp.process()
+    #fp.setFromSpec(scan)
+    #fp.process()
     #fp.processBgnd(maskroi =[[100, 100, 100, 100]])
     #fp.save('/mounts/timelord/storage/tmpimage.npz')
     #fp.load('/mounts/timelord/storage/tmpimage.npz')
@@ -1429,10 +1424,11 @@ if __name__ == "__main__":
     # image processor and options
     ###
 
-    testData = ImageProcessor()
-    testData.setDetectorAngle(-1.24)
+    testData = ImageProcessor(fp)
+    testData.processMode = 'builtin'
+    testData.setDetectorPos(detAng = -1.24)
     testData.setBins(4, 4)
-    testData.setFileProcessor(fp)
+    #testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(4)
@@ -1483,15 +1479,26 @@ if __name__ == "__main__":
     #testPlotter.plotGrid1D('sum')
     #testPlotter.plotGrid2D('sum')
     testPlotter.plotGrid1D('cut')
-    testPlotter.plotGrid2D('cut')
+    #testPlotter.plotGrid2D('cut')
     
     ###
     # processing information
     ###
 
-    print '\n\n'
-    print testData.makeInfo()
+    info1 = testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')
+
+    scan2 = sf[320]
+    testData.setSpecScan(scan2)
+    testData.makeGridData()
+    testPlotter.plotGrid1D('cut')
+    #testPlotter.plotGrid2D('cut')
+
+    info2 = testData.makeInfo()
+
+    print '\n\n'
+    print info1
+    print info2
 
     plt.show()
 
