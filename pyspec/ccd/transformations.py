@@ -243,15 +243,19 @@ class FileProcessor():
                 _images = []
                 _darkimages = []
                 for j, (_in, _din) in enumerate(zip(iname, diname)):
-                    print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames),
-                                                                                               j + 1, len(iname)),
+                    if (j % 50) == 0:
+                        print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames),
+                                                                                                   j + 1, len(iname)),
+                        sys.stdout.flush()
                     image = self._getRawImage(_in).astype(dtype)
                     _images.append(image)
                     if os.path.exists(_din):
                         darkimage =  self._getRawImage(_din).astype(dtype)
                         _darkimages.append(darkimage)
-                        print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.filenames),
-                                                                                                   j + 1, len(iname)),
+                        if (j % 50) == 0:
+                            print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.filenames),
+                                                                                                       j + 1, len(iname)),
+                            sys.stdout.flush()
                 image = np.array(_images).sum(0)
                 if len(_darkimages):
                     darkimage = np.array(_darkimages).sum(0)
@@ -603,12 +607,12 @@ class ImageProcessor():
 
         Returns the grid x,y,z coordinates as 3 3D arrays of values"""
         
-        grid = np.mgrid[0:self.dQn[0], 0:self.dQn[1], 0:self.dQn[2]]
+        grid = np.mgrid[0:self.dQN[0], 0:self.dQN[1], 0:self.dQN[2]]
         r = (self.Qmax - self.Qmin) / self.dQN
 
-        X = grid[0] * r[0]
-        Y = grid[1] * r[1]
-        Z = grid[2] * r[2]
+        X = grid[0] * r[0] + self.Qmin[0]
+        Y = grid[1] * r[1] + self.Qmin[1]
+        Z = grid[2] * r[2] + self.Qmin[2]
         
         return X, Y, Z
 

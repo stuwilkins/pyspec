@@ -58,7 +58,7 @@ import time
 import sys
 import os
 import numpy
-import copy
+from copy import deepcopy
 from numpy import *
 from scipy import *
 from pylab import *
@@ -250,7 +250,7 @@ class SpecDataFile:
         for s in self.findex.keys():
             self.getScan(s, *args, **kwargs)
 
-    def getScan(self, item, setkeys = True, persistent = False):
+    def getScan(self, item, mask = None, setkeys = True, persistent = False):
         """Get a scan from the data file
 
         This routine gets a scan from the data file and loads it into the
@@ -258,6 +258,12 @@ class SpecDataFile:
 
         setting 'setkeys = True' will set attributes to the
         specdata item of all the motors and counters
+
+        The mask can be used to detete bad points. This should be a list of datum 
+        (data point numbers) which should be excluded. If the "item" is a list of
+        scans (that will be concatenated or binned together) this should be a list
+        containing either None for no removal of data points or a list of points to
+        remove
 
         Returns the ScanData object corresponding to the scan requested.
 
@@ -275,23 +281,30 @@ class SpecDataFile:
             items = item.tolist()
         else:
             raise Exception("item can only be <int>, <float>, <list>, <array> or <tuple>")
-        
+
+        if mask is None:
+            mask = [None for i in items]
+
+        if len(mask) != len(items):
+            raise Exception("The mask list should be the same size as the items list")
+
         self.file = open(self.filename, 'rb')
         rval = []
         n = 0
-        for i in items:
+        for i,m in zip(items, mask):
             if __verbose__:
                     print "**** Reading scan/item %s" % i
             if self.scandata.has_key(i) is False:
                 self._moveto(i)
-                self.scandata[i] = SpecScan(self, i, setkeys)
+                self.scandata[i] = SpecScan(self, i, setkeys, mask = m)
 
             rval.append(self.scandata[i])
 
         self.file.close()
                 
         if len(rval) > 1:
-            newscan = copy.deepcopy(rval[0])
+            print copy
+            newscan = deepcopy(rval[0])
             for i in range(len(rval)-1):
                 if self.mode == 'concat':
                     newscan.concatenate(rval[i+1])
@@ -342,7 +355,7 @@ class SpecScan:
 
     """
 
-    def __init__(self, specfile, item, setkeys = True):
+    def __init__(self, specfile, item, setkeys = True, mask = None):
         """Read scan data from SpecFile
 
         Initialize the SpecScan class from a SpecData instance.
@@ -502,7 +515,13 @@ class SpecScan:
         if self.data.ndim == 1:
             self.data = numpy.array([self.data])
 
+        if mask is not None:
+            if __verbose__:
+                print "---- Removing rows %s from data." % str(mask)
+            self.data = np.delete(self.data, mask, axis = 0)
+
         self.scanno = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.scan
+        self.scandatum = arange(self.data.shape[0])
 
         self.ccdAcquireTime = numpy.ones(self.data.shape[0]) * self.ccdAcquireTime
         self.ccdAcquirePeriod = numpy.ones(self.data.shape[0]) * self.ccdAcquirePeriod
@@ -512,6 +531,9 @@ class SpecScan:
 
         # Now set the motors
         self._setcols()
+
+        if __verbose__:
+            print "---- Data is %i rows x %i cols." % (self.data.shape[0], self.data.shape[1])
 
         return None
 
@@ -539,6 +561,7 @@ class SpecScan:
         self.header = self.header + a.header
         self.data = vstack((self.data, a.data))
         self.scanno = concatenate((self.scanno, a.scanno))
+        self.scandatum = concatenate((self.scandatum, a.scandatum))
 
         self.ccdAcquireTime = concatenate((self.ccdAcquireTime, a.ccdAcquireTime))
         self.ccdAcquirePeriod = concatenate((self.ccdAcquirePeriod, a.ccdAcquirePeriod))
@@ -680,7 +703,7 @@ class SpecScan:
             ndps = self.data.shape[0]
 
         filenames = []
-        for i, (scan, cna) in enumerate(zip(self.scanno, self.ccdNumAcquisitions)):
+        for (i, scan, cna) in zip(self.scandatum, self.scanno, self.ccdNumAcquisitions):
             _fnames = []
             for j in range(cna):
                 _f = "%s_%04d-%04d%s_%04d%s" % (_datafile[-1], 
