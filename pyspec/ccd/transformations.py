@@ -1408,8 +1408,8 @@ class ImageProcessor():
                        selGrid[cutInd[0], :, cutInd[2]],
                        selGrid[cutInd[0], cutInd[1], :]]
         except:
-            print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
-        
+            print '\nxxxx %s is not a corecct type of a grid from ImageProcessor!\n' % (selType)
+           
         return oneDCut
     
     def get2DCut(self, selType = 'gridData', cutInd = None):
@@ -1435,7 +1435,7 @@ class ImageProcessor():
                        selGrid[:, cutInd[1], :],
                        selGrid[:, :, cutInd[2]]]
         except:
-            print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
+            print '\nxxxx %s is not a corecct type of a grid from ImageProcessor!\n' % (selType)
         
         return twoDCut
 
@@ -1600,7 +1600,7 @@ if __name__ == "__main__":
 
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/ymn2o5_oct10/ymn2o5_oct10_1', 
     			     ccdpath = '/mounts/davros/nasshare/images/oct10')
-    scan = sf[318]
+    scan = sf[151]
 
     ###
     # file processor
@@ -1620,14 +1620,14 @@ if __name__ == "__main__":
     testData = ImageProcessor(fp)
     #testData.processMode = 'builtin'
     testData.setDetectorPos(detAng = -1.24)
-    testData.setBins(4, 4)
+    testData.setBins(2, 2)
     #testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #fp.processBgnd(maskroi =[[63, 100, 67, 100]])
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(4)
-    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 120, 80])
-    testData.setCutPos([0.4750, 0.0, 0.2856])
+    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 80, 80])
+    #testData.setCutPos([0.4750, 0.0, 0.2856])
     #testData.processMode = 'builtin'
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
@@ -1637,7 +1637,7 @@ if __name__ == "__main__":
     ###    
     
     #testData.makeGridData(procSelect = [40])
-    testData.setGridBackOptions(backSub = True, backMaskBox = [0.467, -0.003, 0.281, 0.481, 0.003, 0.289])
+    testData.setGridBackOptions(backSub = True, backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255])
     testData.makeGridData()
 
     #testData._processBgnd(m))
@@ -1667,7 +1667,7 @@ if __name__ == "__main__":
     # plot options
 
     #testPlotter.setPlotFlags(7, 7)
-    testPlotter.setLogFlags(0, 0)
+    testPlotter.setLogFlags(7, 7)
     #testPlotter.setFit1D(True)
     #testPlotter.setHistBin(50)
     testPlotter.setPlot1DFit(True)
@@ -1678,8 +1678,8 @@ if __name__ == "__main__":
     #testPlotter.plotGrid2D('sum')
     testPlotter.plotGrid1D('cut')
     testPlotter.plotGrid2D('cut')
-    testPlotter.plotMask1D('cut')
-    testPlotter.plotMask2D('cut')
+    #testPlotter.plotMask1D('cut')
+    #testPlotter.plotMask2D('cut')
 
     ###
     # processing information

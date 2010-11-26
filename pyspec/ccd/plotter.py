@@ -697,7 +697,7 @@ class PlotGrid():
         labelAx0   = self.labelsAx0p1D
         intentSet  = self.intentLine
         occuSet    = self.occuLine
-        
+                    
         # figure for 1D plots        
         fig = plt.figure(figsize = self._defaultFigureSize)
         fig.suptitle(self.title1D, fontsize = 24)
@@ -727,8 +727,15 @@ class PlotGrid():
         # add 1D fits
         if self.plot1DFit == True:
             yFit, fitRes = self.imProc.get1DFit(valSet, intentSet, fitType = None, infoDes = self.title1D)
+            if self.imProc.backSub == True:
+                yFit += self.backLine
             for i in range(3):
                 allax[i].plot(valSet[i], yFit[i], '-r')
+
+        # add background
+        if self.imProc.backSub == True:
+            for i in range(3):
+                allax[i].plot(valSet[i], self.backLine[i], '-g')
        
         # occupation of the grid parts (bins)
         if self.plotFlag1D & 2:
@@ -977,15 +984,22 @@ class PlotGrid():
         if calcMode == 'sum':
             gridData1D = self.imProc.get1DSum(selType = 'gridData')
             gridOccu1D = self.imProc.get1DSum(selType = 'gridOccu')
+            if self.imProc.backSub == True:
+                gridBack1D = self.imProc.get1DSum(selType = 'griBack')
             plotTitle  = '1D Lines, over other directions is summed'
         elif calcMode == 'cut':
             gridData1D = self.imProc.get1DCut(selType = 'gridData')
             gridOccu1D = self.imProc.get1DCut(selType = 'gridOccu')
+            if self.imProc.backSub == True:
+                gridBack1D = self.imProc.get1DCut(selType = 'gridBack')
             plotTitle  = '1D Line cuts at selected position'
         else:
             gridData1D, gridOccu1D = self.imProc.get1DCutAv()
             plotTitle = '1D average over 9 line cuts around maximum position'
         self.setPlot1DData(gridData1D, gridOccu1D, plotTitle = plotTitle)
+        if self.imProc.backSub == True:
+            gridData1D += gridBack1D
+            self.backLine = gridBack1D
         # plot, get figure and axes back
         fig1, allax1 = self.plot1DData()
         # if there are fits, show them
