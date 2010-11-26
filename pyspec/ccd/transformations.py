@@ -1340,16 +1340,17 @@ class ImageProcessor():
 
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()
-        self._calcMax()
-        
-        # for info file
-        self.opProcInfo += self._makeGridInfo()
 
         # background subtraction
         if backSub == None:
             backSub = self.backSub
         if backSub == True:
             self._processBgnd()
+
+        self._calcMax()
+        
+        # for info file
+        self.opProcInfo += self._makeGridInfo()
 
     def get1DSum(self, selType = 'gridData'):
         """1D Lines of the selected grid by summing in the other directions
