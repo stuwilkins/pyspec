@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt
 from   pyspec import fit, fitfuncs
 from   pyspec.diffractometer import Diffractometer
 from   pyspec.ccd.files import *
-from   pyspec.ccd.plotter import PlotGrid
+from   pyspec.ccd.plotter import PlotImages, PlotGrid
 try:
     import pyspec.ccd.ctrans as ctrans
 except:
@@ -384,7 +384,7 @@ class ImageProcessor():
         self.setGridBackOptions()
         # cut indicies and position
         self.cutInd = None
-        self.setCutPos()
+        self.setCutPos(cutMode = 'max')
         # 1D fit options
         self.fit1D       = False
         self.fitType     = 'lor2a'
@@ -677,21 +677,22 @@ class ImageProcessor():
 
         return self.cutInd
     
-    def setCutPos(self, cutPos = None):
-        """Set the cut position
+    def setCutPos(self, cutPos = None, cutMode = 'fix'):
+        """Set the cut position and cut mode
 
-        cutPos : cut position, [qx, qy, qz]
-                 if None, indicies of maximum is taken"""
+        cutPos  : cut position, [qx, qy, qz]
+        cutMode : 'fix' for fixed setting of 'max' for cut at positon of maximum"""
 
-        self.cutPos = np.array(cutPos)
+        self.cutPos  = np.array(cutPos)
+        self.cutMode = cutMode
 
-    def getCutPos(self, cutPos):
-        """Get the cut position
+    def getCutPos(self):
+        """Get the cut position and cut mode
 
-        cutPos : cut position, [qx, qy, qz]
-                 if None, indicies of maximum is taken"""
+        cutPos  : cut position, [qx, qy, qz]
+        cutMode : 'fix' for fixed setting of 'max' for cut at positon of maximum"""
 
-        return self.cutPos
+        return self.cutPos, self.cutMode
 
     def setFit1D(self, fit1D = 0, fitType = 'lor2a'):
         """Set whether 1D lines get fitted (1)
@@ -942,12 +943,15 @@ class ImageProcessor():
         ind2 = maxN % self.dQN[2]
         ind1 = maxN / self.dQN[2] % self.dQN[1]
         ind0 = maxN / self.dQN[2] / self.dQN[1]
-        self.maxInd = np.array([ind0, ind1, ind2])    
+        self.maxInd = np.array([ind0, ind1, ind2])
 
     def _calcCutInd(self):
-        """Calculates the cutting indices from the given position"""
+        """Calculates the cutting indices regarding the cutting modes
+
+        'fix' : from the given position
+        'max' : from the position of maximum"""
         
-        if (self.cutPos != np.array(None)).all():
+        if self.cutMode == 'fix':
             cutInd = list(((self.cutPos - self.Qmin)/(self.Qmax - self.Qmin)*self.dQN).astype(int))
             if (cutInd < np.array(self.dQN)).all():
                 if self.cutInd != None:
@@ -955,8 +959,16 @@ class ImageProcessor():
                     print 'but are replaced by %s calculated from cutting position %s' % (cutInd, self.cutPos)
                 self.cutInd = cutInd
             else:
-                print 'Cutting indices %s calculated from cutting position %s not set' % (cutInd, self.cutPos)
-                print 'because bigger than grid index size %s' % (self.dQN)
+                print '\nXXXX Cutting indices %s calculated from cutting position %s ' % (cutInd, self.cutPos)
+                print '---- bigger than grid index size %s' % (self.dQN)
+                print '---- cutting indices set to position of maximum %s\n' % (self.maxInd)
+                self.cutInd  = self.maxInd
+                self.cutMode = 'max'
+        elif self.cutMode == 'max':
+            self.cutInd = self.maxInd
+
+        # for info file
+        self.opProcInfo += self._makeCutIndInfo()
 
     def _processBgnd(self, maskBox = None):
         """Background subtraction of grid
@@ -1218,6 +1230,21 @@ class ImageProcessor():
         
         return gridBackInfo
 
+    def _makeCutIndInfo(self):
+        """Create information about the cutting position of the grid"""
+
+        cutIndInfo = '\n\n**** Cutting the grids'
+        if self.cutMode == 'fix':
+            cutIndInfo += ' at fixed position'
+        elif self.cutMode == 'max':
+            cutIndInfo += ' at maximum postion'
+        cutIndInfo += '\n\t index \t value'
+        line = '\n%s' + ' \t %d' + ' \t %.2e'
+        for i in range(3):
+            cutIndInfo += line % (self.qLabel[i], self.cutInd[i], self.qVal[i][self.cutInd[i]])
+
+        return cutIndInfo
+
     #
     # process part
     #
@@ -1341,16 +1368,18 @@ class ImageProcessor():
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()
 
+        # for info file
+        self.opProcInfo += self._makeGridInfo()
+
         # background subtraction
         if backSub == None:
             backSub = self.backSub
         if backSub == True:
             self._processBgnd()
 
+        # position of maximum and cutting of the data grid
         self._calcMax()
-        
-        # for info file
-        self.opProcInfo += self._makeGridInfo()
+        self._calcCutInd()
 
     def get1DSum(self, selType = 'gridData'):
         """1D Lines of the selected grid by summing in the other directions
@@ -1395,8 +1424,6 @@ class ImageProcessor():
 
         returns
         oneDCut : set in the order Qx, Qy, Qz as list"""
-
-        self._calcCutInd()
         
         if cutInd == None:
             cutInd = self.cutInd
@@ -1423,8 +1450,6 @@ class ImageProcessor():
         returns
         twoDCut : set in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
 
-        self._calcCutInd()
-
         if cutInd == None:
             cutInd = self.cutInd
         if cutInd == None:
@@ -1450,8 +1475,6 @@ class ImageProcessor():
         returns
         gridData1DCutAv : intensity set  in the order Qx, Qy, Qz as list
         gridOccu1DCutAv : occupation no. in the order Qx, Qy, Qz as list"""
-
-        self._calcCutInd()
 
         if cutInd == None:
             cutInd = self.cutInd
@@ -1628,7 +1651,10 @@ if __name__ == "__main__":
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(4)
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 80, 80])
+    # ICM, HKL
     #testData.setCutPos([0.4750, 0.0, 0.2856])
+    # CM, HKL
+    #testData.setCutPos([0.4924, 0.0, 0.246])
     #testData.processMode = 'builtin'
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
@@ -1649,24 +1675,19 @@ if __name__ == "__main__":
     #areaData, areaOccu = testData.get2DCut()
 
     ###
-    # test plotter
-    ###
-
-    testPlotter = PlotGrid(testData)
-
-    ###
     # plot of raw images
     ###
 
-    #testPlotter.setPlotIm(plotImSelect = range(121), plotImHor = 4, plotImVer = 3)
-    #testPlotter.plotImages()
+    plIm = PlotImages(fp, testData)
+    plIm.setPlotContent(plotSelect = range(0,121,10), plotType = 'norm')
+    #plIm.setPlotLayout(, plotImHor = 4, plotImVer = 3)
+    plIm.plotImages()
 
     ###
     # plot grid data
     ###
 
-    # plot options
-
+    testPlotter = PlotGrid(testData)
     #testPlotter.setPlotFlags(7, 7)
     testPlotter.setLogFlags(7, 7)
     #testPlotter.setFit1D(True)
@@ -1680,7 +1701,7 @@ if __name__ == "__main__":
     testPlotter.plotGrid1D('cut')
     testPlotter.plotGrid2D('cut')
     #testPlotter.plotMask1D('cut')
-    #testPlotter.plotMask2D('cut')
+    testPlotter.plotMask2D('cut')
 
     ###
     # processing information
