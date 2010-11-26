@@ -136,6 +136,32 @@ def getAreaXY(roi):
             
     return z 
 
+def get3DMesh(xVal, yVal, zVal):
+    """make a 3D meshgrid from the given values
+
+    xVal : x-values, [x0, x1, x(Nx-1)] (list or np.array)
+    yVal : y-values, [y0, y1, y(Ny-1)] (list or np.array)
+    zVal : z-values, [z0, z1, z(Nz-1)] (list or np.array)
+
+    returns xGrid, yGrid, zGrid as Nz x Ny x Nx np.arrays"""
+
+    # work first with lists
+    xVal = list(xVal)
+    yVal = list(yVal)
+    zVal = list(zVal)
+
+    # dimensions
+    Nx = len(xVal)
+    Ny = len(yVal)
+    Nz = len(zVal)
+
+    # grid results
+    xGrid = np.array(xVal * Ny * Nz).reshape(Nz, Ny, Nx)
+    yGrid = np.array(yVal * Nz * Nx).reshape(Nz, Nx, Ny).transpose(0,2,1)
+    zGrid = np.array(zVal * Nx * Ny).reshape(Nx, Ny, Nz).transpose(2,1,0)
+
+    return xGrid, yGrid, zGrid
+
 #
 # FileProcessor Class
 #
@@ -354,6 +380,8 @@ class ImageProcessor():
         self.setFrameMode(1)
         # gridder options
         self.setGridOptions()
+        # grid background subtraction
+        self.setGridBackOptions()
         # cut indicies and position
         self.cutInd = None
         self.setCutPos()
@@ -616,6 +644,23 @@ class ImageProcessor():
         
         return X, Y, Z
 
+    def setGridBackOptions(self, backSub = False, backMaskBox = None):
+        """Set the masked box for the background subtraction of the grid
+
+        backSub     : substract background from grid if True
+        backMaskBox : [xMin, yMin, zMin, xMax, yMax, zMax]"""
+
+        self.backSub     = backSub
+        self.backMaskBox = backMaskBox
+
+    def getGridBackOptions(self):
+        """Get the masked box for the background subtraction of the grid
+
+        backSub     : substract background from grid if True
+        backMaskBox : [xMin, yMin, zMin, xMax, yMax, zMax]"""
+
+        return self.backSub, self.backMaskBox
+
     def setCutInd(self, cutInd):
         """Set the cut indicies
 
@@ -867,18 +912,29 @@ class ImageProcessor():
         #del intent
 
     def _calcVecDataSet(self):
-        """Calculats the vector data set for the grid points"""
+        """Calculats the vector data set for the grid points
+
+        stores:
+        qVal   : list of Qx-, Qy- and Qz-values
+        dVec   : np.array of difference step in Qx, Qy and Qz
+        qxGrid : 3D grid of Qx-values
+        qyGrid : 3D grid of Qy-values
+        qzGrid : 3D grid of Qz-values"""
 
         # aliases
         minBox = self.Qmin
         maxBox = self.Qmax
         dVec   = (maxBox - minBox) / self.dQN
         
-        # vector data set of the center of each grid part
+        # vector data set of the center of each grid part (bin)
         qxVal = np.arange(minBox[0], maxBox[0] - dVec[0]/2, dVec[0]) + dVec[0]/2
         qyVal = np.arange(minBox[1], maxBox[1] - dVec[1]/2, dVec[1]) + dVec[1]/2
         qzVal = np.arange(minBox[2], maxBox[2] - dVec[2]/2, dVec[2]) + dVec[2]/2
         self.qVal = [qxVal, qyVal, qzVal]
+        self.dVec = dVec
+        
+        # grids of Qx-, Qy- and Qz-values
+        self.qxGrid, self.qyGrid, self.qzGrid = get3DMesh(self.qVal[0], self.qVal[1], self.qVal[2])
 
     def _calcMax(self):
         """Calculates the position of the maximum as indicies"""
@@ -901,6 +957,74 @@ class ImageProcessor():
             else:
                 print 'Cutting indices %s calculated from cutting position %s not set' % (cutInd, self.cutPos)
                 print 'because bigger than grid index size %s' % (self.dQN)
+
+    def _processBgnd(self, maskBox = None):
+        """Background subtraction of grid
+
+        maskBox  : masked box [xMin, yMin, zMin, xMax, yMax, zMax]
+
+        stores
+        pBack    : parameters of background [mx, my, mz, d]
+        gridBack : grid of the background
+        maskBack : True if point in maskBox (False if part of background)
+        maskFit  : False if point used for fit"""
+
+        if maskBox == None:
+            maskBox = self.backMaskBox
+
+        bgndfunc = self._threeDLinRes
+
+        qx, qy, qz = self.qxGrid, self.qyGrid, self.qzGrid
+                
+        # background mask
+        self.maskBack = np.ones(self.gridData.shape) == 0
+        if maskBox != None:
+            xMask = (qx >= maskBox[0]) & (qx <= maskBox[3])
+            yMask = (qy >= maskBox[1]) & (qy <= maskBox[4])
+            zMask = (qz >= maskBox[2]) & (qz <= maskBox[5])
+            self.maskBack = self.maskBack | (xMask & yMask & zMask).transpose(2,1,0)
+
+        # fit mask
+        self.maskFit = self.maskOccu | self.maskBack
+
+        # considered positions for background fit
+        conMask = np.ravel(self.maskFit == False)
+        _qx = np.ravel(qx)[conMask]
+        _qy = np.ravel(qy)[conMask]
+        _qz = np.ravel(qz)[conMask]
+
+        # background fit
+        guess = [1e-6, 1e-6, 1e-6, self.gridData.mean()]
+        fMes  = np.ravel(self.gridData)[conMask]
+        plsq  = leastsq(bgndfunc, guess, args = (fMes, _qx, _qy, _qz))
+        self.pBack    = plsq[0]
+        self.gridBack = self._threeDLin(plsq[0], qx, qy, qz).transpose(2,1,0)
+        self.gridBack[self.maskOccu] = 0.0
+        self.gridData = self.gridData - self.gridBack     
+
+        # for info file
+        self.opProcInfo += self._makeGridBackInfo(maskBox)
+        
+    def _threeDLin(self, p, x, y, z):
+        """3D linear function
+
+        p       : parameter [mx, my, mz, d]
+        x, y, z : coordinates"""
+        
+        mx, my, mz, d = p
+        f = (mx * x) + (my * y) + (mz * z) + d
+        return f
+
+    def _threeDLinRes(self, p, f, x, y, z):
+        """3D linear function residual
+
+        p       : parameter [mx, my, mz, d]
+        f       : measured value
+        x, y, z : coordinates"""
+        
+        err = f - self._threeDLin(p, x, y, z)
+        return err
+
 
     def _fit1DData(self, xVal, yVal, fitType = None, infoDes = ''):
         """Fit a 1D data set
@@ -960,36 +1084,39 @@ class ImageProcessor():
     def _makeSetInfo(self):
         """Create the information about the set of images"""
         
-        self.opSetInfo = '%s%s' % (self.setName, self.setNum)
+        self.opSetInfo = '**** %s%s' % (self.setName, self.setNum)
         try:
-            self.opSetInfo += ' Images: %s\n' % (self.procImSelect)
+            self.opSetInfo += '\nImages: %s' % (self.procImSelect)
         except:
-            self.opSetInfo += '\n'
+            pass
         try:
-            self.opSetInfo += 'Photon Wavelength: %.2f Angst.\t' % (self.waveLen)
+            self.opSetInfo += '\nPhoton Wavelength: \t %.2f Angst.' % (self.waveLen)
         except:
-           self.opSetInfo += ''
+            pass
         try:
-            self.opSetInfo += 'Photon Energy: %.2f eV' % (self.energy)
+            self.opSetInfo += '\nPhoton Energy: \t\t %.2f eV' % (self.energy)
         except:
-           self.opSetInfo += ''
+            pass
     
     def _makeModeInfo(self, mode = None):
         """Create info description of the used frame mode
 
         mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
 
+        self.opModeInfo = '\n\n**** '
+
         if mode == None:
             mode = self.frameMode
 
         if mode == 1:
-            self.opModeInfo = 'Frame Mode 1: (Qx, Qy, Qz) in theta-frame and (1/Angstrom)' 
+            self.opModeInfo += 'Frame Mode 1: (Qx, Qy, Qz) in theta-frame and (1/Angstrom)' 
         if mode == 2:
-            self.opModeInfo = 'Frame Mode 2: (Qx, Qy, Qz) in phi-frame and (1/Angstrom)'
+            self.opModeInfo += 'Frame Mode 2: (Qx, Qy, Qz) in phi-frame and (1/Angstrom)'
         if mode == 3:
-            self.opModeInfo = 'Frame Mode 3: (Qx, Qy, Qz) in cartesian-frame and (1/Angstrom)'
+            self.opModeInfo += 'Frame Mode 3: (Qx, Qy, Qz) in cartesian-frame and (1/Angstrom)'
         if mode == 4:
-            self.opModeInfo = 'Frame Mode 4: (H, K, L) in hkl-frame and (reciprocal lattice units)'
+            self.opModeInfo += 'Frame Mode 4: (H, K, L) in hkl-frame and (reciprocal lattice units)'
+        
 
     def _makeFitInfo1D(self, allRes, fitType = None, fitTitle = None, fitNames = None):
         """Create information output for the fit results in 1D
@@ -1011,12 +1138,11 @@ class ImageProcessor():
             for i in range(allRes.shape[0]):
                 fitNames.append('Fit %02d' % i)
 
-        dQ = (self.Qmax - self.Qmin) / self.dQN
-
-        fitInfo = '%s%s\n\t a \t\t b \t\t cen \t\t width \t\t width/step \t area' % (fitTitle, fitType)
+        fitInfo  = '\n\n**** %s%s' % (fitTitle, fitType)
+        fitInfo += '\n\t a \t\t b \t\t cen \t\t width \t\t width/step \t area' 
         line    = '\n%s \t ' + 4*'%.5e\t ' + '%.2f\t\t ' + '%.5e'
         for i in range(allRes.shape[0]):
-            fitInfo += line % (fitNames[i], allRes[i,0], allRes[i,1], allRes[i,2], allRes[i,3], allRes[i,3]/dQ[i], allRes[i,4])
+            fitInfo += line % (fitNames[i], allRes[i,0], allRes[i,1], allRes[i,2], allRes[i,3], allRes[i,3]/self.dVec[i], allRes[i,4])
 
         return fitInfo
 
@@ -1045,7 +1171,7 @@ class ImageProcessor():
             dg = (gMax - gMin) / self.dQN
         emptNb = (gOccu == 0).sum()
         
-        gridInfo = '\n\n%s sets processed to grid\n'   % (self.setEntLabel) + \
+        gridInfo = '\n\n**** %s sets processed to grid\n'   % (self.setEntLabel) + \
             'No. of bins in the grid : \t %.2e\n'      % (gData.size) + \
             'Data points outside the grid : \t %.2e\n' % (gOut) + \
             'Bins with zero information : \t %.2e'     % (emptNb)
@@ -1055,6 +1181,42 @@ class ImageProcessor():
             gridInfo += line % (self.qLabel[i], gMin[i], gMax[i], dg[i], gMax[i]-gMin[i])
 
         return gridInfo
+
+    def _makeGridBackInfo(self, maskBox):
+        """Create information about background subtraction of the grid"""
+
+        intInten, backInten = self.getIntIntensity()
+    
+        gridBackInfo  = '\n\n**** Background of grid fited linear'
+        gridBackInfo += '\nTotal Intensity : \t %.4e' % (intInten + backInten)
+        gridBackInfo += '\nGrid  Intensity : \t %.4e' % (intInten)
+        gridBackInfo += '\nBackground Intensity : \t %.4e' % (backInten) 
+        if maskBox == None:
+            gridBackInfo += '\nNo masked region'
+        else:
+            gridBackInfo += '\nMasked region:'
+            gridBackInfo += '\n\t min \t\t max'
+            line = '\n%s' + 2*' \t %.2e'
+            for i in range(3):
+                gridBackInfo += line % (self.qLabel[i], self.Qmin[i], self.Qmax[i])
+
+        gridBackInfo += '\nFitted parameters:'
+        gridBackInfo += '\nmx \t\t my \t\t mz \t\t d'
+        gridBackInfo += ('\n%.2e' + 3*' \t %.2e') % tuple(self.pBack)
+
+        gridBackInfo += '\nBackground values at corners'
+        cornList = [['min', 'min', 'min'], ['max', 'min', 'min'], ['max', 'max', 'min'],
+                    ['min', 'max', 'min'], ['min', 'min', 'max'], ['max', 'min', 'max'], 
+                    ['max', 'max', 'max'], ['min', 'max', 'max']]
+        cornLayo = ['\n(%s_%s, ', '%s_%s, ', '%s_%s) : \t ']
+        for i in range(len(cornList)):
+            cornVal = self.pBack[3]
+            for j in range(3):
+                gridBackInfo += cornLayo[j] % (self.qLabel[j], cornList[i][j])
+                cornVal      += getattr(self, 'Q' + cornList[i][j])[j]*self.pBack[j]
+            gridBackInfo += '%.2e' % (cornVal)
+        
+        return gridBackInfo
 
     #
     # process part
@@ -1114,20 +1276,25 @@ class ImageProcessor():
             #print gc.get_referents(totSet)
 
         # for info file
-        self.opProcInfo += '\n\nImage Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
+        self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
 
-    def makeGridData(self, procSelect = None, mode = None, delete = False):
+    def makeGridData(self, procSelect = None, mode = None, delete = False, backSub = None):
         """Grid the data set into a cuboid
         Size of the cuboid : Qmin, Qmax = [Qx, Qy, Qz]_min, max
         Number of parts    : dQN = [Nqx, Nqy, Nqz]
 
         procSelect : list with the images which will be processed, take object default if None
         mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None
+        backSub    : subtract linear background if True; if None take class default
 
-        returns
+        stores
         gridData : values at the grid parts (bins)
         gridOccu : occupation no. of the grid parts (bins)
-        gridOut  : no. of the data points outside the grid"""
+        gridBack : background values if backSub == True
+        gridOut  : no. of the data points outside the grid
+        maskData : mask True if gridData == 0
+        maskOccu : mask True if gridOccu == 0
+        maskBack : mask True if point not for background fit, only if backSub == True"""
 
         if procSelect == None:
             procSelect = self.procImSelect
@@ -1164,6 +1331,10 @@ class ImageProcessor():
         self.gridOccu = gridOccu
         self.gridOut  = gridOut
 
+        # masks for the data and occupation no.
+        self.maskData = (gridData == 0)
+        self.maskOccu = (gridOccu == 0)
+
         #del self.totSet
         #gc.collect()
 
@@ -1174,44 +1345,55 @@ class ImageProcessor():
         # for info file
         self.opProcInfo += self._makeGridInfo()
 
+        # background subtraction
+        if backSub == None:
+            backSub = self.backSub
+        if backSub == True:
+            self._processBgnd()
 
-    def get1DSum(self):
-        """1D Lines of the grid data and occupations by summing in the other directions
+    def get1DSum(self, selType = 'gridData'):
+        """1D Lines of the selected grid by summing in the other directions
 
-        returns
-        gridData1DSum : intensity set  in the order Qx, Qy, Qz as list
-        gridOccu1DSum : occupation no. in the order Qx, Qy, Qz as list"""
-
-        gridData1DSum = [self.gridData.sum(1).sum(1),
-                         self.gridData.sum(0).sum(1),
-                         self.gridData.sum(0).sum(0)]
-        gridOccu1DSum = [self.gridOccu.sum(1).sum(1),
-                         self.gridOccu.sum(0).sum(1),
-                         self.gridOccu.sum(0).sum(0)]
-
-        return gridData1DSum, gridOccu1DSum
-
-    def get2DSum(self):
-        """2D Areas of the grid data and occupations by summing in the other direction
+        selType : select type of summed grid, e.g. 'gridData'
 
         returns
-        gridData2DSum : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
-        gridOccu2DSum : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
+        oneDSum : set in the order Qx, Qy, Qz as list"""
 
-        gridData2DSum = [self.gridData.sum(0), self.gridData.sum(1), self.gridData.sum(2)]
-        gridOccu2DSum = [self.gridOccu.sum(0), self.gridOccu.sum(1), self.gridOccu.sum(2)]
+        try:
+            selGrid = getattr(self, selType)
+            oneDSum = [selGrid.sum(1).sum(1),
+                       selGrid.sum(0).sum(1),
+                       selGrid.sum(0).sum(0)]
+        except:
+            print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
+        
+        return one1DSum
 
-        return gridData2DSum, gridOccu2DSum
+    def get2DSum(self, selType = 'gridData'):
+        """2D Areas of the selected grid by summing in the other direction
+
+        selType : select type of summed grid, e.g. 'gridData'
+
+        returns
+        twoDSum : set in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
+
+        try:
+            selGrid = getattr(self, selType)
+            twoDSum = [selGrid.sum(0), selGrid.sum(1), selGrid.sum(2)]
+        except:
+            print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
+
+        return twoDSum
     
-    def get1DCut(self, cutInd = None):
-        """1D Lines of the grid data and occupations at the position of the maximum intensity
+    def get1DCut(self, selType = 'gridData', cutInd = None):
+        """1D Lines of the selected grid at the cut position
 
-        cutInd : cut indices, [nx, ny, nz], if None, default
-                 if default None, indicies of maximum is taken
+        selType : select type of cutted grid, e.g. 'gridData'
+        cutInd  : cut indices, [nx, ny, nz], if None, default
+                  if default None, indicies of maximum is taken
 
         returns
-        gridData1DCut : intensity set  in the order Qx, Qy, Qz as list
-        gridOccu1DCut : occupation no. in the order Qx, Qy, Qz as list"""
+        oneDCut : set in the order Qx, Qy, Qz as list"""
 
         self._calcCutInd()
         
@@ -1219,25 +1401,26 @@ class ImageProcessor():
             cutInd = self.cutInd
         if cutInd == None:
             cutInd = self.maxInd
-            
-        gridData1DCut = [self.gridData[:, cutInd[1], cutInd[2]],
-                         self.gridData[cutInd[0], :, cutInd[2]],
-                         self.gridData[cutInd[0], cutInd[1], :]]
-        gridOccu1DCut = [self.gridOccu[:, cutInd[1], cutInd[2]],
-                         self.gridOccu[cutInd[0], :, cutInd[2]],
-                         self.gridOccu[cutInd[0], cutInd[1], :]]
 
-        return gridData1DCut, gridOccu1DCut
+        try:
+            selGrid = getattr(self, selType)
+            oneDCut = [selGrid[:, cutInd[1], cutInd[2]],
+                       selGrid[cutInd[0], :, cutInd[2]],
+                       selGrid[cutInd[0], cutInd[1], :]]
+        except:
+            print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
+        
+        return oneDCut
     
-    def get2DCut(self, cutInd = None):
-        """2D Areas of the grid data and occupations at the position of the maximum intensity
+    def get2DCut(self, selType = 'gridData', cutInd = None):
+        """2D Areas of the selected grid at the cut position
 
-        cutInd : cut indices, [nx, ny, nz], if None, default
-                 if default None, indicies of maximum is taken
+        selType : select type of cutted grid, e.g. 'gridData'
+        cutInd  : cut indices, [nx, ny, nz], if None, default
+                  if default None, indicies of maximum is taken
 
         returns
-        gridData2DCut : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
-        gridOccu2DCut : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
+        twoDCut : set in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
 
         self._calcCutInd()
 
@@ -1246,14 +1429,15 @@ class ImageProcessor():
         if cutInd == None:
             cutInd = self.maxInd 
 
-        gridData2DCut = [self.gridData[cutInd[0], :, :],
-                         self.gridData[:, cutInd[1], :],
-                         self.gridData[:, :, cutInd[2]]]
-        gridOccu2DCut = [self.gridOccu[cutInd[0], :, :],
-                         self.gridOccu[:, cutInd[1], :],
-                         self.gridOccu[:, :, cutInd[2]]]
-
-        return gridData2DCut, gridOccu2DCut
+        try:
+            selGrid = getattr(self, selType)
+            twoDCut = [selGrid[cutInd[0], :, :],
+                       selGrid[:, cutInd[1], :],
+                       selGrid[:, :, cutInd[2]]]
+        except:
+            print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
+        
+        return twoDCut
 
     def get1DCutAv(self):
         """1D averaged Lines of the grid data and occupations at the position of the maximum
@@ -1328,11 +1512,16 @@ class ImageProcessor():
         """Get the integrated intensity of the peak by summing over all grid parts (bins)
 
         returns
-        intInten : integrated intensity"""
+        intInten  : integrated intensity
+        backInten : background intensity"""
 
         intInten = self.gridData.sum()
+        if self.backSub == True:
+            backInten = self.gridBack.sum()
+        else:
+            backInten = 0.0
 
-        return intInten
+        return intInten, backInten
 
     #
     # fit part
@@ -1367,7 +1556,7 @@ class ImageProcessor():
                 print 'WARNING : %s %s could not be fitted to %s!' % (self.qLabel[i], infoDes, fitType)
 
         # for info file
-        self.opProcInfo += '\n\n' + self._makeFitInfo1D(fitRes, fitType = None, fitTitle = infoDes, fitNames = self.qLabel)
+        self.opProcInfo += self._makeFitInfo1D(fitRes, fitType = None, fitTitle = infoDes, fitNames = self.qLabel)
 
         return yFit, fitRes
     
@@ -1379,7 +1568,7 @@ class ImageProcessor():
         """Create the information about the current processing"""
 
         self._makeSetInfo()
-        curInfo = '%s%s' % (self.opSetInfo, self.opProcInfo)
+        curInfo = '%s%s%s' % (self.opSetInfo, self.opModeInfo, self.opProcInfo)
 
         return curInfo
 
@@ -1429,14 +1618,15 @@ if __name__ == "__main__":
     ###
 
     testData = ImageProcessor(fp)
-    testData.processMode = 'builtin'
+    #testData.processMode = 'builtin'
     testData.setDetectorPos(detAng = -1.24)
     testData.setBins(4, 4)
     #testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
+    #fp.processBgnd(maskroi =[[63, 100, 67, 100]])
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(4)
-    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 120, 90])
+    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 120, 80])
     testData.setCutPos([0.4750, 0.0, 0.2856])
     #testData.processMode = 'builtin'
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
@@ -1447,7 +1637,11 @@ if __name__ == "__main__":
     ###    
     
     #testData.makeGridData(procSelect = [40])
+    testData.setGridBackOptions(backSub = True, backMaskBox = [0.467, -0.003, 0.281, 0.481, 0.003, 0.289])
     testData.makeGridData()
+
+    #testData._processBgnd(m))
+
 
     #print 'Peak integrated intensity : %.2e' % (testData.getIntIntensity())
     #lineData, lineOccu = testData.get1DCut()
@@ -1473,7 +1667,7 @@ if __name__ == "__main__":
     # plot options
 
     #testPlotter.setPlotFlags(7, 7)
-    testPlotter.setLogFlags(3, 3)
+    testPlotter.setLogFlags(0, 0)
     #testPlotter.setFit1D(True)
     #testPlotter.setHistBin(50)
     testPlotter.setPlot1DFit(True)
@@ -1483,8 +1677,10 @@ if __name__ == "__main__":
     #testPlotter.plotGrid1D('sum')
     #testPlotter.plotGrid2D('sum')
     testPlotter.plotGrid1D('cut')
-    #testPlotter.plotGrid2D('cut')
-    
+    testPlotter.plotGrid2D('cut')
+    testPlotter.plotMask1D('cut')
+    testPlotter.plotMask2D('cut')
+
     ###
     # processing information
     ###
@@ -1492,17 +1688,21 @@ if __name__ == "__main__":
     info1 = testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')
 
-    scan2 = sf[320]
-    testData.setSpecScan(scan2)
-    testData.makeGridData()
-    testPlotter.plotGrid1D('cut')
+    ###
+    # second run with same objects
+    ###
+
+    #scan2 = sf[320]
+    #testData.setSpecScan(scan2)
+    #testData.makeGridData()
+    #testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid2D('cut')
 
-    info2 = testData.makeInfo()
+    #info2 = testData.makeInfo()
 
     print '\n\n'
     print info1
-    print info2
+    #print info2
 
     plt.show()
 

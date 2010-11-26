@@ -625,6 +625,13 @@ class PlotGrid():
         self.occuLine   = occuLine
         self.title1D    = plotTitle
         
+    def setPlot1DMask(self, maOccuLine, maBackLine, maFitLine, plotTitle = ''):
+        """Sets the background, occupation and combination for the 1D plots"""
+        self.maOccuLine = maOccuLine
+        self.maBackLine = maBackLine
+        self.maFitLine  = maFitLine
+        self.title1D    = plotTitle
+
     def setPlot2DAxes(self, minSetAx1, maxSetAx1, minSetAx0, maxSetAx0, labelsAx1, labelsAx0):
         """Sets the axes for the 2D plots"""
         self.minSetAx1p2D = minSetAx1
@@ -640,6 +647,13 @@ class PlotGrid():
         self.occuArea   = occuArea
         self.title2D    = plotTitle
         
+    def setPlot2DMask(self, maOccuArea, maBackArea, maFitArea, plotTitle = ''):
+        """Sets the background, occupation and combination for the 2D plots"""
+        self.maOccuArea = maOccuArea
+        self.maBackArea = maBackArea
+        self.maFitArea  = maFitArea
+        self.title2D    = plotTitle
+
     #
     # plot settings
     #
@@ -672,7 +686,7 @@ class PlotGrid():
         return self.plot1DFit
 
     #
-    # plot functions
+    # plot functions / layout
     #
 
     def plot1DData(self):
@@ -826,6 +840,120 @@ class PlotGrid():
 
         return fig, allax
 
+    def plot1DMask(self):
+        """Plots 1D Lines: maskOccu, maskBack, maskFit"""
+
+        # aliases
+        valSet     = self.valSetAx0p1D
+        labelAx0   = self.labelsAx0p1D
+        maOccuSet  = self.maOccuLine
+        maBackSet  = self.maBackLine
+        maFitSet  = self.maFitLine
+                
+        # figure for 1D plots        
+        fig = plt.figure(figsize = self._defaultFigureSize)
+        fig.suptitle(self.title1D, fontsize = 24)
+        allax = []
+        # how many horizontal plots?
+        plotHor = 3
+                
+        # maskOccu
+        plotOffSet = 1
+        for i in range(3):
+            ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+            ax.plot(valSet[i], maOccuSet[i], '-bo')
+            ax.set_xlabel(labelAx0[i], fontsize = 18)
+            ax.set_ylabel('False / True', fontsize = 18)
+            if i == 0:
+                ax.set_title('Mask of Occupation', fontsize = 20)
+            allax.append(ax)
+       
+        # maskBack
+        plotOffSet = 2
+        for i in range(3):
+            ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+            ax.plot(valSet[i], maBackSet[i], '-bo')
+            ax.set_xlabel(labelAx0[i], fontsize = 18)
+            ax.set_ylabel('False / True', fontsize = 18)
+            if i == 0:
+                ax.set_title('Mask of Background', fontsize = 20)
+            allax.append(ax)
+
+        # maskFit
+        plotOffSet = 3
+        for i in range(3):
+            ax = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+            ax.plot(valSet[i], maFitSet[i], '-bo')
+            ax.set_xlabel(labelAx0[i], fontsize = 18)
+            ax.set_ylabel('False / True', fontsize = 18)
+            if i == 0:
+                ax.set_title('Mask of Fit', fontsize = 20)
+            allax.append(ax)
+              
+        return fig, allax
+
+    def plot2DMask(self):
+        """Plots 2D Areas: maskOccu, maskBack, maskFit"""
+
+        # aliases
+        minSetAx1  = self.minSetAx1p2D
+        maxSetAx1  = self.maxSetAx1p2D
+        minSetAx0  = self.minSetAx0p2D
+        maxSetAx0  = self.maxSetAx0p2D
+        labelsAx1  = self.labelsAx1p2D
+        labelsAx0  = self.labelsAx0p2D
+        maOccuArea = self.maOccuArea
+        maBackArea = self.maBackArea
+        maFitArea  = self.maFitArea
+        
+        # figure for 2D plots        
+        fig = plt.figure(figsize = self._defaultFigureSize)
+        fig.suptitle(self.title2D, fontsize = 24)
+        allax = []
+        # how many horizontal plots?
+        plotHor = 3
+                
+        # maskOccu
+        plotOffSet = 1
+        for i in range(3):
+            ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+            cax  = ax.imshow(maOccuArea[i], origin = 'lower', extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
+            fig.colorbar(cax)
+            ax.set_aspect(1./ax.get_data_ratio())
+            ax.set_xlabel(labelsAx1[i], fontsize = 18)
+            ax.set_ylabel(labelsAx0[i], fontsize = 18)
+            if i == 0:
+                ax.set_title('Mask of Occupation', fontsize = 20)
+            allax.append(ax)
+        
+        # maskBack
+        plotOffSet = 2
+        for i in range(3):
+            ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+            cax  = ax.imshow(maBackArea[i], origin = 'lower', extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
+            fig.colorbar(cax)
+            ax.set_aspect(1./ax.get_data_ratio())
+            ax.set_xlabel(labelsAx1[i], fontsize = 18)
+            ax.set_ylabel(labelsAx0[i], fontsize = 18)
+            if i == 0:
+                ax.set_title('Mask of Background', fontsize = 20)
+            allax.append(ax)
+                
+        # maskFit
+        plotOffSet = 3
+        for i in range(3):
+            ax   = fig.add_subplot(3, plotHor, i*plotHor+plotOffSet)
+            cax  = ax.imshow(maFitArea[i], origin = 'lower', extent = [minSetAx1[i], maxSetAx1[i], minSetAx0[i], maxSetAx0[i]])
+            fig.colorbar(cax)
+            ax.set_aspect(1./ax.get_data_ratio())
+            ax.set_xlabel(labelsAx1[i], fontsize = 18)
+            ax.set_ylabel(labelsAx0[i], fontsize = 18)
+            if i == 0:
+                ax.set_title('Mask of Fit', fontsize = 20)
+            allax.append(ax)
+                
+        return fig, allax
+
     #
     # plot jobs
     #
@@ -847,11 +975,13 @@ class PlotGrid():
         # axes and data configuration
         self.setPlot1DAxes(self.imProc.qVal, self.axesLabels)
         if calcMode == 'sum':
-            gridData1D, gridOccu1D = self.imProc.get1DSum()
-            plotTitle = '1D Lines, over other directions is summed'
+            gridData1D = self.imProc.get1DSum(selType = 'gridData')
+            gridOccu1D = self.imProc.get1DSum(selType = 'gridOccu')
+            plotTitle  = '1D Lines, over other directions is summed'
         elif calcMode == 'cut':
-            gridData1D, gridOccu1D = self.imProc.get1DCut()
-            plotTitle = '1D Line cuts at maximum position'
+            gridData1D = self.imProc.get1DCut(selType = 'gridData')
+            gridOccu1D = self.imProc.get1DCut(selType = 'gridOccu')
+            plotTitle  = '1D Line cuts at selected position'
         else:
             gridData1D, gridOccu1D = self.imProc.get1DCutAv()
             plotTitle = '1D average over 9 line cuts around maximum position'
@@ -887,11 +1017,13 @@ class PlotGrid():
                            [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
                            [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
         if calcMode == 'sum':
-            gridData2D, gridOccu2D = self.imProc.get2DSum()
-            plotTitle = '2D Areas, over other direction is summed'
+            gridData2D = self.imProc.get2DSum(selType = 'gridData')
+            gridOccu2D = self.imProc.get2DSum(selType = 'gridOccu')
+            plotTitle  = '2D Areas, over other direction is summed'
         elif calcMode == 'cut':
-            gridData2D, gridOccu2D = self.imProc.get2DCut()
-            plotTitle = '2D Line cuts at maximum position'
+            gridData2D = self.imProc.get2DCut(selType = 'gridData')
+            gridOccu2D = self.imProc.get2DCut(selType = 'gridOccu')
+            plotTitle  = '2D Line cuts at maximum position'
         else:
             gridData2D, gridOccu2D = self.imProc.get2DCutAv()
             plotTitle = '2D average over 3 area cuts around maximum position'
@@ -901,6 +1033,75 @@ class PlotGrid():
         self.setPlot2DData(gridData2D, gridOccu2D, plotTitle = plotTitle)
         # plot, get figure and axes back
         fig2, allax2 = self.plot2DData()
+
+        return fig2, allax2
+
+    def plotMask1D(self, calcMode = 'sum'):
+        """Select and plots the 1D Lines of the mask grids
+
+        calcMode  : select which calculated values are plotted, 'sum', 'cut'
+        
+        retrurns
+        fig1   : plt.figure object of the plotting window
+        allax1 : list of plt.axes objects which carry the figures"""
+
+        # axes and data configuration
+        self.setPlot1DAxes(self.imProc.qVal, self.axesLabels)
+        if calcMode == 'sum':
+            maOccu1D = self.imProc.get1DSum(selType = 'maskOccu')
+            maBack1D = self.imProc.get1DSum(selType = 'maskBack')
+            maFit1D  = self.imProc.get1DSum(selType = 'maskFit')
+            plotTitle  = '1D Lines, over other directions is summed'
+        elif calcMode == 'cut':
+            maOccu1D = self.imProc.get1DCut(selType = 'maskOccu')
+            maBack1D = self.imProc.get1DCut(selType = 'maskBack')
+            maFit1D  = self.imProc.get1DCut(selType = 'maskFit')
+            plotTitle  = '1D Line cuts at selected position'
+        else:
+            print 'calcMode %s is not supported!' % (calcMode)
+        
+        self.setPlot1DMask(maOccu1D, maBack1D, maFit1D, plotTitle = plotTitle)
+        # plot, get figure and axes back
+        fig1, allax1 = self.plot1DMask()
+               
+        return fig1, allax1
+
+    def plotMask2D(self, calcMode = 'sum'):
+        """Select and plots the 2D Areas of the mask grid
+
+        calcMode : select which calculated values are plotted, 'sum', 'cut'
+
+        retrurns
+        fig2   : plt.figure object of the plotting window
+        allax2 : list of plt.axes objects which carry the figures"""
+
+        if self.imProc.frameMode != 4:
+            axLabels =[ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"]
+        else:
+            axLabels = ['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)']
+        # axes and data configuration
+        self.setPlot2DAxes([self.imProc.Qmin[2], self.imProc.Qmin[2], self.imProc.Qmin[1]], 
+                           [self.imProc.Qmax[2], self.imProc.Qmax[2], self.imProc.Qmax[1]],
+                           [self.imProc.Qmin[1], self.imProc.Qmin[0], self.imProc.Qmin[0]], 
+                           [self.imProc.Qmax[1], self.imProc.Qmax[0], self.imProc.Qmax[0]],
+                           [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
+                           [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
+        if calcMode == 'sum':
+            maOccu2D  = self.imProc.get2DSum(selType = 'maskOccu')
+            maBack2D  = self.imProc.get2DSum(selType = 'maskBack')
+            maFit2D   = self.imProc.get2DSum(selType = 'maskFit')
+            plotTitle = '2D Areas, over other direction is summed'
+        elif calcMode == 'cut':
+            maOccu2D  = self.imProc.get2DCut(selType = 'maskOccu')
+            maBack2D  = self.imProc.get2DCut(selType = 'maskBack')
+            maFit2D   = self.imProc.get2DCut(selType = 'maskFit')
+            plotTitle = '2D Line cuts at maximum position'
+        else:
+            print 'calcMode %s is not supported!' % (calcMode)
+        
+        self.setPlot2DMask(maOccu2D, maBack2D, maFit2D, plotTitle = plotTitle)
+        # plot, get figure and axes back
+        fig2, allax2 = self.plot2DMask()
 
         return fig2, allax2
 
@@ -931,20 +1132,15 @@ if __name__ == "__main__":
     scan = sf[244]
 
     fp = FileProcessor()
-    fp.setFromSpec(scan)
-    fp.process()
-
-    
+    #fp.setFromSpec(scan)
+    #fp.process()
     #p = CCDPlot(fp.getImage())
     #p.draw()
     
-    
-    
-    testData = ImageProcessor()
-
+    # image processor
+    testData = ImageProcessor(fp)
     testData.setDetectorAngle(-1.24)
     testData.setBins(4, 4)
-    testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(1)
