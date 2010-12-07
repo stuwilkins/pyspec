@@ -167,13 +167,19 @@ def makePanelPlot(n = 3, fig = None,
 
     return allax
 
-def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4):
+def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
+                 tickcolor = None, framecolor = None):
     """Make nice plot by setting all border widths"""
 
     # Some constants
 
     #ax.axesFrame.set_linewidth(2)
-    [i.set_linewidth(2) for i in ax.spines.itervalues()]
+    
+    for i in ax.spines.itervalues():
+        i.set_linewidth(2)
+    if framecolor:
+        for i in ax.spines.itervalues():
+            i.set_color(framecolor)
 
     ax.xaxis.label.set_fontsize(18)
     ax.yaxis.label.set_fontsize(18)
@@ -193,11 +199,19 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4):
         
         tick.label1.set_fontsize(16)
 
+        if tickcolor:
+            tick.tick1line.set_color(tickcolor)
+            tick.tick2line.set_color(tickcolor)
+
     for tick in ax.xaxis.get_minor_ticks() + ax.yaxis.get_minor_ticks():
         tick.tick1line.set_markersize(8)
         tick.tick2line.set_markersize(8)
         tick.tick1line.set_markeredgewidth(1)
         tick.tick2line.set_markeredgewidth(1)
+
+        if tickcolor:
+            tick.tick1line.set_color(tickcolor)
+            tick.tick2line.set_color(tickcolor)
 
 def setImageRange(data, limits, bins = 100):
     
