@@ -111,14 +111,25 @@ def multifit(sf, scans, var, *args, **kwargs):
 
     return alldata, allerrors
 
-def pickleit(filename, object):
+def pickleit(filename, *args):
     """Pickle a python object
 
-    filename : filename to pickle to
-    object   : Python object to pickle"""
+    filename  : filename to pickle to
+    args      : Python objects to pickle"""
+
     output = open(filename, 'wb')
-    for o in object:
+
+    if len(args) == 1:
+        if type(args[0]) != list:
+            pobject = [args[0]]
+        else:
+            pobject = args[0]
+    else:
+        pobject = list(args)
+
+    for o in pobject:
         pickle.dump(o, output)
+
     output.close()
 
 def unpickleit(filename):
@@ -132,7 +143,11 @@ def unpickleit(filename):
             o.append(pickle.load(f))
         except EOFError:
             f.close()
-            return o
+            if len(o) == 1:
+                # Single value so return first item
+                return o[0]
+            else:
+                return o
 
     return None
 

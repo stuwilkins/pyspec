@@ -58,13 +58,14 @@ import time
 import sys
 import os
 import numpy
-from copy import deepcopy
+
 from numpy import *
 from scipy import *
 from pylab import *
 import matplotlib.pylab as pylab
 from fit import fit
 from pyspec.ccd.transformations import FileProcessor
+from copy import deepcopy, copy
 
 __version__ = "$Revision$"
 __author__ = "Stuart B. Wilkins <swilkins@bnl.gov>"
@@ -133,6 +134,12 @@ class SpecDataFile:
         else:
             self.ccdtail = ".spe"
         return
+
+    def __getstate__(self):
+        # Called to pickle class
+        mydict = copy(self.__dict__)
+        mydict['file'] = None
+        return mydict
 
     def setCCD(self, path = None, tail = None):
         self.ccdpath = path
@@ -600,6 +607,10 @@ class SpecScan:
         self._setcols()
 
         return self
+
+    def __getstate__(self):
+        # Copy the dictionary and then return the copy
+        return self.__dict__
 
     def getSIXCAngles(self):
         """This function returns the SIXC angles

@@ -176,28 +176,38 @@ class FileProcessor():
     def __init__(self, filenames = None, 
                  darkfilenames = None, 
                  norm = None, format = 'SPE',
-                 spec = None, mon = 'Monitor'):
+                 spec = None, mon = 'Monitor',
+                 load = None):
         """Initialize the class
 
         filenames      : list of filenames for all images
         darkfilenames  : list of filenames for the dark images
-        spec           : SpecScan object from which to obtain data"""
+        spec           : SpecScan object from which to obtain data
+        format         : CCD file format (SPE)
+        mon            : name of monitor for spec files
+        load           : filename to load data from (from a pervious save)"""
+
         self._format = format
         self.filenames = filenames
         self.darkfilenames = darkfilenames
+        self.bgndParams = np.array([])
         self.normData = None
+        self.specScan = None
 
+        if load is not None:
+            self.load(load)
         if spec is not None:
             self.setFromSpec(spec)
         if norm is not None:
             self.normData = norm
-        self.bgndParams = np.array([])
+        
 
     def setFromSpec(self, scan, mon = 'Monitor'):
         """Set the filenames from a SpecScan instance
 
         scan    : SpecScan instance
         norm    : spec counter to normalize against"""
+        self.specScan = scan
         self.filenames = scan.getCCDFilenames()
         self.darkfilenames = scan.getCCDFilenames(dark = 1)
         self.normData = scan.values[mon]
@@ -332,15 +342,24 @@ class FileProcessor():
                'normData' : self.normData}
 
         np.savez(filename, **obj)
-        print "*** Image saved to %s" % filename
+        print "**** Image saved to %s" % filename
 
     def load(self, filename):
         """Load images from previous save operation
 
         filename : filename of images"""
         
-        print "Loading image from %s" % filename
-        print np.load(filename)
+
+        filename = filename.strip()
+        if (len(filename) - filename.rfind(".npz")) != 4:
+            filename = filename + ".npz"
+
+        print "**** Loading image data from %s" % filename
+        npfo = np.load(filename)
+        self.images = npfo['images']
+        self.normData = npfo['normData']
+        print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
+                                                       self.images.nbytes / 1024**2)
 
 #
 # image processor class
@@ -354,8 +373,8 @@ class ImageProcessor():
     the set of reciprocal vectors and intensities is gridded on a regular cuboid
     the needed informations can be provided by a spec scan from the pyspec package"""
 
-    def __init__(self, fP, configfile = None, ccdname = 'CCD',
-                 spec = None):
+    def __init__(self, fP = None, configfile = None, 
+                 ccdname = 'CCD', spec = None):
         """Initialize the image processor
 
         fP         : file processor object for getting the images
@@ -528,13 +547,13 @@ class ImageProcessor():
         setName       : name of the considered set, e.g. 'Scan #' in the spec case
         setNum        : no. to determine the set, e.g. 244 in the spec case
         setSize       : no. of images in the set, e.g. 81
-
-        The file Processor processes the corresponding images"""
+        """
 
         self.conScan = conScan
         self._setBySpec()
-        self.fileProcessor.setFromSpec(conScan)
-        self.fileProcessor.process()
+        # NO NO NO ... This is really bad programming. This shold not be in this part
+        #self.fileProcessor.setFromSpec(conScan)
+        #self.fileProcessor.process()
    
     def getSpecScan(self):
         """Get the pyspec scan object which was used for the set settings
@@ -574,8 +593,8 @@ class ImageProcessor():
                 self.frameMode = 4
             else:
                 raise Exception("Unknown mode %s." % mode)
-
-        self.frameMode = mode
+        else:
+            self.frameMode = mode
         self._preAxesLabels()
         self._makeModeInfo()
 
@@ -1288,8 +1307,8 @@ class ImageProcessor():
                 
             print "\n**** Converting to Q"
             t1 = time.time()
-            self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
-                                        angles      = self.settingAngles * np.pi / 180.0, 
+            self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
+                                        mode        = self.frameMode,
                                         ccd_size    = (self.detSizeX, self.detSizeY),
                                         ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
                                         ccd_cen     = (self.detX0, self.detY0),
@@ -1299,6 +1318,8 @@ class ImageProcessor():
                                         **ccdToQkwArgs)
             t2 = time.time()
             print "---- DONE (Processed in %f seconds)" % (t2 - t1)
+            print self.totSet.shape
+            print self.fileProcessor.getImage().shape
             self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
             #print gc.get_referents(totSet)
 

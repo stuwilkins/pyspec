@@ -3,6 +3,11 @@ Introduction to CCD Package
 
 This chapter gives a short overview about the steps which are provided by CCD package and the brief ideas.
 
+Important note on indexing
+--------------------------
+
+
+
 Read In the Images
 ------------------
 
