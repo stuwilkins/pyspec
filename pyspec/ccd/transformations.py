@@ -176,38 +176,28 @@ class FileProcessor():
     def __init__(self, filenames = None, 
                  darkfilenames = None, 
                  norm = None, format = 'SPE',
-                 spec = None, mon = 'Monitor',
-                 load = None):
+                 spec = None, mon = 'Monitor'):
         """Initialize the class
 
         filenames      : list of filenames for all images
         darkfilenames  : list of filenames for the dark images
-        spec           : SpecScan object from which to obtain data
-        format         : CCD file format (SPE)
-        mon            : name of monitor for spec files
-        load           : filename to load data from (from a pervious save)"""
-
+        spec           : SpecScan object from which to obtain data"""
         self._format = format
         self.filenames = filenames
         self.darkfilenames = darkfilenames
-        self.bgndParams = np.array([])
         self.normData = None
-        self.specScan = None
 
-        if load is not None:
-            self.load(load)
         if spec is not None:
             self.setFromSpec(spec)
         if norm is not None:
             self.normData = norm
-        
+        self.bgndParams = np.array([])
 
     def setFromSpec(self, scan, mon = 'Monitor'):
         """Set the filenames from a SpecScan instance
 
         scan    : SpecScan instance
         norm    : spec counter to normalize against"""
-        self.specScan = scan
         self.filenames = scan.getCCDFilenames()
         self.darkfilenames = scan.getCCDFilenames(dark = 1)
         self.normData = scan.values[mon]
@@ -342,24 +332,15 @@ class FileProcessor():
                'normData' : self.normData}
 
         np.savez(filename, **obj)
-        print "**** Image saved to %s" % filename
+        print "*** Image saved to %s" % filename
 
     def load(self, filename):
         """Load images from previous save operation
 
         filename : filename of images"""
         
-
-        filename = filename.strip()
-        if (len(filename) - filename.rfind(".npz")) != 4:
-            filename = filename + ".npz"
-
-        print "**** Loading image data from %s" % filename
-        npfo = np.load(filename)
-        self.images = npfo['images']
-        self.normData = npfo['normData']
-        print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
-                                                       self.images.nbytes / 1024**2)
+        print "Loading image from %s" % filename
+        print np.load(filename)
 
 #
 # image processor class
@@ -373,8 +354,8 @@ class ImageProcessor():
     the set of reciprocal vectors and intensities is gridded on a regular cuboid
     the needed informations can be provided by a spec scan from the pyspec package"""
 
-    def __init__(self, fP = None, configfile = None, 
-                 ccdname = 'CCD', spec = None):
+    def __init__(self, fP, configfile = None, ccdname = 'CCD',
+                 spec = None):
         """Initialize the image processor
 
         fP         : file processor object for getting the images
@@ -536,7 +517,6 @@ class ImageProcessor():
         conScan : pyspec scan object which contains the needed information
 
         The set settings are:
-        temperature   : temperature of the sample (float in Kelvin)
         waveLen       : wavelength of the X-rays  (float in Angstrom)
         energy        : photon energy             (float in eV)
         imFileNames   : filenames for each image
@@ -547,13 +527,13 @@ class ImageProcessor():
         setName       : name of the considered set, e.g. 'Scan #' in the spec case
         setNum        : no. to determine the set, e.g. 244 in the spec case
         setSize       : no. of images in the set, e.g. 81
-        """
+
+        The file Processor processes the corresponding images"""
 
         self.conScan = conScan
         self._setBySpec()
-        # NO NO NO ... This is really bad programming. This shold not be in this part
-        #self.fileProcessor.setFromSpec(conScan)
-        #self.fileProcessor.process()
+        self.fileProcessor.setFromSpec(conScan)
+        self.fileProcessor.process()
    
     def getSpecScan(self):
         """Get the pyspec scan object which was used for the set settings
@@ -593,8 +573,8 @@ class ImageProcessor():
                 self.frameMode = 4
             else:
                 raise Exception("Unknown mode %s." % mode)
-        else:
-            self.frameMode = mode
+
+        self.frameMode = mode
         self._preAxesLabels()
         self._makeModeInfo()
 
@@ -768,7 +748,6 @@ class ImageProcessor():
         """Set the settings for the set from the considered pyspec scan object
 
         The set settings are:
-        temperature   : temperature of the sample (float in Kelvin)
         waveLen       : wavelength of the X-rays  (float in Angstrom)
         energy        : photon energy             (float in eV)
         imFileNames   : filenames for each image
@@ -780,7 +759,6 @@ class ImageProcessor():
         setNum        : no. to determine the set, e.g. 244 in the spec case
         setSize       : no. of images in the set, e.g. 81"""
 
-        self.temperature   = self.conScan.Tsam.mean() # in Kelvin
         self.waveLen       = self.conScan.wavelength  # in Angstrom
         self.energy        = Diffractometer.hc_over_e / self.conScan.wavelength # in eV
         self.imFileNames   = self.conScan.getCCDFilenames()
@@ -953,8 +931,12 @@ class ImageProcessor():
         self.qVal = [qxVal, qyVal, qzVal]
         self.dVec = dVec
         
-        # grids of Qx-, Qy- and Qz-values
-        self.qxGrid, self.qyGrid, self.qzGrid = get3DMesh(self.qVal[0], self.qVal[1], self.qVal[2])
+        # qx, qy, qz as gird in order z,y,x
+        qx, qy, qz = get3DMesh(self.qVal[0], self.qVal[1], self.qVal[2])
+        # qx, qy, qz as gird in order x,y,z like data grid and everything else
+        self.qxGrid = qx.transpose(2,1,0)
+        self.qyGrid = qy.transpose(2,1,0)
+        self.qzGrid = qz.transpose(2,1,0)
 
     def _calcMax(self):
         """Calculates the position of the maximum as indicies"""
@@ -1005,15 +987,16 @@ class ImageProcessor():
 
         bgndfunc = self._threeDLinRes
 
+        # qx, qy, qz as gird in order z,y,x
         qx, qy, qz = self.qxGrid, self.qyGrid, self.qzGrid
-                
+                        
         # background mask
         self.maskBack = np.ones(self.gridData.shape) == 0
         if maskBox != None:
             xMask = (qx >= maskBox[0]) & (qx <= maskBox[3])
             yMask = (qy >= maskBox[1]) & (qy <= maskBox[4])
             zMask = (qz >= maskBox[2]) & (qz <= maskBox[5])
-            self.maskBack = self.maskBack | (xMask & yMask & zMask).transpose(2,1,0)
+            self.maskBack = self.maskBack | (xMask & yMask & zMask)
 
         # fit mask
         self.maskFit = self.maskOccu | self.maskBack
@@ -1029,7 +1012,7 @@ class ImageProcessor():
         fMes  = np.ravel(self.gridData)[conMask]
         plsq  = leastsq(bgndfunc, guess, args = (fMes, _qx, _qy, _qz))
         self.pBack    = plsq[0]
-        self.gridBack = self._threeDLin(plsq[0], qx, qy, qz).transpose(2,1,0)
+        self.gridBack = self._threeDLin(plsq[0], qx, qy, qz)
         self.gridBack[self.maskOccu] = 0.0
         self.gridData = self.gridData - self.gridBack     
 
@@ -1229,7 +1212,7 @@ class ImageProcessor():
             gridBackInfo += '\n\t min \t\t max'
             line = '\n%s' + 2*' \t %.2e'
             for i in range(3):
-                gridBackInfo += line % (self.qLabel[i], self.Qmin[i], self.Qmax[i])
+                gridBackInfo += line % (self.qLabel[i], self.backMaskBox[i], self.backMaskBox[i+3])
 
         gridBackInfo += '\nFitted parameters:'
         gridBackInfo += '\nmx \t\t my \t\t mz \t\t d'
@@ -1307,8 +1290,8 @@ class ImageProcessor():
                 
             print "\n**** Converting to Q"
             t1 = time.time()
-            self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
-                                        mode        = self.frameMode,
+            self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
+                                        angles      = self.settingAngles * np.pi / 180.0, 
                                         ccd_size    = (self.detSizeX, self.detSizeY),
                                         ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
                                         ccd_cen     = (self.detX0, self.detY0),
@@ -1318,8 +1301,6 @@ class ImageProcessor():
                                         **ccdToQkwArgs)
             t2 = time.time()
             print "---- DONE (Processed in %f seconds)" % (t2 - t1)
-            print self.totSet.shape
-            print self.fileProcessor.getImage().shape
             self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
             #print gc.get_referents(totSet)
 
@@ -1645,7 +1626,7 @@ if __name__ == "__main__":
 
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/ymn2o5_oct10/ymn2o5_oct10_1', 
     			     ccdpath = '/mounts/davros/nasshare/images/oct10')
-    scan = sf[151]
+    scan = sf[360]
 
     ###
     # file processor
@@ -1665,7 +1646,7 @@ if __name__ == "__main__":
     testData = ImageProcessor(fp)
     #testData.processMode = 'builtin'
     testData.setDetectorPos(detAng = -1.24)
-    testData.setBins(2, 2)
+    testData.setBins(4, 4)
     #testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
     #fp.processBgnd(maskroi =[[63, 100, 67, 100]])
@@ -1699,10 +1680,10 @@ if __name__ == "__main__":
     # plot of raw images
     ###
 
-    plIm = PlotImages(fp, testData)
-    plIm.setPlotContent(plotSelect = range(0,121,10), plotType = 'norm')
+    #plIm = PlotImages(fp, testData)
+    #plIm.setPlotContent(plotSelect = range(0,121,10), plotType = 'norm')
     #plIm.setPlotLayout(, plotImHor = 4, plotImVer = 3)
-    plIm.plotImages()
+    #plIm.plotImages()
 
     ###
     # plot grid data
@@ -1735,17 +1716,17 @@ if __name__ == "__main__":
     # second run with same objects
     ###
 
-    #scan2 = sf[320]
-    #testData.setSpecScan(scan2)
-    #testData.makeGridData()
-    #testPlotter.plotGrid1D('cut')
-    #testPlotter.plotGrid2D('cut')
+    scan2 = sf[361]
+    testData.setSpecScan(scan2)
+    testData.makeGridData()
+    testPlotter.plotGrid1D('cut')
+    testPlotter.plotGrid2D('cut')
 
-    #info2 = testData.makeInfo()
+    info2 = testData.makeInfo()
 
     print '\n\n'
     print info1
-    #print info2
+    print info2
 
     plt.show()
 
