@@ -229,6 +229,262 @@ class PlotGrid3D():
                        transparent = True, vmin = mb,
                        extent = extent)
 
+
+class PlotWindow():
+    """Plot window for 1D and 2D data
+
+    options e.g. : size, axes order, labels, titles"""
+
+    def __init__(self):
+
+       pass
+
+    #
+    # set / get plotting data
+    #
+
+    def setPlotData(self, plotData):
+        """Set plotting data
+
+        plotData : list of data to plot for 
+                   1D entry [xData, yData], 
+                   2D entry (n0, n1) np.array
+
+        stores:
+        plotNum  : No. of entries to plot"""
+
+        self._plotData = plotData
+        self._plotNum  = len(plotData)
+        self.setPlotDetails()
+        self.setPlotLayouts()
+
+    def getPlotData(self):
+        """Get plotting data
+
+        plotData : list of data to plot for 
+                   1D entry [xData, yData], 
+                   2D entry (n0, n1) np.array"""
+
+        return self._plotData
+
+    def setPlotDetails(self, plotDim = None, plotLog = None, plotOrigins = None, plotExtents = None):
+        """Set details of the singel plots
+
+        plotDim     : list of 'oneD' and 'twoD', set from plotData if None
+        plotLog     : list of boolean, plot on log scale if True
+        plotOrigins : list of sting: None, 'upper' or 'lower' (only 2D)
+        plotExtents : list of extents (only 2D), [ax1Min, ax1Max, ax0Min, ax0Max]"""
+
+        if plotDim == None:
+            plotDim = self._plotNum * ['']
+            for i in range(self._plotNum):
+                plotType = type(self._plotData[i])
+                if plotType == list:
+                    plotDim[i] = 'oneD'
+                elif plotType == np.ndarray:
+                    plotDim[i] = 'twoD'
+                elif plotType == np.ma.core.MaskedArray:
+                    plotDim[i] = 'twoD'
+                else:
+                    print '\n\nXXXX Type %s of plot entry %d is not supported!\n' % (plotType, i)
+        
+        if plotLog      == None:
+            plotLog     =  self._plotNum * [False]
+        if plotOrigins  == None:
+            plotOrigins =  self._plotNum * [None]
+        if plotExtents  == None:
+            plotExtents =  self._plotNum * [None]
+
+        self._plotDim     = plotDim
+        self._plotLog     = plotLog
+        self._plotOrigins = plotOrigins
+        self._plotExtents = plotExtents
+
+    def getPlotDetails(self):
+        """Get details of the singel plots
+
+        plotDim     : list of 'oneD' and 'twoD', set from plotData if None
+        plotLog     : list of boolean, plot on log scale if True
+        plotOrigins : list of sting: None, 'upper' or 'lower' (only 2D)
+        plotExtents : list of extents (only 2D), [ax1Min, ax1Max, ax0Min, ax0Max]"""
+
+        return self._plotDim, self._plotLog, self._plotOrigins, self._plotExtents
+
+    #
+    # set / get layout
+    #
+
+    def setWinLayout(self, fig = None, allax = None, figSize = (11, 8.5), plotHor = 3, plotVer = 3, plotOrd = 'vh', winTitle = ''):
+        """Set the options for the plotting window
+
+        fig      : plt.figure for plotting, make new if None
+        allax    : list of plt.axes    for plotting, make new if None 
+        figSize  : figure size (width, height) in inches, e.g. (11, 8.5)
+        plotHor  : no. of horizontal images per window  , e.g. 4
+        plotVer  : no. of vertical   images per window  , e.g. 3
+        plotOrd  : order of plotting, horizontal-vertical ('hv') of vertical-horizontal ('vh')
+        winTitle : title of the window"""
+
+        self._plotHor  = plotHor
+        self._plotVer  = plotVer
+        self._plotOrd  = plotOrd
+        if fig == None:
+            fig = plt.figure()
+        self._fig = fig
+        if allax == None:
+            self._layout2Axes()
+        else:
+            self._allax    = allax
+        self._figSize  = figSize
+        self._winTitle = winTitle
+
+        self._makeWinTitle()
+
+    def getWinLayout(self):
+        """Get the options for the plotting window
+
+        fig      : plt.figure for plotting, make new if None
+        allax    : list of plt.axes    for plotting, make new if None 
+        figSize  : figure size (width, height) in inches, e.g. (11, 8.5)
+        plotHor  : no. of horizontal images per window  , e.g. 4
+        plotVer  : no. of vertical   images per window  , e.g. 3
+        plotOrd  : order of plotting, horizontal-vertical ('hv') of vertical-horizontal ('vh')
+        winTitle : title of the window"""
+        
+        return self._fig, self._allax, self._figSize, self._plotHor, self._plotVer, self._plotOrd, self._winTitle
+
+    def setPlotLayouts(self, plotTitles = None, axesLabels = None, plotKinds = None, dataLabels = None, plotLegends = None):
+        """Set layout of the singel plots
+
+        plotTitles  : list of plot titles, e.g. ['Data', 'Occupation']
+        axesLabels  : list of axes labels, e.g. [[xLabel, yLabel], [ax1Label, ax0Label]]
+        plotKinds   : list of plot kindes (only 1D), e.g. ['-bo', '-r']
+        dataLabels  : list of data labels (only 1D), e.g. ['Data', 'fit']
+        plotLegends : list of boolean, show legend if True (only 1D)"""
+
+        if plotTitles   == None:
+            plotTitles  =  self._plotNum * ['']
+        if axesLabels   == None:
+            axesLabels  =  self._plotNum * [['', '']]
+        if plotKinds    == None:
+            plotKinds   =  self._plotNum * ['-bo']
+        if dataLabels   == None:
+            dataLabels  =  self._plotNum * [None]
+        if plotLegends  == None:
+            plotLegens  =  self._plotNum * [False]
+        
+        self._plotTitles  = plotTitles
+        self._axesLabels  = axesLabels
+        self._plotKinds   = plotKinds
+        self._dataLabels  = dataLabels
+        self._plotLegends = plotLegends
+        
+    def getPlotLayouts(self):
+        """Get layout of the singel plots
+
+        plotTitles  : list of plot titles, e.g. ['Data', 'Occupation']
+        axesLabels  : list of axes labels, e.g. [[xLabel, yLabel], [ax1Label, ax0Label]]
+        plotKinds   : list of plot kindes (only 1D), e.g. ['-bo', '-r']
+        dataLabels  : list of data labels (only 1D), e.g. ['Data', 'fit']
+        plotLegends : list of boolean, show legend if True (only 1D)"""
+        
+        return self._plotTitles, self._axesLabels, self._plotKinds, self._dataLabels, self._plotLegends
+
+    #
+    # help functions
+    #
+
+    def _layout2Axes(self):
+        """Make new axes concerning the given layout
+
+        stores:
+        allax    : list of plt.axes    for plotting"""
+
+        # prepare plots
+        plotWinNum = self._plotHor * self._plotVer
+        if plotWinNum < self._plotNum:
+            print '\n\nXXXX There are %d data entries, but window has only %d axes!\n' % (self._plotNum, plotWinNum)
+        # plotting order
+        if self._plotOrd == 'vh':
+            axNum = np.ravel( np.array(range(plotWinNum)).reshape(self._plotVer, self._plotHor).T ) + 1
+        else:
+            axNum = np.array(range(plotWinNum)) + 1
+        allax  = []
+
+        # go through no. of data
+        for i in range(self._plotNum):
+
+            # new subplot
+            ax = plt.subplot(self._plotVer, self._plotHor, axNum[i%plotWinNum])
+            allax.append(ax)
+
+        self._allax = allax
+
+    def _makeWinTitle(self):
+        """Show the title of the Window"""
+
+        self._fig.suptitle(self._winTitle, fontsize = 24)
+      
+    def _plot1D(self, i):
+        """Plot 1D data of entry i"""
+
+        # prepare plot
+        ax        = self._allax[i]
+        xVal      = self._plotData[i][0]
+        yVal      = self._plotData[i][1]
+        plotKind  = self._plotKinds[i]
+        plotLabel = self._plotLabels[i]
+        plotTitle = self._plotTitles[i]
+        xLabel    = self._axesLabels[i][0]
+        yLabel    = self._axesLabels[i][1]
+
+        if self.plotLog[i] == True:
+            ax.semilogy(xVal, yVal, plotKind, label = plotLabel)
+        else:
+            ax.plot(xVal, yVal,  plotKind, label = plotLabel)
+        ax.set_xlabel(xLabel,   fontsize = 18)
+        ax.set_ylabel(yLabel,   fontsize = 18)
+        ax.set_title(plotTitle, fontsize = 20)
+
+    def _plot2D(self, i):
+        """Plot 2D data of entry i"""
+
+        # prepare plot
+        fig        = self._fig
+        ax         = self._allax[i]
+        areaVal    = self._plotData[i]
+        plotOrigin = self._plotOrigins[i]
+        plotExtent = self._plotExtents[i]
+        plotTitle  = self._plotTitles[i]
+        ax1Label   = self._axesLabels[i][0]
+        ax0Label   = self._axesLabels[i][1]
+
+        if self._plotLog[i] == True:
+            cax  = ax.imshow(areaVal, norm=LogNorm(), origin = 'lower', extent = plotExtent)
+        else:
+            cax  = ax.imshow(areaVal, origin = 'lower', extent = plotExtent)
+        fig.colorbar(cax, ax = ax)
+        ax.set_aspect(1./ax.get_data_ratio())
+        ax.set_xlabel(ax1Label, fontsize = 18)
+        ax.set_ylabel(ax0Label, fontsize = 18)
+        ax.set_title(plotTitle, fontsize = 20)
+        
+    #
+    # plot all
+    #
+
+    def plotAll(self):
+        """Plot all data wiht regarding layout and details"""
+
+        for i in range(self._plotNum):
+            dim = self._plotDim[i]
+            if dim == 'oneD':
+                self._plot1D(i)
+            elif dim == 'twoD':
+                self._plot2D(i)
+            else:
+                print '\n\nXXXX %s of entry %d is no correct plotting type!\n' % (dim, i)
+
 class PlotImages():
     """Plot CCD-images"""
 
@@ -287,7 +543,7 @@ class PlotImages():
         return self._plotSelect, self._plotType
 
     def setPlotLayout(self, figSize = (11, 8.5), plotHor = 4, plotVer = 3, plotOrd = 'hv'):
-        """Set the options for the ploting window
+        """Set the options for the plotting window
 
         figSize : figure size (width, height) in inches, e.g. (11, 8.5)
         plotHor : no. of horizontal images per window  , e.g. 4
@@ -300,7 +556,7 @@ class PlotImages():
         self._plotOrd = plotOrd
         
     def getPlotLayout(self):
-        """Get the options for the ploting window
+        """Get the options for the plotting window
 
         figSize : figure size (width, height) in inches, e.g. (11, 8.5)
         plotHor : no. of horizontal images per window  , e.g. 4
@@ -511,6 +767,10 @@ class PlotImages():
 
         return allfig, allax
 
+
+
+
+
 class PlotGrid():
     """Plot Grid Class
 
@@ -539,8 +799,31 @@ class PlotGrid():
         
 
     #
-    # set part
+    # set / get plot layout
     #
+
+    def setPlotLayout(self, figSize = (11, 8.5), plotHor = 4, plotVer = 3, plotOrd = 'hv'):
+        """Set the options for the plotting window
+
+        figSize : figure size (width, height) in inches, e.g. (11, 8.5)
+        plotHor : no. of horizontal images per window  , e.g. 4
+        plotVer : no. of vertical   images per window  , e.g. 3
+        plotOrd : order of plotting, horizontal-vertical ('hv') of vertical-horizontal ('vh')"""
+        
+        self._figSize = figSize
+        self._plotHor = plotHor
+        self._plotVer = plotVer
+        self._plotOrd = plotOrd
+        
+    def getPlotLayout(self):
+        """Get the options for the plotting window
+
+        figSize : figure size (width, height) in inches, e.g. (11, 8.5)
+        plotHor : no. of horizontal images per window  , e.g. 4
+        plotVer : no. of vertical   images per window  , e.g. 3
+        plotOrd : order of plotting, horizontal-vertical ('hv') of vertical-horizontal ('vh')"""
+        
+        return self._figSize, self._plotHor, self._plotVer, self._plotOrd
 
     def setAxesLabels(self, axesLabels):
         """Set the plotting labels for the axes
@@ -961,6 +1244,8 @@ class PlotGrid():
                 
         return fig, allax
 
+
+
     #
     # plot jobs
     #
@@ -1127,6 +1412,344 @@ class PlotGrid():
         self.plotGrid2D('cut')
         self.plotGrid1D('cutAv')
         self.plotGrid2D('cutAv')
+
+
+
+class PlotGrid2():
+    """Plot Grid Class
+
+    This class plots: 
+    intensity, occupation of the grid parts (bins), histogram of the occupation
+    of a given 2D or 1D grid"""
+
+    def __init__(self, imProc):
+        # image Processor to get all the needed data
+        self.setImProcessor(imProc)
+        
+        # plot window
+        self.setPlotWindow()
+        
+        # plot flags: intensity, missing grid parts, histogram of occupation of the grid parts
+        self.plotFlag2D = 4
+        self.plotFlag1D = 4
+        self.logFlag1D  = 0
+        self.logFlag2D  = 0
+        self.histBin    = 50
+        # plot the 1D fits
+        self.plot1DFit  = False
+        
+
+    #
+    # set / get plot layout
+    #
+
+    def setImProcessor(self, imProc):
+        """Set instance of ImageProcessor to handle all data
+
+        imProc : instance of the ImageProcessor class"""
+
+        self._imProc = imProc
+        # set proper labels for axes
+        if imProc.frameMode == 4:
+            self.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
+        else:
+            self.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
+
+    def getImProcessor(self, imProc):
+        """Get instance of ImageProcessor to handle all data
+
+        imProc : instance of the ImageProcessor class"""
+
+        return self._imProc
+            
+    def setPlotWindow(self, plotWin = None):
+        """Set instance of PlotWindow class for plotting
+
+        plotWin : instance of the PlotWindow class, make new if None"""
+
+        if plotWin == None:
+            plotWin = PlotWindow()
+
+        self._plotWin = plotWin
+        
+    def getPlotWindow(self):
+        """Get instance of PlotWindow class for plotting
+
+        plotWin : instance of the PlotWindow class, make new if None"""
+
+        return self._plotWin
+
+    def setAxesLabels(self, axesLabels):
+        """Set the plotting labels for the axes
+
+        axesLabels : labels for the axes [xLabel, yLabel, zLabel]"""
+        
+        self._axesLabels = axesLabels
+
+    def getAxesLabels(self):
+        """Get the plotting labels for the axes
+
+        axesLabels : labels for the axes [xLabel, yLabel, zLabel]"""
+        
+        return self._axesLabels
+
+    def setPlotFlags(self, flag1D = 7, flag2D = 7):
+        """Set the ploting flags for 1D and 2D plots
+
+        flag1D : flag to select 2D plots
+        flag2D : flag to select 1D plots
+
+        binary code, flag & 1: intensity, flag & 2: occupation numbers of the grid parts (bins),
+        flag & 4: histogram of occupation of the grid parts (bins)"""
+        
+        self._plotFlag1D = flag1D
+        self._plotFlag2D = flag2D
+
+    def getPlotFlags(self):
+        """Get the ploting flags for 1D and 2D plots
+
+        flag1D : flag to select 1D plots
+        flag2D : flag to select 2D plots
+
+        binary code, flag & 1: intensity, flag & 2: occupation numbers of the grid parts (bins),
+        flag & 4: histogram of occupation of the grid parts (bins)"""
+        
+        return self._plotFlag2D, self._plotFlag1D
+
+    def setLogFlags(self, flag1D = 0, flag2D = 0):
+        """Set whether data are plotted on linear (0) or logarithmic (1) scale
+
+        flag1D : flag to select scale of 1D plots
+        flag2D : flag to select scale of 2D plots
+
+        binary code, flag & 1: intensity, flag & 2: missing grid parts"""
+        
+        self._logFlag1D = flag1D
+        self._logFlag2D = flag2D
+        
+    def getLogFlags(self):
+        """Get whether data are plotted on linear (0) or logarithmic (1) scale
+
+        flag1D : flag to select scale of 1D plots
+        flag2D : flag to select scale of 2D plots
+
+        binary code, flag & 1: intensity, flag & 2: missing grid parts"""
+        
+        return self._logFlag1D, self._logFlag2D
+
+    def setHistBin(self, histBin = 50):
+        """Set the no. of bins for the histograms
+
+        hisBin : no. of bins for the histograms of the occupation numbers"""
+        
+        self._histBin = histBin
+
+    def getHistBin(self, histBin = 50):
+        """Get the no. of bins for the histograms
+
+        hisBin : no. of bins for the histograms of the occupation numbers"""
+        
+        return self._histBin
+  
+    def setPlot1DFit(self, plot1DFit):
+        """Set plotting the 1D fits"""
+
+        self._plot1DFit = plot1DFit
+              
+    def getPlot1DFit(self):
+        """Get plotting the 1D fits"""
+
+        return self._plot1DFit
+
+    #
+    # plot jobs
+    #
+
+    def plotGrid1D(self, calcMode = 'sum', intenFits = None):
+        """Select and plots the 1D Lines of the data grid
+
+        calcMode  : select which calculated values are plotted, 'sum', 'cut', 'cutAv'
+        intenFits : intensity of the 1D fits, do not consider if None
+
+        retrurns
+        fig1   : plt.figure object of the plotting window
+        allax1 : list of plt.axes objects which carry the figures
+        allRes : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
+
+        # results for fit of 1D data, None if no fitting
+        allRes = np.zeros((3,5))
+
+        # axes and data configuration
+        self.setPlot1DAxes(self.imProc.qVal, self.axesLabels)
+        if calcMode == 'sum':
+            gridData1D = self.imProc.get1DSum(selType = 'gridData')
+            gridOccu1D = self.imProc.get1DSum(selType = 'gridOccu')
+            if self.imProc.backSub == True:
+                gridBack1D = self.imProc.get1DSum(selType = 'griBack')
+            plotTitle  = '1D Lines, over other directions is summed'
+        elif calcMode == 'cut':
+            gridData1D = self.imProc.get1DCut(selType = 'gridData')
+            gridOccu1D = self.imProc.get1DCut(selType = 'gridOccu')
+            if self.imProc.backSub == True:
+                gridBack1D = self.imProc.get1DCut(selType = 'gridBack')
+            plotTitle  = '1D Line cuts at selected position'
+        else:
+            gridData1D, gridOccu1D = self.imProc.get1DCutAv()
+            plotTitle = '1D average over 9 line cuts around maximum position'
+        self.setPlot1DData(gridData1D, gridOccu1D, plotTitle = plotTitle)
+        if self.imProc.backSub == True:
+            gridData1D += gridBack1D
+            self.backLine = gridBack1D
+        # plot, get figure and axes back
+        fig1, allax1 = self.plot1DData()
+        # if there are fits, show them
+        if intenFits != None:
+            for i in range(3):
+                if intentFits != None:
+                    allax1[i].plot(self.imProc.qVal[i], intenFits[i], '-r')
+       
+        return fig1, allax1, allRes
+
+    def plotGrid2D(self, calcMode = 'sum'):
+        """Select and plots the 2D Areas of the data grid
+
+        plot data and occupation as (yz), (xz), (xy) = (ax0, ax1) areas and histograms
+        calcMode : select which calculated values are plotted, 'sum', 'cut', 'cutAv'
+
+        retrurns
+        fig2   : plt.figure object of the plotting window
+        allax2 : list of plt.axes objects which carry the figures"""
+
+        
+        
+        # extents [ax1Min, ax1Max, ax0Min, ax0Max], None
+        plotExtents  = [[self._imProc.Qmin[2], self._imProc.Qmax[2], 
+                         self._imProc.Qmin[1], self._imProc.Qmax[1]],
+                        [self._imProc.Qmin[2], self._imProc.Qmax[2], 
+                         self._imProc.Qmin[0], self._imProc.Qmax[0]],
+                        [self._imProc.Qmin[1], self._imProc.Qmax[1], 
+                         self._imProc.Qmin[0], self._imProc.Qmax[0]]] * 2
+        plotExtents += [None, None, None]
+        
+        # plot titles
+        plotTitles = ['Intensity', '', '', 
+                      'Occupation', '', '',
+                      'Histogram', '', '']
+
+        # axes labels [ax1, ax0], [x,y]
+        axesLabels   = [[self._axesLabels[2], self._axesLabels[1]],
+                        [self._axesLabels[2], self._axesLabels[0]],
+                        [self._axesLabels[1], self._axesLabels[0]]] * 2
+        axesLabels  += [['No. of Occupations', 'No. of Grid Parts']] * 3
+                        
+        if calcMode == 'sum':
+            gridData2D = self._imProc.get2DSum(selType = 'gridData')
+            gridOccu2D = self._imProc.get2DSum(selType = 'gridOccu')
+            winTitle  = '2D Areas, over other direction is summed'
+        elif calcMode == 'cut':
+            gridData2D = self._imProc.get2DCut(selType = 'gridData')
+            gridOccu2D = self._imProc.get2DCut(selType = 'gridOccu')
+            winTitle  = '2D Line cuts at maximum position'
+        else:
+            print '\n\nXXXX CalcMode %s is not supported!' % (calcMode)
+            print "---- Choose 'sum' or 'cut'"
+        for i in range(3):
+            gridData2D[i] = np.ma.array(gridData2D[i], mask = (gridOccu2D[i] == 0))
+            gridOccu2D[i] = np.ma.array(gridOccu2D[i], mask = (gridOccu2D[i] == 0))
+        plotData = gridData2D + gridOccu2D
+        plotDim  = 6 * ['twoD']
+        
+        # plot window
+        plotWin = PlotWindow()
+        plotWin.setPlotData(gridData2D + gridOccu2D)
+        plotWin.setPlotDetails(plotDim = plotDim, plotExtents = plotExtents)
+        plotWin.setWinLayout(figSize = (11, 8.5), plotHor = 3, plotVer = 3, plotOrd = 'vh',
+                             winTitle = winTitle)
+        plotWin.setPlotLayouts(plotTitles = plotTitles, axesLabels = axesLabels)
+        plotWin.plotAll()
+        # plot, get figure and axes back
+        winInfo = plotWin.getWinLayout()
+        fig2, allax2 = winInfo[0], winInfo[1]
+
+        return fig2, allax2
+
+    def plotMask1D(self, calcMode = 'sum'):
+        """Select and plots the 1D Lines of the mask grids
+
+        calcMode  : select which calculated values are plotted, 'sum', 'cut'
+        
+        retrurns
+        fig1   : plt.figure object of the plotting window
+        allax1 : list of plt.axes objects which carry the figures"""
+
+        # axes and data configuration
+        self.setPlot1DAxes(self.imProc.qVal, self.axesLabels)
+        if calcMode == 'sum':
+            maOccu1D = self.imProc.get1DSum(selType = 'maskOccu')
+            maBack1D = self.imProc.get1DSum(selType = 'maskBack')
+            maFit1D  = self.imProc.get1DSum(selType = 'maskFit')
+            plotTitle  = '1D Lines, over other directions is summed'
+        elif calcMode == 'cut':
+            maOccu1D = self.imProc.get1DCut(selType = 'maskOccu')
+            maBack1D = self.imProc.get1DCut(selType = 'maskBack')
+            maFit1D  = self.imProc.get1DCut(selType = 'maskFit')
+            plotTitle  = '1D Line cuts at selected position'
+        else:
+            print 'calcMode %s is not supported!' % (calcMode)
+        
+        self.setPlot1DMask(maOccu1D, maBack1D, maFit1D, plotTitle = plotTitle)
+        # plot, get figure and axes back
+        fig1, allax1 = self.plot1DMask()
+               
+        return fig1, allax1
+
+    def plotMask2D(self, calcMode = 'sum'):
+        """Select and plots the 2D Areas of the mask grid
+
+        calcMode : select which calculated values are plotted, 'sum', 'cut'
+
+        retrurns
+        fig2   : plt.figure object of the plotting window
+        allax2 : list of plt.axes objects which carry the figures"""
+
+        if self.imProc.frameMode != 4:
+            axLabels =[ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"]
+        else:
+            axLabels = ['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)']
+        # axes and data configuration
+        self.setPlot2DAxes([self.imProc.Qmin[2], self.imProc.Qmin[2], self.imProc.Qmin[1]], 
+                           [self.imProc.Qmax[2], self.imProc.Qmax[2], self.imProc.Qmax[1]],
+                           [self.imProc.Qmin[1], self.imProc.Qmin[0], self.imProc.Qmin[0]], 
+                           [self.imProc.Qmax[1], self.imProc.Qmax[0], self.imProc.Qmax[0]],
+                           [self.axesLabels[2], self.axesLabels[2], self.axesLabels[1]],
+                           [self.axesLabels[1], self.axesLabels[0], self.axesLabels[0]])
+        if calcMode == 'sum':
+            maOccu2D  = self.imProc.get2DSum(selType = 'maskOccu')
+            maBack2D  = self.imProc.get2DSum(selType = 'maskBack')
+            maFit2D   = self.imProc.get2DSum(selType = 'maskFit')
+            plotTitle = '2D Areas, over other direction is summed'
+        elif calcMode == 'cut':
+            maOccu2D  = self.imProc.get2DCut(selType = 'maskOccu')
+            maBack2D  = self.imProc.get2DCut(selType = 'maskBack')
+            maFit2D   = self.imProc.get2DCut(selType = 'maskFit')
+            plotTitle = '2D Line cuts at maximum position'
+        else:
+            print 'calcMode %s is not supported!' % (calcMode)
+        
+        self.setPlot2DMask(maOccu2D, maBack2D, maFit2D, plotTitle = plotTitle)
+        # plot, get figure and axes back
+        fig2, allax2 = self.plot2DMask()
+
+        return fig2, allax2
+
+    def plotAll(self):
+        """Plots 1D/2D sums and cuts"""
+        self.plotGrid1D('sum')
+        self.plotGrid2D('sum')
+        self.plotGrid1D('cut')
+        self.plotGrid2D('cut')
+        self.plotGrid1D('cutAv')
+        self.plotGrid2D('cutAv')
     
 
 ####################################
@@ -1153,7 +1776,7 @@ if __name__ == "__main__":
     
     # image processor
     testData = ImageProcessor(fp)
-    testData.setDetectorAngle(-1.24)
+    #testData.setDetectorAngle(-1.24)
     testData.setBins(4, 4)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
@@ -1169,12 +1792,12 @@ if __name__ == "__main__":
     #testPlotter.plot3D()
     
     # plotter for grid
-    testPlotter = PlotGrid(testData)
+    testPlotter = PlotGrid2(testData)
 
     testPlotter.setLogFlags(7, 7)
     testPlotter.setPlot1DFit(True)
-    testPlotter.plotGrid1D('sum')
-    testPlotter.plotGrid1D('cut')
+    #testPlotter.plotGrid1D('sum')
+    #testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
     testPlotter.plotGrid2D('sum')
     testPlotter.plotGrid2D('cut')
