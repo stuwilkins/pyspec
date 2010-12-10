@@ -987,29 +987,30 @@ class ImageProcessor():
 
         bgndfunc = self._threeDLinRes
 
-        # qx, qy, qz as gird in order z,y,x
+        # qx, qy, qz as gird in order x,y,z
         qx, qy, qz = self.qxGrid, self.qyGrid, self.qzGrid
                         
         # background mask
-        self.maskBack = np.ones(self.gridData.shape) == 0
+        #self.maskBack = np.ones(self.gridData.shape) == 0
         if maskBox != None:
             xMask = (qx >= maskBox[0]) & (qx <= maskBox[3])
             yMask = (qy >= maskBox[1]) & (qy <= maskBox[4])
             zMask = (qz >= maskBox[2]) & (qz <= maskBox[5])
-            self.maskBack = self.maskBack | (xMask & yMask & zMask)
+            #self.maskBack = self.maskBack | (xMask & yMask & zMask)
+            self.maskBack = xMask & yMask & zMask
 
         # fit mask
         self.maskFit = self.maskOccu | self.maskBack
 
         # considered positions for background fit
-        conMask = np.ravel(self.maskFit == False)
-        _qx = np.ravel(qx)[conMask]
-        _qy = np.ravel(qy)[conMask]
-        _qz = np.ravel(qz)[conMask]
+        conMask = (self.maskFit == False)
+        _qx = np.ravel(qx[conMask])
+        _qy = np.ravel(qy[conMask])
+        _qz = np.ravel(qz[conMask])
 
         # background fit
         guess = [1e-6, 1e-6, 1e-6, self.gridData.mean()]
-        fMes  = np.ravel(self.gridData)[conMask]
+        fMes  = np.ravel(self.gridData[conMask])
         plsq  = leastsq(bgndfunc, guess, args = (fMes, _qx, _qy, _qz))
         self.pBack    = plsq[0]
         self.gridBack = self._threeDLin(plsq[0], qx, qy, qz)
