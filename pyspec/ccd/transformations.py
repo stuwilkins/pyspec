@@ -643,22 +643,25 @@ class ImageProcessor():
         
         return X, Y, Z
 
-    def setGridBackOptions(self, backSub = False, backMaskBox = None):
+    def setGridBackOptions(self, backSub = False, backMaskBox = None, backType = 'threeDLin'):
         """Set the masked box for the background subtraction of the grid
 
         backSub     : substract background from grid if True
-        backMaskBox : [xMin, yMin, zMin, xMax, yMax, zMax]"""
+        backMaskBox : [xMin, yMin, zMin, xMax, yMax, zMax]
+        backType    : type of background subtraction, 'mean', 'threeDLin'"""
 
         self.backSub     = backSub
         self.backMaskBox = backMaskBox
+        self.backType    = backType
 
     def getGridBackOptions(self):
         """Get the masked box for the background subtraction of the grid
 
         backSub     : substract background from grid if True
-        backMaskBox : [xMin, yMin, zMin, xMax, yMax, zMax]"""
+        backMaskBox : [xMin, yMin, zMin, xMax, yMax, zMax]
+        backType    : type of background subtraction, 'mean', 'threeDLin'"""
 
-        return self.backSub, self.backMaskBox
+        return self.backSub, self.backMaskBox, self.backType
 
     def setCutInd(self, cutInd):
         """Set the cut indicies
@@ -1008,12 +1011,19 @@ class ImageProcessor():
         _qy = np.ravel(qy[conMask])
         _qz = np.ravel(qz[conMask])
 
-        # background fit
-        guess = [1e-6, 1e-6, 1e-6, self.gridData.mean()]
-        fMes  = np.ravel(self.gridData[conMask])
-        plsq  = leastsq(bgndfunc, guess, args = (fMes, _qx, _qy, _qz))
-        self.pBack    = plsq[0]
-        self.gridBack = self._threeDLin(plsq[0], qx, qy, qz)
+        # background subtraction
+        if self.backType == 'mean':
+            backMean      = self.gridData[conMask].mean()
+            self.pBack    = [backMean]
+            self.gridBack = np.ones(qx.shape) * backMean
+        elif self.backType == 'threeDLin':
+            bgndFunc = self._threeDLin
+            bgndRes  = self._threeDLinRes
+            guess    = [1e-6, 1e-6, 1e-6, self.gridData.mean()]
+            fMes     = np.ravel(self.gridData[conMask])
+            plsq     = leastsq(bgndRes, guess, args = (fMes, _qx, _qy, _qz))
+            self.pBack    = plsq[0]
+            self.gridBack = bgndFunc(plsq[0], qx, qy, qz)
         self.gridBack[self.maskOccu] = 0.0
         self.gridData = self.gridData - self.gridBack     
 
@@ -1216,20 +1226,24 @@ class ImageProcessor():
                 gridBackInfo += line % (self.qLabel[i], self.backMaskBox[i], self.backMaskBox[i+3])
 
         gridBackInfo += '\nFitted parameters:'
-        gridBackInfo += '\nmx \t\t my \t\t mz \t\t d'
-        gridBackInfo += ('\n%.2e' + 3*' \t %.2e') % tuple(self.pBack)
+        if self.backType == 'mean':
+            gridBackInfo += '\nmean'
+            gridBackInfo += ('\n%.2e') % self.pBack[0]
+        elif self.backType == 'threeDLin':
+            gridBackInfo += '\nmx \t\t my \t\t mz \t\t d'
+            gridBackInfo += ('\n%.2e' + 3*' \t %.2e') % tuple(self.pBack)
 
-        gridBackInfo += '\nBackground values at corners'
-        cornList = [['min', 'min', 'min'], ['max', 'min', 'min'], ['max', 'max', 'min'],
-                    ['min', 'max', 'min'], ['min', 'min', 'max'], ['max', 'min', 'max'], 
-                    ['max', 'max', 'max'], ['min', 'max', 'max']]
-        cornLayo = ['\n(%s_%s, ', '%s_%s, ', '%s_%s) : \t ']
-        for i in range(len(cornList)):
-            cornVal = self.pBack[3]
-            for j in range(3):
-                gridBackInfo += cornLayo[j] % (self.qLabel[j], cornList[i][j])
-                cornVal      += getattr(self, 'Q' + cornList[i][j])[j]*self.pBack[j]
-            gridBackInfo += '%.2e' % (cornVal)
+            gridBackInfo += '\nBackground values at corners'
+            cornList = [['min', 'min', 'min'], ['max', 'min', 'min'], ['max', 'max', 'min'],
+                        ['min', 'max', 'min'], ['min', 'min', 'max'], ['max', 'min', 'max'], 
+                        ['max', 'max', 'max'], ['min', 'max', 'max']]
+            cornLayo = ['\n(%s_%s, ', '%s_%s, ', '%s_%s) : \t ']
+            for i in range(len(cornList)):
+                cornVal = self.pBack[3]
+                for j in range(3):
+                    gridBackInfo += cornLayo[j] % (self.qLabel[j], cornList[i][j])
+                    cornVal      += getattr(self, 'Q' + cornList[i][j])[j]*self.pBack[j]
+                    gridBackInfo += '%.2e' % (cornVal)
         
         return gridBackInfo
 
@@ -1667,7 +1681,7 @@ if __name__ == "__main__":
     ###    
     
     #testData.makeGridData(procSelect = [40])
-    testData.setGridBackOptions(backSub = True, backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255])
+    testData.setGridBackOptions(backSub = True, backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255], backType = 'mean')
     testData.makeGridData()
 
     #testData._processBgnd(m))
@@ -1718,16 +1732,16 @@ if __name__ == "__main__":
     ###
 
     scan2 = sf[361]
-    testData.setSpecScan(scan2)
-    testData.makeGridData()
-    testPlotter.plotGrid1D('cut')
-    testPlotter.plotGrid2D('cut')
+    #testData.setSpecScan(scan2)
+    #testData.makeGridData()
+    #testPlotter.plotGrid1D('cut')
+    #testPlotter.plotGrid2D('cut')
 
-    info2 = testData.makeInfo()
+    #info2 = testData.makeInfo()
 
     print '\n\n'
     print info1
-    print info2
+    #print info2
 
     plt.show()
 
