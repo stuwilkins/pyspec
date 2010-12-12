@@ -30,8 +30,10 @@ from   scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from   pyspec import fit, fitfuncs
 from   pyspec.diffractometer import Diffractometer
-from   pyspec.ccd.files import *
-from   pyspec.ccd.plotter import PlotImages, PlotGrid
+try:
+    from   pyspec.ccd.files import *
+except:
+    passfrom   pyspec.ccd.plotter import PlotImages, PlotGrid
 try:
     import pyspec.ccd.ctrans as ctrans
 except:
@@ -495,7 +497,7 @@ class ImageProcessor():
         self.setNum        = setNum
         self.setSize       = setSize
 
-    def getSetSettings(self, waveLen, imFilesNames, settingAngles, intentNorm, UBmat, setName, setNum, setSize):
+    def getSetSettings(self):
         """Get the settings for the set 
 
         The set settings are:
@@ -509,7 +511,7 @@ class ImageProcessor():
         setNum        : no. to determine the set, e.g. 244 in the spec case
         setSize       : no. of images in the set, e.g. 81"""
 
-        return self.waveLen, self.imFilesNames, self.settingAngles, self.intentNorm, self.UBmat, self.setName, self.setNum, self.setSize
+        return self.waveLen, self.imFilesNames, self.darkFilesNames, self.settingAngles, self.intentNorm, self.UBmat, self.setName, self.setNum, self.setSize
 
     def setSpecScan(self, conScan):
         """Set the settings for the set from the considered pyspec scan object
@@ -662,6 +664,20 @@ class ImageProcessor():
         backType    : type of background subtraction, 'mean', 'threeDLin'"""
 
         return self.backSub, self.backMaskBox, self.backType
+
+    def setIntegrationOptions(self, intMaskBox = None):
+        """Set the options for the integration of intensity and background
+
+        intMaskBox : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array"""
+
+        self.intMaskBox = intMaskBox
+
+    def getIntegrationOptions(self):
+        """Get the options for the integration of intensity and background                                      
+        
+        intMaskBox : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array"""
+
+        return self.intMaskBox
 
     def setCutInd(self, cutInd):
         """Set the cut indicies
@@ -941,8 +957,44 @@ class ImageProcessor():
         self.qyGrid = qy.transpose(2,1,0)
         self.qzGrid = qz.transpose(2,1,0)
 
+    def _q2n(self, q):
+        """Transform q-vector in grid indices
+
+        q : q-vector as np.array
+
+        return
+        n : grid indices as np.array"""
+        n = list((q - self.Qmin)/(self.Qmax - self.Qmin)*self.dQN).astype(int)
+        if (n > np.array(self.dQN)).all():
+            print '\n\nXXXX q-vector %s gives grid indices %s,' % (q, n)
+            print '---- which are bigger than grid size %s' % (self.dQN)
+            n = np.array(self.dQN)/2
+            print '---- indices set to %s' % (n)
+        return n
+
+    def _box2mask(self, maskBox):
+        """Transform box-values to mask grid region
+
+        maskBox  : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array
+
+        return
+        maskGrid : masking grid, True if not in considered region"""
+
+        # qx, qy, qz as gird in order x,y,z                                                                     
+        qx, qy, qz = self.qxGrid, self.qyGrid, self.qzGrid
+
+        xMask = (qx >= maskBox[0]) & (qx <= maskBox[3])
+        yMask = (qy >= maskBox[1]) & (qy <= maskBox[4])
+        zMask = (qz >= maskBox[2]) & (qz <= maskBox[5])
+
+        maskGrid = xMask & yMask & zMask
+        return maskGrid
+
     def _calcMax(self):
-        """Calculates the position of the maximum as indicies"""
+        """Calculates the position of the maximum as indicies
+
+        stores
+        maxInd : indices of intensity maximum as np.array"""
         maxN = self.gridData.argmax()
         ind2 = maxN % self.dQN[2]
         ind1 = maxN / self.dQN[2] % self.dQN[1]
@@ -956,18 +1008,7 @@ class ImageProcessor():
         'max' : from the position of maximum"""
         
         if self.cutMode == 'fix':
-            cutInd = list(((self.cutPos - self.Qmin)/(self.Qmax - self.Qmin)*self.dQN).astype(int))
-            if (cutInd < np.array(self.dQN)).all():
-                if self.cutInd != None:
-                    print 'Cutting indices had been set to %s,' % (self.cutInd)
-                    print 'but are replaced by %s calculated from cutting position %s' % (cutInd, self.cutPos)
-                self.cutInd = cutInd
-            else:
-                print '\nXXXX Cutting indices %s calculated from cutting position %s ' % (cutInd, self.cutPos)
-                print '---- bigger than grid index size %s' % (self.dQN)
-                print '---- cutting indices set to position of maximum %s\n' % (self.maxInd)
-                self.cutInd  = self.maxInd
-                self.cutMode = 'max'
+            self.cutInd = self._q2n(self.cutPos)
         elif self.cutMode == 'max':
             self.cutInd = self.maxInd
 
@@ -985,25 +1026,21 @@ class ImageProcessor():
         maskBack : True if point in maskBox (False if part of background)
         maskFit  : False if point used for fit"""
 
-        if maskBox == None:
-            maskBox = self.backMaskBox
-
+        # function to discribe background
         bgndfunc = self._threeDLinRes
 
         # qx, qy, qz as gird in order x,y,z
         qx, qy, qz = self.qxGrid, self.qyGrid, self.qzGrid
                         
-        # background mask
-        #self.maskBack = np.ones(self.gridData.shape) == 0
-        if maskBox != None:
-            xMask = (qx >= maskBox[0]) & (qx <= maskBox[3])
-            yMask = (qy >= maskBox[1]) & (qy <= maskBox[4])
-            zMask = (qz >= maskBox[2]) & (qz <= maskBox[5])
-            #self.maskBack = self.maskBack | (xMask & yMask & zMask)
-            self.maskBack = xMask & yMask & zMask
-
-        # fit mask
-        self.maskFit = self.maskOccu | self.maskBack
+        # background and fit mask
+        if maskBox == None:
+            maskBox = self.backMaskBox
+        if maskBox == None:
+            self.maskBack = np.ones(self.gridData.shape) == 0
+            self.maskFit  = self.maskOccu
+        else:
+            self.maskBack = self._box2mask(maskBox)
+            self.maskFit  = self.maskOccu | self.maskBack
 
         # considered positions for background fit
         conMask = (self.maskFit == False)
@@ -1101,6 +1138,17 @@ class ImageProcessor():
                 axes[i].plot(xVals[i], yFit, '-r')
 
         return allRes
+
+    def _calcIntMask(self, maskBox):
+        """Calculate the mask for the integration region
+
+        maskBox : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array
+
+        stores
+        intMask : masking grid, True if not in integration region"""
+
+        nMin = self._q2n(maskBox[:3])
+        nMax = self._q2n(maskBox[3:])
 
     #
     # help functions for input / output
@@ -1549,19 +1597,33 @@ class ImageProcessor():
             gridOccu2DCutAv[2] += self.gridOccu[:,:,self.cutInd[2]+i-1]/3.0
         return gridData2DCutAv, gridOccu2DCutAv
 
-    def getIntIntensity(self):
+    def getIntIntensity(self, maskBox = None):
         """Get the integrated intensity of the peak by summing over all grid parts (bins)
+
+        maskBox   : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array
 
         returns
         intInten  : integrated intensity
         backInten : background intensity"""
 
-        intInten = self.gridData.sum()
+        # prepare considered region with mask
+        if maskBox == None:
+            try:
+                maskBox = self.intMaskBox
+            except:
+                pass
+        if maskBox == None:
+            conMask = np.ones(self.gridData.shape).astype(int)
+        else:
+            conMask = (self._box2mask(maskBox) == False)
+
+        # integrated intensity and background in considered region
+        intInten = self.gridData[conMask].sum()
         if self.backSub == True:
-            backInten = self.gridBack.sum()
+            backInten = self.gridBack[conMask].sum()
         else:
             backInten = 0.0
-
+        
         return intInten, backInten
 
     #
@@ -1682,6 +1744,7 @@ if __name__ == "__main__":
     
     #testData.makeGridData(procSelect = [40])
     testData.setGridBackOptions(backSub = True, backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255], backType = 'mean')
+    testData.setIntegrationOptions(intMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255])
     testData.makeGridData()
 
     #testData._processBgnd(m))
