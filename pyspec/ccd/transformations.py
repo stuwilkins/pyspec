@@ -33,7 +33,10 @@ from   pyspec.diffractometer import Diffractometer
 try:
     from   pyspec.ccd.files import *
 except:
-    passfrom   pyspec.ccd.plotter import PlotImages, PlotGrid
+    pass
+
+from   pyspec.ccd.plotter import PlotImages, PlotGrid
+
 try:
     import pyspec.ccd.ctrans as ctrans
 except:
@@ -978,7 +981,7 @@ class ImageProcessor():
         maskBox  : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array
 
         return
-        maskGrid : masking grid, True if not in considered region"""
+        maskGrid : masking grid, True if in maskBox"""
 
         # qx, qy, qz as gird in order x,y,z                                                                     
         qx, qy, qz = self.qxGrid, self.qyGrid, self.qzGrid
@@ -1260,20 +1263,21 @@ class ImageProcessor():
 
         intInten, backInten = self.getIntIntensity()
     
-        gridBackInfo  = '\n\n**** Background of grid fited linear'
-        gridBackInfo += '\nTotal Intensity : \t %.4e' % (intInten + backInten)
-        gridBackInfo += '\nGrid  Intensity : \t %.4e' % (intInten)
-        gridBackInfo += '\nBackground Intensity : \t %.4e' % (backInten) 
+        gridBackInfo  = '\n\n**** Background subtraction of grid'
+        if self.backType == 'mean':
+            gridBackInfo += ' by mean value'
+        elif self.backType == 'threeDLin':
+            gridBackInfo += ' by fitted 3D linear function'
+        gridBackInfo += '\n---- Masked region'
         if maskBox == None:
-            gridBackInfo += '\nNo masked region'
+            gridBackInfo += '\nNo'
         else:
-            gridBackInfo += '\nMasked region:'
             gridBackInfo += '\n\t min \t\t max'
             line = '\n%s' + 2*' \t %.2e'
             for i in range(3):
-                gridBackInfo += line % (self.qLabel[i], self.backMaskBox[i], self.backMaskBox[i+3])
+                gridBackInfo += line % (self.qLabel[i], maskBox[i], maskBox[i+3])
 
-        gridBackInfo += '\nFitted parameters:'
+        gridBackInfo += '\n---- Fitted parameters:'
         if self.backType == 'mean':
             gridBackInfo += '\nmean'
             gridBackInfo += ('\n%.2e') % self.pBack[0]
@@ -1281,7 +1285,7 @@ class ImageProcessor():
             gridBackInfo += '\nmx \t\t my \t\t mz \t\t d'
             gridBackInfo += ('\n%.2e' + 3*' \t %.2e') % tuple(self.pBack)
 
-            gridBackInfo += '\nBackground values at corners'
+            gridBackInfo += '\n---- Background values at corners'
             cornList = [['min', 'min', 'min'], ['max', 'min', 'min'], ['max', 'max', 'min'],
                         ['min', 'max', 'min'], ['min', 'min', 'max'], ['max', 'min', 'max'], 
                         ['max', 'max', 'max'], ['min', 'max', 'max']]
@@ -1291,9 +1295,33 @@ class ImageProcessor():
                 for j in range(3):
                     gridBackInfo += cornLayo[j] % (self.qLabel[j], cornList[i][j])
                     cornVal      += getattr(self, 'Q' + cornList[i][j])[j]*self.pBack[j]
-                    gridBackInfo += '%.2e' % (cornVal)
+                gridBackInfo += '%.2e' % (cornVal)
         
         return gridBackInfo
+
+    def _makeIntIntensityInfo(self):
+        """Create information about integrated intensity of the grid"""
+
+        intInten, backInten = self.getIntIntensity()
+    
+        gridIntInfo  = '\n\n**** Integrated intensities of the grid'
+        gridIntInfo += '\nTotal Intensity : \t %.4e' % (intInten + backInten)
+        gridIntInfo += '\nGrid  Intensity : \t %.4e' % (intInten)
+        gridIntInfo += '\nBackground Intensity : \t %.4e' % (backInten)
+        gridIntInfo += '\n---- Considered region:'
+        try:
+            maskBox = self.intMaskBox
+        except:
+            maskBox = None
+        if maskBox == None:
+            gridIntInfo += '\nAll'
+        else:
+            gridIntInfo += '\n\t min \t\t max'
+            line = '\n%s' + 2*' \t %.2e'
+            for i in range(3):
+                gridIntInfo += line % (self.qLabel[i], maskBox[i], maskBox[i+3])
+
+        return gridIntInfo
 
     def _makeCutIndInfo(self):
         """Create information about the cutting position of the grid"""
@@ -1433,7 +1461,7 @@ class ImageProcessor():
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()
 
-        # for info file
+        # for info file about gridding
         self.opProcInfo += self._makeGridInfo()
 
         # background subtraction
@@ -1441,6 +1469,9 @@ class ImageProcessor():
             backSub = self.backSub
         if backSub == True:
             self._processBgnd()
+
+        # for info file about integrated intensities
+        self.opProcInfo += self._makeIntIntensityInfo()
 
         # position of maximum and cutting of the data grid
         self._calcMax()
@@ -1612,10 +1643,11 @@ class ImageProcessor():
                 maskBox = self.intMaskBox
             except:
                 pass
+
         if maskBox == None:
             conMask = np.ones(self.gridData.shape).astype(int)
         else:
-            conMask = (self._box2mask(maskBox) == False)
+            conMask = self._box2mask(maskBox)
 
         # integrated intensity and background in considered region
         intInten = self.gridData[conMask].sum()
@@ -1743,16 +1775,18 @@ if __name__ == "__main__":
     ###    
     
     #testData.makeGridData(procSelect = [40])
-    testData.setGridBackOptions(backSub = True, backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255], backType = 'mean')
+    testData.setGridBackOptions(backSub = True, backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255], backType = 'threeDLin')
     testData.setIntegrationOptions(intMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255])
     testData.makeGridData()
 
-    #testData._processBgnd(m))
+    ###
+    # processing information
+    ###
 
-
-    #print 'Peak integrated intensity : %.2e' % (testData.getIntIntensity())
-    #lineData, lineOccu = testData.get1DCut()
-    #areaData, areaOccu = testData.get2DCut()
+    info1 = testData.makeInfo()
+    #testData.writeInfoFile(outFile = 'infoFile.dat')
+    print '\n\n'
+    print info1
 
     ###
     # plot of raw images
@@ -1762,7 +1796,7 @@ if __name__ == "__main__":
     #plIm.setPlotContent(plotSelect = range(0,121,10), plotType = 'norm')
     #plIm.setPlotLayout(, plotImHor = 4, plotImVer = 3)
     #plIm.plotImages()
-
+    
     ###
     # plot grid data
     ###
@@ -1781,14 +1815,9 @@ if __name__ == "__main__":
     testPlotter.plotGrid1D('cut')
     testPlotter.plotGrid2D('cut')
     #testPlotter.plotMask1D('cut')
-    testPlotter.plotMask2D('cut')
+    #testPlotter.plotMask2D('cut')
 
-    ###
-    # processing information
-    ###
-
-    info1 = testData.makeInfo()
-    #testData.writeInfoFile(outFile = 'infoFile.dat')
+    
 
     ###
     # second run with same objects
@@ -1802,9 +1831,9 @@ if __name__ == "__main__":
 
     #info2 = testData.makeInfo()
 
-    print '\n\n'
-    print info1
+    
     #print info2
+    print '\n'
 
     plt.show()
 
