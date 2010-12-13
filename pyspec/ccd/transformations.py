@@ -967,7 +967,7 @@ class ImageProcessor():
 
         return
         n : grid indices as np.array"""
-        n = list((q - self.Qmin)/(self.Qmax - self.Qmin)*self.dQN).astype(int)
+        n = np.array((q - self.Qmin)/(self.Qmax - self.Qmin)*self.dQN).astype(int)
         if (n > np.array(self.dQN)).all():
             print '\n\nXXXX q-vector %s gives grid indices %s,' % (q, n)
             print '---- which are bigger than grid size %s' % (self.dQN)
