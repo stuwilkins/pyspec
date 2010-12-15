@@ -1,1 +1,2 @@
-__all__ = ["spec", "fit", "fitfuncs", "matplotaddons", "utils"]
+__all__ = ["spec", "fit", "fitfuncs", "matplotaddons", "utils", "gda", "hasy"]
+
