@@ -1009,7 +1009,7 @@ class PlotGrid():
 
         # add 1D fits
         if self.plot1DFit == True:
-            yFit, fitRes = self.imProc.get1DFit(valSet, intentSet, fitType = None, infoDes = self.title1D)
+            yFit, fitRes = self.imProc.get1DFit(valSet, intentSet, fitType = None, infoDes = self.title1D, nonZero = True)
             if self.imProc.backSub == True:
                 yFit += self.backLine
             for i in range(3):

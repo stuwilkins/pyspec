@@ -1091,67 +1091,45 @@ class ImageProcessor():
         return err
 
 
-    def _fit1DData(self, xVal, yVal, fitType = None, infoDes = ''):
+    def _fit1DData(self, xVals, yVals, fitType = None, fitTitle = None):
         """Fit a 1D data set
 
-        xVal    : x-values
-        yVal    : y-values
+        xVals   : list of x-values
+        yVals   : list of y-values
         fitType : peak shape to fit from pyspec fitfuncs, use object default if None, e.g. 'lor2a'
-        infoDes : description of the current fit try for output, e.g. 'Qx Line cut of Scan #244'
-
+        
         returns
-        fitRes  : results of the fit, [a1, b1, cen1, width1, area1], [0, 0, 0, 0, 0] if unsuccessful fit"""
+        allRes  : results of the fits, [[a1, b1, cen1, width1, area1],...], 
+                  [[0, 0, 0, 0, 0],...] if unsuccessful fit"""
 
         if fitType == None:
             fitType = self.fit1DType
+        if fitTitle == None:
+            fitTitle += ' '
+        else:
+            fitTitle = ''
 
-        fitRes = np.zeros(5)
-        try:
-            f = fit.fit(x=xVal, y=yVal, funcs = [fitfuncs.linear, getattr(fitfuncs, fitType)])
-            f.go()
-            fitRes = f.result
-        except:
-            print 'WARNING : %s could not be fitted to %s!' % (infoDes, fitType)
-
-        return fitRes
-
-    def _add1DFits(self, xVals, yVals, axes, fitType = None, infoDes = ''):
-        """Tries fits of the 1D data and adds them to the data plot
-
-        xVals   : list with the x-values
-        yVals   : list with the y-values
-        axes    : list of the axes where the data was plotted to add the fits
-        fitType : peak shape to fit from pyspec fitfuncs, use object default if None, e.g. 'lor2a'
-        infoDes : description of the current fit try for output, e.g. 'Qx Line cut of Scan #244'
-
-        returns
-        allRes  : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
-
-        allRes = np.zeros((len(xVals), 5))
+        allRes = np.zeros((len(xVals),5))
 
         # go through the list of 1D data sets
         for i in range(len(xVals)):
             # try to fit the 1D data
-            infoDesI = infoDes + ' %d ' % (i)
-            fitRes   = self._fit1DData(xVals[i], yVals[i], fitType = fitType, infoDes = infoDesI)
-            allRes[i,:] = fitRes
-            # if the fit was successful plot it to the data
-            if not np.all(fitRes == 0):
-                yFit = fitfuncs.linear(xVals[i], fitRes[:2]) + getattr(fitfuncs, fitType)(xVals[i], fitRes[2:])
-                axes[i].plot(xVals[i], yFit, '-r')
+            infoDes = fitTitle + 'Fit %d' % (i+1)
+            if nonZero == False:
+                xVal = xVals[i]
+                yVal = yVals[i]
+            elif nonZero == True:
+                conMask = yVals[i] != 0
+                xVal = xVals[i][conMask]
+                yVal = yVals[i][conMask]
+            try:
+                f = fit.fit(x=xVal, y=yVal, funcs = [fitfuncs.linear, getattr(fitfuncs, fitType)])
+                f.go()
+                allRes[i] = f.result
+            except:
+                print 'WARNING : %s could not be fitted to %s!' % (infoDes, fitType)
 
         return allRes
-
-    def _calcIntMask(self, maskBox):
-        """Calculate the mask for the integration region
-
-        maskBox : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array
-
-        stores
-        intMask : masking grid, True if not in integration region"""
-
-        nMin = self._q2n(maskBox[:3])
-        nMax = self._q2n(maskBox[3:])
 
     #
     # help functions for input / output
@@ -1493,7 +1471,7 @@ class ImageProcessor():
         except:
             print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
         
-        return one1DSum
+        return oneDSum
 
     def get2DSum(self, selType = 'gridData'):
         """2D Areas of the selected grid by summing in the other direction
@@ -1535,7 +1513,7 @@ class ImageProcessor():
             print '\nxxxx %s is not a corecct type of a grid from ImageProcessor!\n' % (selType)
            
         return oneDCut
-    
+
     def get2DCut(self, selType = 'gridData', cutInd = None):
         """2D Areas of the selected grid at the cut position
 
@@ -1662,14 +1640,15 @@ class ImageProcessor():
     # fit part
     #
 
-    def get1DFit(self, xVal, yVal, fitType = None, infoDes = ''):
+    def get1DFit(self, xVals, yVals, fitType = None, infoDes = '', nonZero = False):
         """Fit a 1D data set
 
-        xVal    : x-values as list of arrays
-        yVal    : y-values as list of arrays
+        xVals   : x-values as list of arrays
+        yVals   : y-values as list of arrays
         fitType : peak shape to fit from pyspec fitfuncs, use object default if None, e.g. 'lor2a'
         infoDes : description of the current fit try for output, e.g. 'Line cut of Scan #244'
-
+        nonZero : do not considered y-values which are 0 for the fit
+        
         returns
         yFit    : y-values of the fit
         fitRes  : results of the fit, [a1, b1, cen1, width1, area1], [0, 0, 0, 0, 0] if unsuccessful fit"""
@@ -1678,14 +1657,21 @@ class ImageProcessor():
             fitType = self.fitType
 
         yFit   = []
-        for i in range(len(xVal)):
-            yFit.append(np.zeros(len(xVal[i])))
-        fitRes = np.zeros((len(xVal),5))
-        for i in range(len(xVal)):
+        for i in range(len(xVals)):
+            yFit.append(np.zeros(len(xVals[i])))
+        fitRes = np.zeros((len(xVals),5))
+        for i in range(len(xVals)):
+            if nonZero == False:
+                xVal = xVals[i]
+                yVal = yVals[i]
+            elif nonZero == True:
+                conMask = yVals[i] != 0
+                xVal = xVals[i][conMask]
+                yVal = yVals[i][conMask]
             try:
-                f = fit.fit(x=xVal[i], y=yVal[i], funcs = [fitfuncs.linear, getattr(fitfuncs, fitType)])
+                f = fit.fit(x=xVal, y=yVal, funcs = [fitfuncs.linear, getattr(fitfuncs, fitType)])
                 f.go()
-                yFit[i]   = fitfuncs.linear(xVal[i], f.result[:2]) + getattr(fitfuncs, fitType)(xVal[i], f.result[2:])
+                yFit[i]   = fitfuncs.linear(xVals[i], f.result[:2]) + getattr(fitfuncs, fitType)(xVals[i], f.result[2:])
                 fitRes[i] = f.result
             except:
                 print 'WARNING : %s %s could not be fitted to %s!' % (self.qLabel[i], infoDes, fitType)
@@ -1780,15 +1766,6 @@ if __name__ == "__main__":
     testData.makeGridData()
 
     ###
-    # processing information
-    ###
-
-    info1 = testData.makeInfo()
-    #testData.writeInfoFile(outFile = 'infoFile.dat')
-    print '\n\n'
-    print info1
-
-    ###
     # plot of raw images
     ###
 
@@ -1828,6 +1805,17 @@ if __name__ == "__main__":
     #testData.makeGridData()
     #testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid2D('cut')
+
+    ###
+    # processing information
+    ###
+
+    info1 = testData.makeInfo()
+    #testData.writeInfoFile(outFile = 'infoFile.dat')
+    print '\n\n'
+    print info1
+
+
 
     #info2 = testData.makeInfo()
 
