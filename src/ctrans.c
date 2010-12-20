@@ -421,7 +421,7 @@ unsigned long c_grid3d(double *dout, unsigned long *nout, double *data,
 
 	if(norm_data){
 	  for(i = 0; i < (n_grid[0] * n_grid[1] * n_grid[2]); i++){
-	    if(nout[i] > 0){
+	    if(nout[i] > 0.0){
 	      dout[i] = dout[i] / nout[i];
 	    } else {
 	      dout[i] = 0.0;

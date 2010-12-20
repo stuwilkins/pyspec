@@ -130,6 +130,7 @@ def pickleit(filename, *args):
     for o in pobject:
         pickle.dump(o, output)
 
+    print "**** Pickled %d objects to %s" % (len(pobject), filename)
     output.close()
 
 def unpickleit(filename):
@@ -145,8 +146,10 @@ def unpickleit(filename):
             f.close()
             if len(o) == 1:
                 # Single value so return first item
+                print "**** Unpickled 1 object from %s." % filename 
                 return o[0]
             else:
+                print "**** Unpickled %d objects from %s." % (len(o), filename)
                 return o
 
     return None

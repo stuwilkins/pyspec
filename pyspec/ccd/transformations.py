@@ -191,12 +191,16 @@ class FileProcessor():
         self.filenames = filenames
         self.darkfilenames = darkfilenames
         self.normData = None
+        self.meanMonitor = False
 
         if spec is not None:
             self.setFromSpec(spec)
         if norm is not None:
             self.normData = norm
         self.bgndParams = np.array([])
+    def setMeanMonitor(self, b):
+        """Set wether the images are normalized by the monitor or the mean of the monitor"""
+        self.meanMonitor = b
 
     def setFromSpec(self, scan, mon = 'Monitor'):
         """Set the filenames from a SpecScan instance
@@ -261,8 +265,12 @@ class FileProcessor():
                 normData = np.ones(len(self.filenames))
                 print "XXXX No normalization data found"
             else:
-                normData = self.normData
-                print "---- Normalizing data."
+                if self.meanMonitor:
+                    normData = np.ones(len(self.filenames)) * self.normData.mean()
+                    print "---- Normalizing data (using mean value)."
+                else:
+                    normData = self.normData
+                    print "---- Normalizing data."
         else:
             normData = np.ones(len(self.filenames))
 
