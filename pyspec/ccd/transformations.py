@@ -1421,7 +1421,7 @@ class ImageProcessor():
         # 3D grid of the data set 
         print "**** Gridding Data."
         t1 = time.time()
-        gridData, gridOccu, gridOut = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
+        gridData, gridOccu, gridStdErr, gridOut = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
         t2 = time.time()
         print "---- DONE (Processed in %f seconds)" % (t2 - t1)
         emptNb = (gridOccu == 0).sum()
@@ -1436,13 +1436,11 @@ class ImageProcessor():
         self.gridData = gridData
         self.gridOccu = gridOccu
         self.gridOut  = gridOut
+        self.gridStdErr = gridStdErr
 
         # masks for the data and occupation no.
         self.maskData = (gridData == 0)
         self.maskOccu = (gridOccu == 0)
-
-        #del self.totSet
-        #gc.collect()
 
         # calculated the corresponding vectors and maximum intensity position of the grid
         self._calcVecDataSet()

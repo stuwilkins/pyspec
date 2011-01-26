@@ -37,6 +37,10 @@ Each pixel has :math:`(x, y)`-coordinates which can be now calculated to :math:`
 Regular Grid
 ------------
 
+The method of calculation of standard error on each grid point is
+detailed in this doccument :doc:`ccd_stderr`
+
+
 Cuts and Sums
 -------------
 

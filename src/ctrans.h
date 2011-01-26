@@ -69,7 +69,7 @@ int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen);
 int matmulti(_float *val, int n, _float mat[][3], int skip);
 int calcHKLFromQPhi(_float *qPhi, _int n, _float mat[][3]);
 
-unsigned long c_grid3d(double *dout, unsigned long *nout, double *data, double *grid_start, double *grid_stop, int max_data, int *n_grid, int norm_data);
+unsigned long c_grid3d(double *dout, unsigned long *nout, double *sterr, double *data, double *grid_start, double *grid_stop, int max_data, int *n_grid, int norm_data);
 
 static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject* ccdToQ(PyObject *self, PyObject *args, PyObject *kwargs);

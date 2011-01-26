@@ -308,7 +308,7 @@ int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen){
 } 
 
 static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs){
-  PyObject *gridout = NULL, *Nout = NULL;
+  PyObject *gridout = NULL, *Nout = NULL, *stderr = NULL;
   PyObject *gridI = NULL;
   PyObject *_I;
   
@@ -343,6 +343,7 @@ static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs){
   dims[0] = grid_nsteps[0];
   dims[1] = grid_nsteps[1];
   dims[2] = grid_nsteps[2];
+
   gridout = PyArray_ZEROS(3, dims, NPY_DOUBLE, 0);
   if(!gridout){
     goto cleanup;
@@ -351,85 +352,146 @@ static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs){
   if(!Nout){
     goto cleanup;
   }
+  stderr = PyArray_ZEROS(3, dims, NPY_DOUBLE, 0);
+  if(!stderr){
+    goto cleanup;
+  }
   
   n_outside = c_grid3d(PyArray_DATA(gridout), PyArray_DATA(Nout), 
-		       PyArray_DATA(gridI),
+		       PyArray_DATA(stderr), PyArray_DATA(gridI),
 		       grid_start, grid_stop, data_size, grid_nsteps, norm_data);
   
   Py_XDECREF(gridI);
-  return Py_BuildValue("NNl", gridout, Nout, n_outside); 
+  return Py_BuildValue("NNNl", gridout, Nout, stderr, n_outside); 
   
  cleanup:
   Py_XDECREF(gridI);
   Py_XDECREF(gridout);
   Py_XDECREF(Nout);
+  Py_XDECREF(stderr);
   return NULL;
 }
 
-unsigned long c_grid3d(double *dout, unsigned long *nout, double *data, 
+unsigned long c_grid3d(double *dout, unsigned long *nout, double *stderr, double *data, 
 		       double *grid_start, double *grid_stop, int max_data, 
 		       int *n_grid, int norm_data){
-	int i;
-	unsigned long *nout_ptr;
-	double *dout_ptr;
-	double *data_ptr;
-	
-	double pos_double[3];
-	double grid_len[3], grid_step[3];
-	int grid_pos[3];
-	int pos;
-	unsigned long n_outside = 0;
-	
-	/*
-	fprintf(stderr, "Gridding in 3D : grid pts = %i x %i x %i, data pts = %i\n", 
-		n_grid[0], n_grid[1], n_grid[2], max_data);
-	*/
-	dout_ptr = dout;
-	nout_ptr = nout;
-	
-	data_ptr = data;
-	for(i = 0;i < 3; i++){
-		grid_len[i] = grid_stop[i] - grid_start[i];
-		grid_step[i] = grid_len[i] / (n_grid[i]);
-	}
-	
-	for(i = 0; i < max_data ; i++){
-		pos_double[0] = (*data_ptr - grid_start[0]) / grid_len[0];
-		data_ptr++;
-		pos_double[1] = (*data_ptr - grid_start[1]) / grid_len[1];
-		data_ptr++;
-		pos_double[2] = (*data_ptr - grid_start[2]) / grid_len[2];
-		if((pos_double[0] >= 0) && (pos_double[0] < 1) && 
-		   (pos_double[1] >= 0) && (pos_double[1] < 1) &&
-		   (pos_double[2] >= 0) && (pos_double[2] < 1)){
-			data_ptr++;	
-			grid_pos[0] = (int)(pos_double[0] * n_grid[0]);
-			grid_pos[1] = (int)(pos_double[1] * n_grid[1]);
-			grid_pos[2] = (int)(pos_double[2] * n_grid[2]);
-			pos =  grid_pos[0] * (n_grid[1] * n_grid[2]);
-			pos += grid_pos[1] * n_grid[2];
-			pos += grid_pos[2];
-			dout[pos] = dout[pos] + *data_ptr;
-			nout[pos] = nout[pos] + 1;
-			data_ptr++;
-		} else {
-		  //fprintf(stderr, "Data point (%lf,%lf,%lf) is out of range\n", pos_double[0], pos_double[1], pos_double[2]);
-		  n_outside++;
-		  data_ptr+=2;
-		}
-	}
+  int i;
+  unsigned long *nout_ptr;
+  double *dout_ptr;
+  double *data_ptr;
+  
+  double *Mk = NULL;
+  double *Qk = NULL;
+  int grid_size = 0;
 
-	if(norm_data){
-	  for(i = 0; i < (n_grid[0] * n_grid[1] * n_grid[2]); i++){
-	    if(nout[i] > 0.0){
-	      dout[i] = dout[i] / nout[i];
-	    } else {
-	      dout[i] = 0.0;
-	    }
-	  }
-	}
+  double pos_double[3];
+  double grid_len[3], grid_step[3];
+  int grid_pos[3];
+  int pos;
+  unsigned long n_outside = 0;
 	
-	return n_outside;
+  // Some useful quantities
+
+  grid_size = n_grid[0] * n_grid[1] * n_grid[2];
+
+  // Allocate arrays for standard error calculation
+  
+  if(stderr){
+    Mk = (double*)malloc(sizeof(double) * grid_size);
+    if(!Mk){
+      return n_outside;
+    }
+    Qk = (double*)malloc(sizeof(double) * grid_size);
+    if(!Mk){
+      return n_outside;
+    }
+  }
+
+  dout_ptr = dout;
+  nout_ptr = nout;
+	
+  data_ptr = data;
+  for(i = 0;i < 3; i++){
+    grid_len[i] = grid_stop[i] - grid_start[i];
+    grid_step[i] = grid_len[i] / (n_grid[i]);
+  }
+	
+  for(i = 0; i < max_data ; i++){
+    // Calculate the relative position in the grid. 
+    pos_double[0] = (*data_ptr - grid_start[0]) / grid_len[0];
+    data_ptr++;
+    pos_double[1] = (*data_ptr - grid_start[1]) / grid_len[1];
+    data_ptr++;
+    pos_double[2] = (*data_ptr - grid_start[2]) / grid_len[2];
+    if((pos_double[0] >= 0) && (pos_double[0] < 1) && 
+       (pos_double[1] >= 0) && (pos_double[1] < 1) &&
+       (pos_double[2] >= 0) && (pos_double[2] < 1)){
+      data_ptr++;	
+      // Calculate the position in the grid
+      grid_pos[0] = (int)(pos_double[0] * n_grid[0]);
+      grid_pos[1] = (int)(pos_double[1] * n_grid[1]);
+      grid_pos[2] = (int)(pos_double[2] * n_grid[2]);
+      
+      pos =  grid_pos[0] * (n_grid[1] * n_grid[2]);
+      pos += grid_pos[1] * n_grid[2];
+      pos += grid_pos[2];
+
+      // Store the answer
+      dout[pos] = dout[pos] + *data_ptr;
+      nout[pos] = nout[pos] + 1;
+
+      // Calculate the standard deviation quantities
+
+      if(stderr){
+	if(nout[pos] == 1){
+	  Mk[pos] == *data_ptr;
+	  Qk[pos] == 0.0;
+	} else {
+	  Qk[pos] == Qk[pos] + ((nout[pos] - 1) * pow(*data_ptr - Mk[pos],2) / nout[pos]);
+	  Mk[pos] == Mk[pos] + ((*data_ptr - Mk[pos]) / nout[pos]);
+	}
+      }
+
+      // Increment pointer
+      data_ptr++;
+    } else {
+      n_outside++;
+      data_ptr+=2;
+    }
+  }
+  
+  // Calculate mean by dividing by the number of data points in each
+  // voxel
+
+  if(norm_data){
+    for(i = 0; i < grid_size; i++){
+      if(nout[i] > 0){
+	dout[i] = dout[i] / nout[i];
+      } else {
+	dout[i] = 0.0;
+      }
+    }
+  }
+
+  // Calculate the sterror
+  
+  if(stderr){
+    for(i=0;i<grid_size;i++){
+      if(nout[i] > 1){
+	// standard deviation of the sample distribution
+	stderr[i] = pow(Qk[pos] / (nout[i] - 1), 0.5) / pow(nout[i], 0.5);
+      }
+    }
+  }
+
+  if(Mk){
+    free(Mk);
+  }
+  if(Qk){
+    free(Qk);
+  }
+	
+  return n_outside;
 }
 
 PyMODINIT_FUNC initctrans(void)  {
