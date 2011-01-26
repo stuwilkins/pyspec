@@ -444,11 +444,11 @@ unsigned long c_grid3d(double *dout, unsigned long *nout, double *stderr, double
 
       if(stderr){
 	if(nout[pos] == 1){
-	  Mk[pos] == *data_ptr;
-	  Qk[pos] == 0.0;
+	  Mk[pos] = *data_ptr;
+	  Qk[pos] = 0.0;
 	} else {
-	  Qk[pos] == Qk[pos] + ((nout[pos] - 1) * pow(*data_ptr - Mk[pos],2) / nout[pos]);
-	  Mk[pos] == Mk[pos] + ((*data_ptr - Mk[pos]) / nout[pos]);
+	  Qk[pos] = Qk[pos] + ((nout[pos] - 1) * pow(*data_ptr - Mk[pos],2) / nout[pos]);
+	  Mk[pos] = Mk[pos] + ((*data_ptr - Mk[pos]) / nout[pos]);
 	}
       }
 
