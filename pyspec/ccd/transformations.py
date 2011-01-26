@@ -367,7 +367,7 @@ class ImageProcessor():
     the set of reciprocal vectors and intensities is gridded on a regular cuboid
     the needed informations can be provided by a spec scan from the pyspec package"""
 
-    def __init__(self, fP, configfile = None, ccdname = 'CCD',
+    def __init__(self, fP = None, configfile = None, ccdname = 'CCD',
                  spec = None):
         """Initialize the image processor
 
