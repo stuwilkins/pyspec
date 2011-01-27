@@ -387,7 +387,7 @@ unsigned long c_grid3d(double *dout, unsigned long *nout, double *stderr, double
   double pos_double[3];
   double grid_len[3], grid_step[3];
   int grid_pos[3];
-  int pos;
+  int pos = 0;
   unsigned long n_outside = 0;
 	
   // Some useful quantities

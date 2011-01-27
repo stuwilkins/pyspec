@@ -575,19 +575,17 @@ class ImageProcessor():
         mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame)
         mode : 'theta', 'phi', 'cart', 'hkl'"""
 
-        if isinstance(mode, str):
-            if mode == 'theta':
-                self.frameMode = 1
-            elif mode == 'phi':
-                self.frameMode = 2
-            elif mode == 'cart':
-                self.frameMode = 3
-            elif mode == 'hkl':
-                self.frameMode = 4
-            else:
-                raise Exception("Unknown mode %s." % mode)
+        if mode == 'theta':
+            self.frameMode = 1
+        elif mode == 'phi':
+            self.frameMode = 2
+        elif mode == 'cart':
+            self.frameMode = 3
+        elif mode == 'hkl':
+            self.frameMode = 4
+        else:
+            self.frameMode = mode
 
-        self.frameMode = mode
         self._preAxesLabels()
         self._makeModeInfo()
 
@@ -1367,8 +1365,8 @@ class ImageProcessor():
                 
             print "\n**** Converting to Q"
             t1 = time.time()
-            self.totSet = ctrans.ccdToQ(mode        = self.frameMode,
-                                        angles      = self.settingAngles * np.pi / 180.0, 
+            self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
+                                        mode        = self.frameMode,
                                         ccd_size    = (self.detSizeX, self.detSizeY),
                                         ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
                                         ccd_cen     = (self.detX0, self.detY0),
