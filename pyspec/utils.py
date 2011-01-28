@@ -187,11 +187,12 @@ def makePanelPlot(n = 3, fig = None,
 
 def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
                  tickcolor = None, framecolor = None):
-    """Make nice plot by setting all border widths"""
+    """Make nice plot by setting all border widths etc. 
+    Designed to make a pedantic figure suitable for PRL, PRB etc.
 
-    # Some constants
-
-    #ax.axesFrame.set_linewidth(2)
+    xint    : Number of x intervals for minor tics
+    yint    : Number of y intervals for minor tics
+    """
     
     for i in ax.spines.itervalues():
         i.set_linewidth(2)
@@ -199,12 +200,18 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
         for i in ax.spines.itervalues():
             i.set_color(framecolor)
 
+    # Set the x and y axes fontsizes
     ax.xaxis.label.set_fontsize(18)
     ax.yaxis.label.set_fontsize(18)
+
+    # Set the title fontsize and place a little higher
+    ax.title.set_fontsize(18)
+    ax.title.set_position([0.5, 1.03])
 
     if xint:
         ax.xaxis.set_major_locator(MaxNLocator(mxint))
         ax.xaxis.set_minor_locator(MaxNLocator(mxint * xint))
+
     if yint:
         ax.yaxis.set_major_locator(MaxNLocator(myint))
         ax.yaxis.set_minor_locator(MaxNLocator(myint * yint))
@@ -214,8 +221,6 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
         tick.tick2line.set_markersize(10)
         tick.tick1line.set_markeredgewidth(2)
         tick.tick2line.set_markeredgewidth(2)
-        
-        tick.label1.set_fontsize(16)
 
         if tickcolor:
             tick.tick1line.set_color(tickcolor)
@@ -230,6 +235,10 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
         if tickcolor:
             tick.tick1line.set_color(tickcolor)
             tick.tick2line.set_color(tickcolor)
+
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+        label.set_fontsize(16)
+
 
 def setImageRange(data, limits, bins = 100):
     
