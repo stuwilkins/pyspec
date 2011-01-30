@@ -26,7 +26,7 @@ import numpy as np
 import pickle 
 import pyspec
 import os
-from matplotlib.ticker import MultipleLocator, MaxNLocator
+from matplotlib.ticker import MultipleLocator, MaxNLocator, FormatStrFormatter
 
 # Some constants
 golden_mean = (np.sqrt(5)-1.0)/2.0
@@ -111,6 +111,10 @@ def multifit(sf, scans, var, *args, **kwargs):
 
     return alldata, allerrors
 
+##
+## Pickle routines to easily pickle data
+##
+
 def pickleit(filename, *args):
     """Pickle a python object
 
@@ -154,6 +158,10 @@ def unpickleit(filename):
 
     return None
 
+##
+## Plot Formatting utilities
+##
+
 def makePanelPlot(n = 3, fig = None, 
                   xlmargin = 0.15, ytmargin = 0.10,
                   xrmargin = 0.05, ybmargin = 0.10,
@@ -186,12 +194,16 @@ def makePanelPlot(n = 3, fig = None,
     return allax
 
 def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
-                 tickcolor = None, framecolor = None):
+                 tickcolor = None, framecolor = None,
+                 xformat = None, yformat = None):
+    
     """Make nice plot by setting all border widths etc. 
     Designed to make a pedantic figure suitable for PRL, PRB etc.
 
     xint    : Number of x intervals for minor tics
     yint    : Number of y intervals for minor tics
+    xformat : String to format major labels
+    yformat : String to format minor labels
     """
     
     for i in ax.spines.itervalues():
@@ -207,6 +219,13 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
     # Set the title fontsize and place a little higher
     ax.title.set_fontsize(18)
     ax.title.set_position([0.5, 1.03])
+
+    # Set number formatting
+    if xformat:
+        ax.xaxis.set_major_formatter(FormatStrFormatter(xformat))
+
+    if yformat:
+        ax.yaxis.set_major_formatter(FormatStrFormatter(yformat))
 
     if xint:
         ax.xaxis.set_major_locator(MaxNLocator(mxint))
@@ -239,6 +258,13 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
     for label in ax.get_xticklabels() + ax.get_yticklabels():
         label.set_fontsize(16)
 
+def drawResolutionLine(ax, pos, ):
+    """Draw the resolution line on the plot.
+
+    pos  : center position as tuple (x,y)
+    size : width and height"""
+
+    return
 
 def setImageRange(data, limits, bins = 100):
     
@@ -259,3 +285,5 @@ def setImageRange(data, limits, bins = 100):
         dmax = b[int(com + limits[1])]
 
     return dmin, dmax
+
+

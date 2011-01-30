@@ -512,21 +512,21 @@ class fit:
 
     def _residuals(self, p):
         """Residuals function for scipy leastsq optimizer"""
-        f = self.evalfunc(self._toFullParams(p), x = self._datax)
+        f = self._evalfunc(self._toFullParams(p), x = self._datax)
         return ravel(self._datay - f)
 
     def _residualsMPFIT(self, p, fjac = None):
         """Residuals function for MPFIT optimizer"""
-        f = self.evalfunc(self._toFullParams(p), x = self._datax)
+        f = self._evalfunc(self._toFullParams(p), x = self._datax)
         return 0, ravel((self._datay - f) / self._datae)
 
     def _modelODR(self, p = None, x = None):
         """Model function for ODR"""
-        return(self.evalfunc(self._toFullParams(p), x = self._datax))
+        return(self._evalfunc(self._toFullParams(p), x = self._datax))
 
     def _modelLEVMAR(self, estimate = None, measurement = None, data = None):
         """Model function for LEVMAR"""
-        f = ravel(self.evalfunc(self._toFullParams(estimate), x = self._datax))
+        f = ravel(self._evalfunc(self._toFullParams(estimate), x = self._datax))
         return f
 
     def _toFullParams(self, p):
@@ -543,14 +543,17 @@ class fit:
 ## Functions to evaluate the fitting functions
 ##
 
-    def evalfitfunc(self, nxpts = None, p = None, x = None, mode = 'sum'):
+    def evalfitfunc(self, nxpts = None, p = None, x = None):
         """Evaluate the fit functions with the fesult of a fit
 
         Parameters
         ----------
 
+        nxpts       : Number of x data points if using the range of the input data.
+        p           : Parameters of function. If None, use current fit result.
+        x           : X values (as array).
 
-
+        returns f(x)
 
         """
         if x is None:
@@ -561,11 +564,12 @@ class fit:
                 step = ( x.max() - x.min() ) / nxpts
                 x = arange(x.min(), x.max(), step)
 
-        f = self.evalfunc(x = x, mode = mode, p = p)
+        f = self._evalfunc(x = x, mode = mode, p = p)
         return x, f
 
-    def evalfunc(self, p = None, x = None, mode = 'sum'):
-
+    def _evalfunc(self, p = None, x = None, mode = 'sum'):
+        """Evaluate fitting function, not to be called by user"""
+        
         if mode == 'sum':
             f = 0.0
         else:
@@ -798,7 +802,7 @@ class fit:
         self.chiSquared()
 
         # R^2
-        ssReg = pow(self.evalfunc() - self._datay, 2).sum()
+        ssReg = pow(self._evalfunc() - self._datay, 2).sum()
         ymean = self._datay.sum() / len(self._datay)
         ssTot = pow(ymean - self._datay, 2).sum()
         self.r2 = 1.0 - (ssReg / ssTot)
@@ -964,9 +968,9 @@ class fit:
 
         N = len(self._datax)
         P = len(self.result)
-        self.chi2 = pow(self.evalfunc() - self._datay, 2)
+        self.chi2 = pow(self._evalfunc() - self._datay, 2)
         if dist == 'poisson':
-            self.chi2 = self.chi2 / self.evalfunc()
+            self.chi2 = self.chi2 / self._evalfunc()
 
         self.chi2 = self.chi2.sum()
         if norm:
@@ -976,7 +980,7 @@ class fit:
 
     def residualSDev(self):
         """Calculate the sandard deviation of the residuals"""
-        resid = self.evalfunc() - self._datay
+        resid = self._evalfunc() - self._datay
         mean = resid.sum() / len(resid)
         stdev = sqrt(pow(resid - mean, 2).sum() / len(resid))
         self.resid_sdev = stdev
