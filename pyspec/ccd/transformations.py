@@ -550,7 +550,7 @@ class ImageProcessor():
         self.conScan = conScan
         self._setBySpec()
         self.fileProcessor.setFromSpec(conScan)
-        self.fileProcessor.process()
+        #self.fileProcessor.process() # NO NO NO NO NO NO !!!!!
    
     def getSpecScan(self):
         """Get the pyspec scan object which was used for the set settings
