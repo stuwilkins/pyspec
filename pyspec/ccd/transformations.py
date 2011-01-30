@@ -420,6 +420,10 @@ class ImageProcessor():
     # set and get part
     #
 
+    def getImageData(self):
+        """Get the totat image data, transformed into Q"""
+        return self.totSet
+
     def setDetectorProp(self, detPixSizeX, detPixSizeY, detSizeX, detSizeY, detX0, detY0):
         """Set properties of used detector
 
@@ -1361,7 +1365,6 @@ class ImageProcessor():
             if self.totSet is not None:
                 del self.totSet
                 gc.collect()
-                #ccdToQkwArgs['outarray'] = self.totSet
                 
             print "\n**** Converting to Q"
             t1 = time.time()
@@ -1377,8 +1380,7 @@ class ImageProcessor():
             t2 = time.time()
             print "---- DONE (Processed in %f seconds)" % (t2 - t1)
             self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
-            #print gc.get_referents(totSet)
-
+            
         # for info file
         self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
 
