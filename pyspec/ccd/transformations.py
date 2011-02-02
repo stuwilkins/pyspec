@@ -424,6 +424,10 @@ class ImageProcessor():
         """Get the totat image data, transformed into Q"""
         return self.totSet
 
+    def getGridData(self):
+        """Get the data on the grid"""
+        return self.gridData
+
     def setDetectorProp(self, detPixSizeX, detPixSizeY, detSizeX, detSizeY, detX0, detY0):
         """Set properties of used detector
 

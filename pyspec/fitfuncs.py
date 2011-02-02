@@ -220,26 +220,15 @@ def pvoight(x, p, mode='eval'):
 
 def gauss(x, p, mode='eval'):
     if mode == 'eval':
-        cent=p[0];wid=p[1];area=p[2];
-        out = ((area / wid) * sqrt(4*log(2) / pi)) * exp(-4 * log(2) * ((x-cent) / wid)**2);
+        cent=p[0];wid=p[1];amp=p[2];
+        out = amp * exp(-1.0 * (x - cent)**2 / (2 * wid**2))
     elif mode == 'params':
-        out = ['cent', 'FWHM', 'area']
+        out = ['cent', 'sigma', 'amp']
     elif mode == 'name':
         out = "Gaussian"
     elif mode == 'guess':
         g = peakguess(x, p)
-        out = g[0:3]
-    elif mode == 'graphguess':
-        x = GetGraphInput()
-        print "Click on (in order)"
-        print "\tPeak center at top"
-        print "\tPeak width (left)"
-        print "\tPeak width (right)"
-        print "\tBackground at center"
-        c = x(4, 0)
-        width = abs(c[1][0] - c[2][0])
-        area = abs(c[0][1] - c[3][1]) * width * sqrt(pi) / sqrt(4 * log(2))
-        out = [c[0][0], width, area]
+        out = [g[0], g[1] / (4 * log(2)), g[3]]
     else:
         out = []
 

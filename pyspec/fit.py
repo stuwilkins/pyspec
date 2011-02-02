@@ -518,7 +518,8 @@ class fit:
     def _residualsMPFIT(self, p, fjac = None):
         """Residuals function for MPFIT optimizer"""
         f = self._evalfunc(self._toFullParams(p), x = self._datax)
-        return 0, ravel((self._datay - f) / self._datae)
+        rsid = (self._datay - f) / self._datae
+        return 0, ravel(rsid)
 
     def _modelODR(self, p = None, x = None):
         """Model function for ODR"""
@@ -564,7 +565,7 @@ class fit:
                 step = ( x.max() - x.min() ) / nxpts
                 x = arange(x.min(), x.max(), step)
 
-        f = self._evalfunc(x = x, mode = mode, p = p)
+        f = self._evalfunc(x = x, p = p)
         return x, f
 
     def _evalfunc(self, p = None, x = None, mode = 'sum'):
