@@ -198,6 +198,7 @@ class FileProcessor():
         if norm is not None:
             self.normData = norm
         self.bgndParams = np.array([])
+
     def setMeanMonitor(self, b):
         """Set wether the images are normalized by the monitor or the mean of the monitor"""
         self.meanMonitor = b
@@ -327,6 +328,15 @@ class FileProcessor():
             return PrincetonSPEFile(iname).getBinnedData()
         else:
             raise Exception("Unknown file format \"%s.\"" % self._format)
+
+    def _computeMeanImage(self):
+        N = self.images.shape[0]
+        self.mean = self.images.sum(0) / N
+        stdev = (self.images - self.mean)**2
+
+    def getMeanImage(self):
+        _compureMeanImage()
+        return self.mean, self.stderr
 
     def getImage(self, n = None):
         """Return the image data"""
