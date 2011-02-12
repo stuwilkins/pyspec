@@ -1,49 +1,62 @@
+***************************
 Introduction to CCD Package
-===========================
+***************************
 
-This chapter gives a short overview about the steps which are provided by CCD package and the brief ideas.
+This chapter gives a short overview about the steps which are provided
+by CCD package and the brief ideas.
+
+The CCD rountines are broken down into three main classes or
+objects. Their function is logically defined by the steps which one
+performs to analyze data, from the raw CCD images to the resulting
+data. These steps and their corresponding classes are:
+
+* Reading of images - ``FileProcessor``
+* Processing images and gridding - ``ImageProcessor``
+* Plotting of data - ``PlotGrid``
+
+These classes and their functions are described below.
+
+Reading and compiling images
+============================
+
+The class ``FileProcessor`` reads all the images for a given dataset
+and does both darkimage subtraction and image normalization. The
+``FileProcessor`` obtains a list of CCD image file names, either
+supplied by the user, or from a scan object. Upon processing, each sub
+image is summed and corrected for the dark image then normalized to
+the monitor. The ``FileProcessor`` returns a 3D array, or stack of
+images.
+
+In order to intelligently handle dark images, the latest dark image in
+the stack is stored and used to correct the current image being
+processed. This allows the user to only take periodic dark images at a
+lesser frequency of data to speed up data collection.
+
+Processing Images
+=================
+
+The class ``ImageProcessor`` takes a ``FileProcessor`` object and
+further processes the data. 
+
+In this class, first the data is transformed
+into the coordinate system chosen by the user. This coordinate system
+can be chosen for convenience to be anything from the diffractometer
+theta coordinates to the HKL reciprocal space coordinates. 
+  
+Secondly, the data can be gridded onto a regular :math:`N x 3` grid to
+allow efficient processing. This grid can be obtained as a 3D array of
+average intensities for each voxel along with the corresponding
+standard error for each voxel.
+
+Finally, 1D cuts and sums can be performed to obtain line cuts of the
+data.
+
+Plotting Images
+===============
+
+In order to easily visualize the data a number of plotter routines are
+provided to aid in quickly graphically representing the data. 
 
 Important note on indexing
---------------------------
-
-
-
-Read In the Images
-------------------
-
-The raw, stored images are read in and as a first step the dark image gets substracted. This result can be normalized e.g. by the monitor.
-The background can be substracted by fitting the region without the peak with a 2D linear function.
-
-Real Space to Reciprocal Space Transformation
----------------------------------------------
-
-This package is written for a six circle diffraction setup. In the case of an point detector the setting angles of the point detector on the peak maximum and the wavelength :math:`\lambda` (energy :math:`E`) of the photons define the position of the peak in reciprocal space. Now each pixel of the CCD can be thought as a point detector itself.
-
-The CCD camera is characterized by the numbers of pixels :math:`(n_X, n_Y)`, there neighboring distances (sizes) :math:`(d_X, d_Y)`, and the detector distance to the diffractometer ceter of rotation :math:`d_\mathrm{det}`.
-The image :math:`X`-axis runs from left to right and the :math:`Y`-axis from top to bottum. Thus the axes are antiparallel to the :math:`\gamma`- and :math:`\delta`-direction, respectively. 
-A possible binning :math:`(n_{\mathrm{bin},X}, n_{\mathrm{bin},Y})` scales the number of pixels and the pixel distances to effective new CCD parameters.
-
-For the calculation of the :math:`(\delta, \gamma)`-values of each pixel we need the coordinates of a reference point :math:`(x_0, y_0)` and its setting angles :math:`(\delta_0, \gamma_0)`. 
-Each pixel has :math:`(x, y)`-coordinates which can be now calculated to :math:`(\delta, \gamma)`.
-
-.. math::
-    \delta &= \delta_0 - \arctan\left( \frac{(y-y_0) d_Y}{d_\mathrm{det}} \right)
-
-    \gamma &= \gamma_0 - \arctan\left( \frac{(x-x_0) d_X}{d_\mathrm{det}} \right)
-
-
-
-
-Regular Grid
-------------
-
-The method of calculation of standard error on each grid point is
-detailed in this doccument :doc:`ccd_stderr`
-
-
-Cuts and Sums
--------------
-
-Plot Data Overview
-------------------  
+==========================
 

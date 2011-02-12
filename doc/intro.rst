@@ -4,7 +4,7 @@ An introduction to pyspec
 .. toctree::
    :maxdepth: 2
 
-   dhhsdak
+   ccd_intro
    
 pyspec is a package of modules to perform data analysis for x-ray scattering 
 experiments. The basic modules are:
