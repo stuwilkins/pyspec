@@ -1,10 +1,25 @@
-# Written by S. Wilkins
-# (c) Stuart Wilkins 2007, 2008, 2009
 #
-# SPEC is a Diffractometer control program from
-# Certified Scientific Software.
-# http://www.certif.com/
+# spec.py (c) Stuart B. Wilkins 2008
 #
+# $Id$
+# $HeadURL$
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Part of the "pyspec" package
+#
+
 """Python module for handling of spec data files (pyspec).
 
 This module defines classes, objects and routines for reading SPEC datafiles
@@ -67,6 +82,12 @@ from fit import fit
 from pyspec.ccd.transformations import FileProcessor
 from copy import deepcopy, copy
 
+DefaultUserExtensions = []
+try:
+    from pyspec.ccd.specext import CCDSpecExtension
+    ext = CCDSpecExtension
+    DefaultUserExtensions.append(ext)
+
 __version__ = "$Revision$"
 __author__ = "Stuart B. Wilkins <swilkins@bnl.gov>"
 __date__ = "$LastChangedDate$"
@@ -75,7 +96,35 @@ __verbose__ = 0x01
 
 NotInFile = "Scan is not in Datafile"
 
+class SpecExtension:
+    """Class to define extensions to SpecDataFile"""
+    def __init__(self):
+        return
+    def getName(self):
+        """Return string of name of extension"""
+        return "Dummy"
+    def initSpec(self, object):
+        """Initialize SpecDataFile class"""
+        return
+    def initSpecScan(self, object):
+        """Initialize SpecScan class"""
+        return
+    def parseSpecHeader(self, object, line):
+        """Parse a line of a spec header and modify object with results"""
+        return
+    def parseSpecScanHeader(self, object, line):
+        """Parse a line of a spec scan header and modify object with results"""
+        return
+    def postProcessSpecHeader(self, object):
+        """Post process spec header"""
+        return
+    def postProcessSpecScanHeader(self, object):
+        """Post process spec scan header"""
+        return
+    
+
 def removeIllegals(key):
+    """Remove illegal character from string"""
     illegal = ['/', '-', ' ']
     for j in illegal:
         key = key.replace(j,'')
@@ -86,7 +135,6 @@ def removeIllegals(key):
 
 def splitSpecString(ips):
     """Split a spec string which is formated with two spaces"""
-
     ops = []
     for o in ips.split('  '):
         if o != '':
@@ -95,10 +143,9 @@ def splitSpecString(ips):
     return ops
 
 class SpecDataFile:
-    """ DataFile class for handling spec data files
-
-    """
-    def __init__(self,fn, ccdpath = None, ccdtail = None):
+    """ DataFile class for handling spec data files"""
+    def __init__(self, fn, userext = [], **kwargs):
+        ccdpath = None, ccdtail = None):
         """Initialize SpecDataFile
 
         Params
@@ -110,9 +157,7 @@ class SpecDataFile:
         ccdtail : string
              String for the tail of ccd files
 
-        Returns
-        -------
-        SpecDataFile object
+        Returns a SpecDataFile object
 
         """
         self.filename = fn
@@ -126,14 +171,19 @@ class SpecDataFile:
 
         self.mode = 'concat' # Set the default to concatenate multiple files
 
-        self.userFuncs = None # User function to run after "getScan"
+        # User extensions for adding functionality
+        self.userExtensions = userext
+        self.userExtensions += DefaultUserExtensions
 
-        self.ccdpath = ccdpath
-        if ccdtail is not None:
-            self.ccdtail = ccdtail
-        else:
-            self.ccdtail = ".spe"
+        for ext in self.userExtensions:
+            ext.initSpec(self)
+
+        for arg in kwargs:
+            # Set any keyword args into the base class
+            setattr(self, arg, kwargs[arg])
+            
         return
+    
 
     def __getstate__(self):
         # Called to pickle class
@@ -142,12 +192,9 @@ class SpecDataFile:
         return mydict
 
     def setCCD(self, path = None, tail = None):
+        """Set CCD Directories and Paths"""
         self.ccdpath = path
         self.ccdtail = tail
-
-    def setUserFunc(self, f):
-        """Set the user functions"""
-        self.userFuncs = [f]
 
     def setMode(self, mode = 'concatenate'):
         """Set the mdoe to deal with multiple scans
@@ -184,7 +231,15 @@ class SpecDataFile:
         while line[0:2] != "#S":
             if line[0:2] == "#O":
                 self.motors = self.motors + splitSpecString(line[4:])
+            else:
+                # 
+                for ext in self.userExtensions:
+                    ext.parseSpecHeader(self, line)
+                    
             line = self.file.readline()
+
+        for ext in self.userExtensions:
+            ext.postProcessSpecHeader(self)
 
         self.file.close()
         return
@@ -224,8 +279,15 @@ class SpecDataFile:
         return
 
     def getStats(self, head = "---- "):
-        """ Returns string with statistics on specfile."""
+        """ Returns string with statistics on specfile.
 
+        Parameters
+        ----------
+
+        head : string
+           append string head to status text
+
+        """
         string = ""
         string = string + head + "Specfile contains %d scans\n" % len(self.findex)
         string = string + head + "Start scan = %d\n" % min(self.findex.keys())
@@ -324,10 +386,6 @@ class SpecDataFile:
                     raise Exception("Unknown mode to deal with multiple scans.")
             rval = [newscan]
 
-        if self.userFuncs is not None:
-            for uF in self.userFuncs:
-                uF(rval[0])
-
         return rval[0]
 
     def _getLine(self):
@@ -365,7 +423,7 @@ class SpecScan:
 
     """
 
-    def __init__(self, specfile, item, setkeys = True, mask = None, ccdsubimages = None):
+    def __init__(self, specfile, item, setkeys = True, mask = None, **kwargs):
         """Read scan data from SpecFile
 
         Initialize the SpecScan class from a SpecData instance.
@@ -389,6 +447,7 @@ class SpecScan:
         # Define the SIXC angles
 
         self.sixcAngleNames = ['Delta', 'Theta', 'Chi', 'Phi', 'Mu', 'Gamma']
+        self.fourcAngleNames = ['TwoTheta', 'Theta', 'Chi', 'Phi']
 
         line = specfile._getLine()
 
@@ -413,11 +472,13 @@ class SpecScan:
         line = specfile._getLine()
         self.header = self.header + line
 
-        self.ccdAcquireTime = 0.0
-        self.ccdAcquirePeriod = 0.0
-        self.ccdNumExposures = 1
-        self.ccdNumImages = 1
-        self.ccdNumAcquisitions = 1
+        # Run the init for any user extensions
+        for ext in self.specfile.userExtensions:
+            ext.initSpecScan(self)
+
+        # Finally overide any assigments with values passed as keyword arguments
+        for arg in kwargs:
+            setattr(self, arg, kwargs[arg])
 
         #
         # Read the spec header and place the data into this class
@@ -476,20 +537,10 @@ class SpecScan:
                     self.UB = pos.reshape(-1, 3)
                 except:
                     print "**** Unable to read UB matrix (G3)"
-            elif line[0:6] == "#UCCD2":
-                try:
-                    pos = line[6:].strip().split()
-                    pos = map(float, pos)
-                    self.ccdAcquireTime = pos[0]
-                    self.ccdAcquirePeriod = pos[1]
-                    self.ccdNumExposures = int(pos[2])
-                    self.ccdNumImages = int(pos[3])
-                    if ccdsubimages:
-                        self.ccdNumAcquisitions = ccdsubimages
-                    else:
-                        self.ccdNumAcquisitions = int(pos[4])
-                except:
-                    print "**** Unable to parse CCD data (UCCD2)"
+            else:
+                # Try using the user extensions to parse the lines
+                for ext in self.specfile.userExtensions:
+                    ext.parseSpecScanHeader(self, line)
             
             line = specfile._getLine()
             self.header = self.header + line
@@ -536,11 +587,12 @@ class SpecScan:
         self.scanno = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.scan
         self.scandatum = arange(self.data.shape[0])
 
-        self.ccdAcquireTime = numpy.ones(self.data.shape[0]) * self.ccdAcquireTime
-        self.ccdAcquirePeriod = numpy.ones(self.data.shape[0]) * self.ccdAcquirePeriod
-        self.ccdNumExposures = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.ccdNumExposures 
-        self.ccdNumImages = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.ccdNumImages
-        self.ccdNumAcquisitions = numpy.ones(self.data.shape[0], dtype = numpy.int) * self.ccdNumAcquisitions
+        # Run the extension post processing scripts
+
+        for ext in self.specfile.userExtensions:
+            if __verbose__:
+                print "---- Using extension %s" % ext.getName() 
+            ext.postProcessSpecScanHeader(self)
 
         # Now set the motors
         self._setcols()
@@ -709,47 +761,6 @@ class SpecScan:
         e = e * y
 
         return (y, e)
-
-    def getCCDFilenames(self, path = None, dark = False):
-        """Get the CCD Files for a spec scan.
-        if path is defined this will be appended to the images
-        if not then the path defined in the SpecDataFile ooject
-        will be used. If dark is true then the darkimages are
-        returned"""
-        
-        if dark:
-            _dark = "-DARK"
-        else:
-            _dark = ""
-
-        if path is not None:
-            _path = path
-        else:
-            if self.datafile.ccdpath is not None:
-                _path = self.datafile.ccdpath + os.sep
-            else:
-                _path = ""
-
-        _datafile = self.datafile.filename.split(os.sep)
-
-        if self.data.ndim == 1:
-            ndps = 1
-        else:
-            ndps = self.data.shape[0]
-
-        filenames = []
-        for (i, scan, cna) in zip(self.scandatum, self.scanno, self.ccdNumAcquisitions):
-            _fnames = []
-            for j in range(cna):
-                _f = "%s_%04d-%04d%s_%04d%s" % (_datafile[-1], 
-                                                scan, i, _dark, j,
-                                                self.datafile.ccdtail)
-                _fnames.append("%s%s" % (_path, _f))
-            filenames.append(_fnames)
-        self.ccdFilenames = filenames
-
-        return filenames
-
 
 class SpecData:
     """Class defining the data contained in a scan"""

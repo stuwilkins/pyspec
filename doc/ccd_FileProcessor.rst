@@ -25,7 +25,7 @@ lists) then the inner list is taken as a number of sub images which
 should be binned together. This is true for dark images also. The
 images can be set by::
 
-   >>> 
+   >>>
 
 ``FileProcessor`` Documentation
 ------------------------------- 
