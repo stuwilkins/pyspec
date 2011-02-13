@@ -21,6 +21,7 @@
 #
 
 import os
+import numpy
 from pyspec.spec import SpecExtension
 
 class CCDSpecExtension(SpecExtension):
@@ -56,6 +57,15 @@ class CCDSpecExtension(SpecExtension):
             except:
                 print "**** Unable to parse CCD data (UCCD2)"
         return
+    def concatenateSpecScan(self, object, a):
+        object.ccdAcquireTime = numpy.concatenate((object.ccdAcquireTime, a.ccdAcquireTime))
+        object.ccdAcquirePeriod = numpy.concatenate((object.ccdAcquirePeriod, a.ccdAcquirePeriod))
+        object.ccdNumExposures = numpy.concatenate((object.ccdNumExposures, a.ccdNumExposures))
+        object.ccdNumImages = numpy.concatenate((object.ccdNumImages, a.ccdNumImages))
+        object.ccdNumAcquisitions = numpy.concatenate((object.ccdNumAcquisitions, a.ccdNumAcquisitions))
+        object.ccdFilenames = object.ccdFilenames + a.ccdFilenames
+        object.ccdDarkFilenames = object.ccdDarkFilenames + a.ccdDarkFilenames
+        return 
     def postProcessSpecScanHeader(self, object):
 
         # Define parameters from header
@@ -79,15 +89,22 @@ class CCDSpecExtension(SpecExtension):
         else:
             ndps = object.data.shape[0]
 
-        filenames = []
-        for (i, scan, cna) in zip(object.scandatum, object.scanno, object.ccdNumAcquisitions):
-            _fnames = []
-            for j in range(cna):
-                _f = "%s_%04d-%04d%s_%04d%s" % (_datafile[-1], 
-                                                scan, i, _dark, j,
-                                                object.datafile.ccdtail)
-                _fnames.append("%s%s" % (_path, _f))
-            filenames.append(_fnames)
-        object.ccdFilenames = filenames
+        allfilenames = []
+        for dark in ['', object.datafile.ccddark]:
+            filenames = []
+            for (i, scan, cna) in zip(object.scandatum, object.scanno, object.ccdNumAcquisitions):
+                _fnames = []
+                for j in range(cna):
+                    _f = "%s_%04d-%04d%s_%04d%s" % (_datafile[-1], 
+                                                    scan, 
+                                                    i, 
+                                                    dark, 
+                                                    j,
+                                                    object.datafile.ccdtail)
+                    _fnames.append("%s%s" % (_path, _f))
+                filenames.append(_fnames)
+            allfilenames.append(filenames)
+        object.ccdFilenames = allfilenames[0]
+        object.ccdDarkFilenames = allfilenames[1]
     
 

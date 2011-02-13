@@ -20,6 +20,7 @@
 # Part of the "pyspec" package
 #
 
+import numpy
 import time as _time
 
 try:
@@ -99,7 +100,7 @@ def peakguess(x,y):
 def lor2a(x, p, mode='eval'):
     """Lorentzian squared function defined by area"""
     if mode == 'eval':
-        out = ((sqrt(2)*p[2])/(pi*p[1]) / (1 + 0.5*((x - p[0])/p[1])**2)**2);
+        out = ((numpy.sqrt(2)*p[2])/(numpy.pi*p[1]) / (1 + 0.5*((x - p[0])/p[1])**2)**2);
     elif mode == 'params':
         out = ['cent', 'width', 'area']
     elif mode == 'name':
@@ -214,7 +215,7 @@ def lorr(x, p, mode='eval'):
 
     """
     if mode == 'eval':
-        out = (2*p[2]/p[1]/pi) / (1 + 4*((x-p[0])/p[1])**2)
+        out = (2*p[2]/p[1]/numpy.pi) / (1 + 4*((x-p[0])/p[1])**2)
     elif mode == 'params':
         out = ['Center', 'width', 'area']
     elif mode == 'name':
@@ -228,9 +229,15 @@ def lorr(x, p, mode='eval'):
     return out
 
 def pvoight(x, p, mode='eval'):
+    """Pseudo Voight function
+
+    Function:
+       :math:'f(x) = '
+
+    """
     if mode == 'eval':
         cent=p[0];wid=p[1];area=p[2];lfrac=p[3];
-        out = area / wid / ( lfrac*pi/2 + (1-lfrac)*sqrt(pi/4/log(2)) ) * ( lfrac / (1 + 4*((x-cent)/wid)**2) + (1-lfrac)*exp(-4*log(2)*((x-cent)/wid)**2) );
+        out = area / wid / ( lfrac*numpy.pi/2 + (1-lfrac)*numpy.sqrt(numpy.pi/4/numpy.log(2)) ) * ( lfrac / (1 + 4*((x-cent)/wid)**2) + (1-lfrac)*numpy.exp(-4*numpy.log(2)*((x-cent)/wid)**2) );
     elif mode == 'params':
         out = ['cent', 'FWHM', 'area', 'Lorr. Fac.']
     elif mode == 'name':
@@ -253,20 +260,26 @@ def gauss(x, p, mode='eval'):
     """
     if mode == 'eval':
         cent=p[0];wid=p[1];amp=p[2];
-        out = amp * exp(-1.0 * (x - cent)**2 / (2 * wid**2))
+        out = amp * numpy.exp(-1.0 * (x - cent)**2 / (2 * wid**2))
     elif mode == 'params':
         out = ['cent', 'sigma', 'amp']
     elif mode == 'name':
         out = "Gaussian"
     elif mode == 'guess':
         g = peakguess(x, p)
-        out = [g[0], g[1] / (4 * log(2)), g[3]]
+        out = [g[0], g[1] / (4 * numpy.log(2)), g[3]]
     else:
         out = []
 
     return out
 
 def power(x, p, mode = 'eval'):
+    """Power function
+
+    Function:
+       :math:`f(x) = p_0 p_1^x`
+
+    """
     if mode == 'eval':
         out = p[0] * pow(p[1], x)
     elif mode == 'params':

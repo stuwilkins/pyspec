@@ -82,12 +82,6 @@ from fit import fit
 from pyspec.ccd.transformations import FileProcessor
 from copy import deepcopy, copy
 
-DefaultUserExtensions = []
-try:
-    from pyspec.ccd.specext import CCDSpecExtension
-    ext = CCDSpecExtension
-    DefaultUserExtensions.append(ext)
-
 __version__ = "$Revision$"
 __author__ = "Stuart B. Wilkins <swilkins@bnl.gov>"
 __date__ = "$LastChangedDate$"
@@ -121,7 +115,16 @@ class SpecExtension:
     def postProcessSpecScanHeader(self, object):
         """Post process spec scan header"""
         return
+    def concatenateSpecScan(self, object, a):
+        return
     
+# Now try to load default extensions
+DefaultUserExtensions = []
+try:
+    from pyspec.ccd.specext import CCDSpecExtension
+    DefaultUserExtensions.append(CCDSpecExtension())
+except:
+    pass
 
 def removeIllegals(key):
     """Remove illegal character from string"""
@@ -145,35 +148,28 @@ def splitSpecString(ips):
 class SpecDataFile:
     """ DataFile class for handling spec data files"""
     def __init__(self, fn, userext = [], **kwargs):
-        ccdpath = None, ccdtail = None):
         """Initialize SpecDataFile
 
-        Params
-        ------
+        Parameters
+        ----------
         fn : string
              Filename of spec file to open
-        ccdpath : string
-             String containing path to CCD FILES.
-        ccdtail : string
-             String for the tail of ccd files
+        userext : list
+             A list of user extension classes to run on data
 
         Returns a SpecDataFile object
 
         """
         self.filename = fn
-        if __verbose__:
-            print "**** Opening specfile %s." % self.filename
-        self.index()
-        self.readHeader()
-        print self.getStats()
-
-        self.scandata = {}
-
         self.mode = 'concat' # Set the default to concatenate multiple files
 
         # User extensions for adding functionality
         self.userExtensions = userext
-        self.userExtensions += DefaultUserExtensions
+        self.userExtensions = self.userExtensions + DefaultUserExtensions
+
+        if __verbose__:
+            for ext in self.userExtensions:
+                print "**** Defining extension %s" % ext.getName()
 
         for ext in self.userExtensions:
             ext.initSpec(self)
@@ -181,20 +177,22 @@ class SpecDataFile:
         for arg in kwargs:
             # Set any keyword args into the base class
             setattr(self, arg, kwargs[arg])
-            
+
+        if __verbose__:
+            print "**** Opening specfile %s." % self.filename
+
+        self.index()
+        self.readHeader()
+        print self.getStats()
+
+        self.scandata = {}
         return
-    
 
     def __getstate__(self):
         # Called to pickle class
         mydict = copy(self.__dict__)
         mydict['file'] = None
         return mydict
-
-    def setCCD(self, path = None, tail = None):
-        """Set CCD Directories and Paths"""
-        self.ccdpath = path
-        self.ccdtail = tail
 
     def setMode(self, mode = 'concatenate'):
         """Set the mdoe to deal with multiple scans
@@ -232,7 +230,7 @@ class SpecDataFile:
             if line[0:2] == "#O":
                 self.motors = self.motors + splitSpecString(line[4:])
             else:
-                # 
+                # Run user extensions
                 for ext in self.userExtensions:
                     ext.parseSpecHeader(self, line)
                     
@@ -375,7 +373,6 @@ class SpecDataFile:
         self.file.close()
                 
         if len(rval) > 1:
-            print copy
             newscan = deepcopy(rval[0])
             for i in range(len(rval)-1):
                 if self.mode == 'concat':
@@ -473,7 +470,7 @@ class SpecScan:
         self.header = self.header + line
 
         # Run the init for any user extensions
-        for ext in self.specfile.userExtensions:
+        for ext in specfile.userExtensions:
             ext.initSpecScan(self)
 
         # Finally overide any assigments with values passed as keyword arguments
@@ -539,7 +536,7 @@ class SpecScan:
                     print "**** Unable to read UB matrix (G3)"
             else:
                 # Try using the user extensions to parse the lines
-                for ext in self.specfile.userExtensions:
+                for ext in specfile.userExtensions:
                     ext.parseSpecScanHeader(self, line)
             
             line = specfile._getLine()
@@ -589,7 +586,7 @@ class SpecScan:
 
         # Run the extension post processing scripts
 
-        for ext in self.specfile.userExtensions:
+        for ext in specfile.userExtensions:
             if __verbose__:
                 print "---- Using extension %s" % ext.getName() 
             ext.postProcessSpecScanHeader(self)
@@ -628,11 +625,8 @@ class SpecScan:
         self.scanno = concatenate((self.scanno, a.scanno))
         self.scandatum = concatenate((self.scandatum, a.scandatum))
 
-        self.ccdAcquireTime = concatenate((self.ccdAcquireTime, a.ccdAcquireTime))
-        self.ccdAcquirePeriod = concatenate((self.ccdAcquirePeriod, a.ccdAcquirePeriod))
-        self.ccdNumExposures = concatenate((self.ccdNumExposures, a.ccdNumExposures))
-        self.ccdNumImages = concatenate((self.ccdNumImages, a.ccdNumImages))
-        self.ccdNumAcquisitions = concatenate((self.ccdNumAcquisitions, a.ccdNumAcquisitions))
+        for ext in self.datafile.userExtensions:
+            ext.concatenateSpecScan(self, a)
 
         self._setcols()
 

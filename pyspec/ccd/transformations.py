@@ -114,8 +114,8 @@ class FileProcessor():
         scan    : SpecScan instance
         norm    : spec counter to normalize against"""
         
-        self.filenames = scan.getCCDFilenames()
-        self.darkfilenames = scan.getCCDFilenames(dark = 1)
+        self.filenames = scan.ccdFilenames
+        self.darkfilenames = scan.ccdDarkFilenames
         self.normData = scan.values[mon]
 
     def _processBgnd(self, maskroi = None, mask = None):
@@ -728,8 +728,8 @@ class ImageProcessor():
 
         self.waveLen       = self.conScan.wavelength  # in Angstrom
         self.energy        = Diffractometer.hc_over_e / self.conScan.wavelength # in eV
-        self.imFileNames   = self.conScan.getCCDFilenames()
-        self.darkFileNames = self.conScan.getCCDFilenames(dark = 1)
+        self.imFileNames   = self.conScan.ccdFilenames
+        self.darkFileNames = self.conScan.ccdDarkFilenames
         self.settingAngles = self.conScan.getSIXCAngles()
         self.intentNorm    = self.conScan.Ring
         self.UBmat         = self.conScan.UB
