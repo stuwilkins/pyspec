@@ -47,12 +47,6 @@ except:
 
 from ConfigParser import ConfigParser
 
-try:
-    import princeton
-except:
-    print "No princeton"
-    pass
-
 #gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
 gc.enable()
 
@@ -60,112 +54,6 @@ __version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>, Sven Partzsch <SvenPartzsch@gmx.de>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
-
-class CCDParamsConfigParser(ConfigParser):
-    def readAllLocations(self, filename):
-        _f = os.path.split(filename)
-
-        if _f[0] == '':
-        
-            locations = []
-            if os.name is 'posix':
-                if os.environ.has_key('HOME'):
-                    locations.append(os.environ['HOME'] + os.path.sep + ".pyspec")
-                locations.append('/usr/local/pyspec/etc')
-                locations.append('/etc/pyspec')
-            
-            for l in locations:
-                if os.path.isfile(l):
-                    self.read(l)
-                    break
-        else:
-            self.read(l)
-            
-    def getWithDefault(self,section, option, default):
-        return Config.get(section, option, vars = { option : default })
-    
-    def _getWithConvert(self,_conv_fcn, section, option, default):
-        try:
-            val = self.getWithDefault(section, option, default)
-        except:
-            raise Exception("Unable to read option %s from config file." % (option))
-        try:
-            val = _conv_fcn(val)
-        except:
-            raise Exception("Unable to convert option %s to correct datatype." % (option))
-        return val
-    def getFloat(self, *args, **kwargs):
-        self._getWithConvert(float, *args, **kwargs)
-    def getInt(self, *args, **kwargs):
-        self._getWithConvert(int, *args, **kwargs)
-    def getFloat(self, *args, **kwargs):
-        self._getWithConvert(float, *args, **kwargs)
-            
-#
-# global help functions
-#
-
-def getAreaSet(image, roi):
-
-    """
-    selects a region of interest (ROI) from a CCD image
-    
-    image : array of the image values in the full window ( [   1, 325,   1, 335 ] )
-    roi   : region of interest [xmin, dx, ymin, dy], e.g. [137, 51, 142, 51] for center
-
-    output
-    cut   : [ [val00, val01, ..., val0m],
-              [val10, val11, ..., val1m],
-              ...,
-              [valn0, valn1, ..., valnm] ]
-    valij is value at (x[i], y[j]) 
-    """
-
-    # data points in region of interest at (y, x)
-    cut = image[roi[2]-1:roi[2]+roi[3]-1, roi[0]-1:roi[0]+roi[1]-1 ]
-
-    return cut
-
-
-def getAreaXY(roi):
-
-    """
-    calculates (x, y) = (x[0], x[1]) set for each point in region of interest
-
-    output
-    z  : [ [ [x00, x10, ..., xn0], [x01, x11, ..., xn1], ..., [x0m, x1m, ..., xnm] ],
-           [ [y00, y10, ..., yn0], [y01, y01, ..., yn1], ..., [y0m, y1m, ..., ynm] ] ]
-    """
-
-    z  = np.array(np.meshgrid(np.arange(roi[0], roi[0] + roi[1]), np.arange(roi[2], roi[2] + roi[3])))
-            
-    return z 
-
-def get3DMesh(xVal, yVal, zVal):
-    """make a 3D meshgrid from the given values
-
-    xVal : x-values, [x0, x1, x(Nx-1)] (list or np.array)
-    yVal : y-values, [y0, y1, y(Ny-1)] (list or np.array)
-    zVal : z-values, [z0, z1, z(Nz-1)] (list or np.array)
-
-    returns xGrid, yGrid, zGrid as Nz x Ny x Nx np.arrays"""
-
-    # work first with lists
-    xVal = list(xVal)
-    yVal = list(yVal)
-    zVal = list(zVal)
-
-    # dimensions
-    Nx = len(xVal)
-    Ny = len(yVal)
-    Nz = len(zVal)
-
-    # grid results
-    xGrid = np.array(xVal * Ny * Nz).reshape(Nz, Ny, Nx)
-    yGrid = np.array(yVal * Nz * Nx).reshape(Nz, Nx, Ny).transpose(0,2,1)
-    zGrid = np.array(zVal * Nx * Ny).reshape(Nx, Ny, Nz).transpose(2,1,0)
-
-    return xGrid, yGrid, zGrid
 
 #
 # FileProcessor Class
@@ -176,17 +64,26 @@ class FileProcessor():
 
     This class processes CCD files and returns a numpy array of 
     float values for all the images. Images can be saved to disk
-    for faster processing in the future."""
+    for faster processing in the future.
+
+    The basic building block of this concept is a list of all filenames
+    to process. This should be provided through the helper functions or
+    can be set through a specfile object.
+
+    """
 
     def __init__(self, filenames = None, 
                  darkfilenames = None, 
                  norm = None, format = 'SPE',
-                 spec = None, mon = 'Monitor'):
+                 spec = None):
         """Initialize the class
 
-        filenames      : list of filenames for all images
-        darkfilenames  : list of filenames for the dark images
-        spec           : SpecScan object from which to obtain data"""
+        filenames      : list of filenames for all images (2d list will bin images)
+        darkfilenames  : list of filenames for the dark images (2d list will bin images)
+        spec           : SpecScan object from which to obtain data file names
+        norm           : Normalize individual images to this numpy array.
+        format         : Data file format. 'SPE' princeton format.
+        """
         self._format = format
         self.filenames = filenames
         self.darkfilenames = darkfilenames
@@ -199,8 +96,16 @@ class FileProcessor():
             self.normData = norm
         self.bgndParams = np.array([])
 
+    def setFilenames(self, filenames = None, darkfilenames = None):
+        """Set the list of filenames and darkfilenames"""
+        self.filenames = filenames
+        self.darkfilenames = dar
+
     def setMeanMonitor(self, b):
-        """Set wether the images are normalized by the monitor or the mean of the monitor"""
+        """Set if the images are normalized by the mean of the monitor
+
+        If True then normalize all images by the mean of the monitor counts present"""
+        
         self.meanMonitor = b
 
     def setFromSpec(self, scan, mon = 'Monitor'):
@@ -208,6 +113,7 @@ class FileProcessor():
 
         scan    : SpecScan instance
         norm    : spec counter to normalize against"""
+        
         self.filenames = scan.getCCDFilenames()
         self.darkfilenames = scan.getCCDFilenames(dark = 1)
         self.normData = scan.values[mon]
@@ -342,11 +248,17 @@ class FileProcessor():
         stdev = (self.images - self.mean)**2
 
     def getMeanImage(self):
-        _compureMeanImage()
+        """Return the mean image after processing.
+
+        Calculates the mean of all images processed. Returns a tuple
+        of the mean image and the standard error"""
+        _computeMeanImage()
         return self.mean, self.stderr
 
     def getImage(self, n = None):
-        """Return the image data"""
+        """Return the image data
+
+        n : Image number to return. If None return all images."""
         if n is None:
             return self.images
         else:
@@ -378,7 +290,9 @@ class FileProcessor():
         filename : filename of images"""
         
         print "Loading image from %s" % filename
-        print np.load(filename)
+        obj = np.load(filename)
+        self.images = obj['images']
+        self.normData = obj['images']
 
 #
 # image processor class
@@ -397,20 +311,23 @@ class ImageProcessor():
         """Initialize the image processor
 
         fP         : file processor object for getting the images
-        configfile : 
-        ccdname    :
-        spec       : """
+        configfile : file defining config of CCD
+        ccdname    : name of CCD (used in config file)
+        spec       : SpecScan object used to obtain information"""
         
         # file processor to provied the needed images
         self.fileProcessor = fP
 
         self.ccdName = ccdname
-        #self.readConfigFile(configfile)
         
         # set parameters to configure the CCD setup
         # detector distance 30cm and detector pixel size 20um
         self.setDetectorProp(0.020, 0.020, 1300, 1340, 650.0, 670.0)
         self.setDetectorPos(300, 0.0)
+        # Overide if a config file is used.
+        if configfile:
+            self.readConfigFile(configfile)
+        
         # image treatment
         self.setName     = 'Set #'
         self.setNum      = 1
@@ -517,7 +434,9 @@ class ImageProcessor():
 
         return self.binX, self.binY
 
-    def setSetSettings(self, waveLen, imFilesNames, darkFileNames, settingAngles, intentNorm, UBmat, setName, setNum, setSize):
+    def setSetSettings(self, waveLen, imFilesNames, darkFileNames,
+                       settingAngles, intentNorm, UBmat, setName,
+                       setNum, setSize):
         """Set the settings for the set 
 
         The set settings are:
@@ -579,6 +498,7 @@ class ImageProcessor():
         self.conScan = conScan
         self._setBySpec()
         self.fileProcessor.setFromSpec(conScan)
+        # Sven : Don't do this. Always wait for the user to iniciate this!
         #self.fileProcessor.process() # NO NO NO NO NO NO !!!!!
    
     def getSpecScan(self):
@@ -589,14 +509,14 @@ class ImageProcessor():
         return self.conScan
 
     def setConRoi(self, conRoi):
-        """Set the considered region of interest 
+        """Set the region of interest used to process the images
 
         conRoi : [xMin, xStep, yMin, yStep]"""
         
         self.conRoi = conRoi
 
     def getConRoi(self):
-        """Get the considered region of interest 
+        """Get the region of interest used to process all the images
 
         conRoi : [xMin, xStep, yMin, yStep]"""
         
@@ -605,8 +525,13 @@ class ImageProcessor():
     def setFrameMode(self, mode):
         """Set the mode of the output frame for (Qx, Qy, Qz)
 
-        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame)
-        mode : 'theta', 'phi', 'cart', 'hkl'"""
+        The image processor uses a number of modes which defile the
+        coordinates of the final grid. These are:
+
+        mode 1 : 'theta'    : Theta axis frame.  
+        mode 2 : 'phi'      : Phi axis frame.
+        mode 3 : 'cart'     : Crystal cartesian frame.
+        mode 4 : 'hkl'      : Reciproal lattice units frame."""
 
         if mode == 'theta':
             self.frameMode = 1
@@ -676,7 +601,19 @@ class ImageProcessor():
     def getGridMesh(self):
         """Return the grid vectors as a mesh.
 
-        Returns the grid x,y,z coordinates as 3 3D arrays of values"""
+        This function returns the X, Y and Z coordinates of the grid as 3d
+        arrays.
+
+        Example:
+
+        X, Y, Z = ip.getGridMesh()
+
+        These values can be used for obtaining the coordinates of each voxel.
+        For instance, the position of the (0,0,0) voxel is given by
+
+        x = X[0,0,0]
+        y = Y[0,0,0]
+        z = Z[0,0,0]"""
         
         grid = np.mgrid[0:self.dQN[0], 0:self.dQN[1], 0:self.dQN[2]]
         r = (self.Qmax - self.Qmin) / self.dQN
@@ -753,23 +690,6 @@ class ImageProcessor():
         cutMode : 'fix' for fixed setting of 'max' for cut at positon of maximum"""
 
         return self.cutPos, self.cutMode
-
-    def setFit1D(self, fit1D = 0, fitType = 'lor2a'):
-        """Set whether 1D lines get fitted (1)
-
-        fit1D   : 1 (on), 0 (off) fitting of the 1D data
-        fitType : type of the peak function from pyspec fitfuncs, e.g. 'lor2a'"""
-        
-        self.fit1D     = fit1D
-        self.fit1DType = fitType
-
-    def getFit1D(self):
-        """Get whether 1D lines get fitted (1)
-
-        fit1D   : 1 (on), 0 (off) fitting of the 1D data
-        fitType : type of the peak function from pyspec fitfuncs, e.g. 'lor2a'"""
-        
-        return self.fit1D, self.fit1DType
    
     #
     # get set functions for input output
@@ -777,20 +697,6 @@ class ImageProcessor():
 
     def setFileProcessor(self, fp = None):
         self.fileProcessor = fp
-
-    def setInfoFile(self, infoFile):
-        """Set the path and file name for the info file about the current processing
-
-        infoFile : path and file name for the info file about the current processing"""
-
-        self.infoFile = infoFile
-
-    def getInfoFile(self):
-        """Get the path and file name for the info file about the current processing
-
-        infoFile : path and file name for the info file about the current processing"""
-
-        return self.infoFile
 
     #
     # help function part
@@ -848,33 +754,6 @@ class ImageProcessor():
             self.qLabel = ['H', 'K', 'L']
             self.setEntLabel = '(H, K, L, I)'
 
-    def _readImage(self, imNum):
-        """Read in the considered region of interest of the image
-        dark image subtraction and normalization by ring current"""
-
-        #if imNum % 10 == 0:
-        #    print '%s%d image #%03d: read image' % (self.setName, self.setNum, imNum)
-
-        # get dark image (first CCD image)
-        #if self.darkVal is None:
-        #    self.darkVal  = PrincetonSPEFile(self.darkFileNames[0])[0].astype(numpy.float)
-        
-        # get file name and read image of data point
-        #fileName = self.imFileNames[imNum]
-        #pointVal = PrincetonSPEFile(fileName)[0].astype(numpy.float) - self.darkVal
-
-        pointVal = self.fileProcessor.getImage()[imNum] 
-
-        # considered region of interest
-        if self.conRoi == None:
-            self.conRoi   = [1, pointVal.shape[1], 1, pointVal.shape[0]]
-
-        # get considered part of the image
-        pointMon = self.intentNorm[imNum]
-        conIm    = getAreaSet(pointVal, self.conRoi) / pointMon
-
-        return conIm
-
     def _XYCorrect(self, xVal, yVal):
         """Correct the miss alignement of the CCD camera
 
@@ -892,83 +771,6 @@ class ImageProcessor():
         yNew = np.sin(detAn) * xVal + np.cos(detAn) * yVal
 
         return xNew, yNew
-
-    def _XY2delgam(self, del0, gam0):
-
-        """
-        calculate (delta, gamma) in deg from (x, y), flattend arrays are used
-        x, y       : given (x, y)coordinates on CCD
-        del0, gam0 : given (delta, gamma) in deg of point0, e.g. center
-        x0, y0     : given (x, y) of point0, e.g. center
-        """
-
-        # (x, y)-values
-        conZ = getAreaXY(self.conRoi)
-        x    = np.ravel(conZ[0])
-        y    = np.ravel(conZ[1])
-
-        x, y = self._XYCorrect(x, y)
-
-        # detector distance
-        detDis = self.detDis
-        # pixel distance binded 4x4 -> 80um (micro meter)
-        pixDisX = self.detPixSizeX
-        pixDisY = self.detPixSizeY
-        # (x, y) for point0, take center of CCD
-        x0 = self.detX0
-        y0 = self.detY0
-
-        # work in grad
-        delta = del0 - np.arctan( (y-y0)*pixDisY/detDis )/np.pi*180.0
-        gamma = gam0 - np.arctan( (x-x0)*pixDisX/detDis )/np.pi*180.0
-    
-        return delta, gamma
-
-    def _processOneImage(self, outArray, imNum, mode = None):
-        """Process one image to (Qx, Qy, Qz, I)
-
-        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
-
-        # used mode
-        if mode == None:
-            mode = self.frameMode
-        # angle alias
-        delta = self.settingAngles[imNum, 0]
-        theta = self.settingAngles[imNum, 1]
-        chi   = self.settingAngles[imNum, 2]
-        phi   = self.settingAngles[imNum, 3]
-        mu    = self.settingAngles[imNum, 4]
-        gamma = self.settingAngles[imNum, 5]
-        
-        # intensities of considered image part
-        intent = np.ravel( self._readImage(imNum) )
-
-        # (delta, gamma)-values at each pixel
-        delPix, gamPix = self._XY2delgam(delta, gamma)        
-        # diffractometer for angle to q calculations
-        scanDiff = Diffractometer()
-        scanDiff.setLambda(self.waveLen)
-        scanDiff.setAngles(delta = delPix, theta = theta, chi   = chi   ,
-                           phi   = phi   , mu    = mu   , gamma = gamPix)
-        scanDiff.calc()
-        scanDiff.setUbMatrix(self.UBmat)
-        if mode == 1:
-            Qxyz = scanDiff.getQTheta()
-        elif mode == 2:
-            Qxyz = scanDiff.getQPhi()
-        elif mode == 3:
-            Qxyz = scanDiff.getQCart()
-        elif mode == 4:
-            Qxyz = scanDiff.getQHKL()
-        else:
-            print 'mode = %s is no proper mode for calculation of (Qx, Qy, Qz)!'
-            print 'choose  theta- (1), phi- (2), cartesian- (3) or hkl-frame (4)'
-
-        # out put (Qx, Qy, Qz, I)
-        outArray[:,:3] = Qxyz
-        outArray[:,3]  = intent
-        #del Qxyz 
-        #del intent
 
     def _calcVecDataSet(self):
         """Calculats the vector data set for the grid points
@@ -1128,48 +930,7 @@ class ImageProcessor():
         
         err = f - self._threeDLin(p, x, y, z)
         return err
-
-
-    def _fit1DData(self, xVals, yVals, fitType = None, fitTitle = None):
-        """Fit a 1D data set
-
-        xVals   : list of x-values
-        yVals   : list of y-values
-        fitType : peak shape to fit from pyspec fitfuncs, use object default if None, e.g. 'lor2a'
-        
-        returns
-        allRes  : results of the fits, [[a1, b1, cen1, width1, area1],...], 
-                  [[0, 0, 0, 0, 0],...] if unsuccessful fit"""
-
-        if fitType == None:
-            fitType = self.fit1DType
-        if fitTitle == None:
-            fitTitle += ' '
-        else:
-            fitTitle = ''
-
-        allRes = np.zeros((len(xVals),5))
-
-        # go through the list of 1D data sets
-        for i in range(len(xVals)):
-            # try to fit the 1D data
-            infoDes = fitTitle + 'Fit %d' % (i+1)
-            if nonZero == False:
-                xVal = xVals[i]
-                yVal = yVals[i]
-            elif nonZero == True:
-                conMask = yVals[i] != 0
-                xVal = xVals[i][conMask]
-                yVal = yVals[i][conMask]
-            try:
-                f = fit.fit(x=xVal, y=yVal, funcs = [fitfuncs.linear, getattr(fitfuncs, fitType)])
-                f.go()
-                allRes[i] = f.result
-            except:
-                print 'WARNING : %s could not be fitted to %s!' % (infoDes, fitType)
-
-        return allRes
-
+    
     #
     # help functions for input / output
     #
@@ -1177,17 +938,17 @@ class ImageProcessor():
     def _makeSetInfo(self):
         """Create the information about the set of images"""
         
-        self.opSetInfo = '**** %s%s' % (self.setName, self.setNum)
+        self.opSetInfo = '**** %s%s\n' % (self.setName, self.setNum)
         try:
-            self.opSetInfo += '\nImages: %s' % (self.procImSelect)
+            self.opSetInfo += '\nImages: %s\n' % (self.procImSelect)
         except:
             pass
         try:
-            self.opSetInfo += '\nPhoton Wavelength: \t %.2f Angst.' % (self.waveLen)
+            self.opSetInfo += '\nPhoton Wavelength: \t %.2f Angst.\n' % (self.waveLen)
         except:
             pass
         try:
-            self.opSetInfo += '\nPhoton Energy: \t\t %.2f eV' % (self.energy)
+            self.opSetInfo += '\nPhoton Energy: \t\t %.2f eV\n' % (self.energy)
         except:
             pass
     
@@ -1202,42 +963,13 @@ class ImageProcessor():
             mode = self.frameMode
 
         if mode == 1:
-            self.opModeInfo += 'Frame Mode 1: (Qx, Qy, Qz) in theta-frame and (1/Angstrom)' 
+            self.opModeInfo += 'Frame Mode 1: (Qx, Qy, Qz) in theta-frame and (1/Angstrom)\n' 
         if mode == 2:
-            self.opModeInfo += 'Frame Mode 2: (Qx, Qy, Qz) in phi-frame and (1/Angstrom)'
+            self.opModeInfo += 'Frame Mode 2: (Qx, Qy, Qz) in phi-frame and (1/Angstrom)\n'
         if mode == 3:
-            self.opModeInfo += 'Frame Mode 3: (Qx, Qy, Qz) in cartesian-frame and (1/Angstrom)'
+            self.opModeInfo += 'Frame Mode 3: (Qx, Qy, Qz) in cartesian-frame and (1/Angstrom)\n'
         if mode == 4:
-            self.opModeInfo += 'Frame Mode 4: (H, K, L) in hkl-frame and (reciprocal lattice units)'
-        
-
-    def _makeFitInfo1D(self, allRes, fitType = None, fitTitle = None, fitNames = None):
-        """Create information output for the fit results in 1D
-
-        allRes   : all results of the fittings, [[a, b, cen, width, area],...]
-        fitType  : tpe of the fitting, e.g 'lor2a'
-        fitTitle : title for the current fitting process, e.g. '1D Line cuts'
-        fitNames : name for each fitting, e.g. ['Qx', 'Qy', 'Qz']"""
-
-        # prepare information
-        if fitTitle == None:
-            fitTitle = ''
-        else:
-            fitTitle = fitTitle + ' '
-        if fitType == None:
-            fitType = self.fitType
-        if fitNames == None:
-            fitNames = []
-            for i in range(allRes.shape[0]):
-                fitNames.append('Fit %02d' % i)
-
-        fitInfo  = '\n\n**** %s%s' % (fitTitle, fitType)
-        fitInfo += '\n\t a \t\t b \t\t cen \t\t width \t\t width/step \t area' 
-        line    = '\n%s \t ' + 4*'%.5e\t ' + '%.2f\t\t ' + '%.5e'
-        for i in range(allRes.shape[0]):
-            fitInfo += line % (fitNames[i], allRes[i,0], allRes[i,1], allRes[i,2], allRes[i,3], allRes[i,3]/self.dVec[i], allRes[i,4])
-
-        return fitInfo
+            self.opModeInfo += 'Frame Mode 4: (H, K, L) in hkl-frame and (reciprocal lattice units)\n'
 
     def _makeGridInfo(self, gData = None, gOccu = None, gOut = None, gMin = None, gMax = None, dg = None):
         """Create information about the grid
@@ -1364,57 +1096,32 @@ class ImageProcessor():
 
         procSelect : list with the images which will be processed, take object default if None
         mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
-
-        
-        if self.processMode == 'builtin':
-
-            print '\n%s%d: process to %s' % (self.setName, self.setNum, self.setEntLabel)
-
-            if procSelect == None:
-                procSelect = self.procImSelect
-            if mode == None:
-                mode = self.frameMode
+        ccdToQkwArgs = {}
+        if self.totSet is not None:
+            del self.totSet
+            gc.collect()
             
-            imSize = self.fileProcessor.getImage()[0].size
-            npts = imSize * len(procSelect)
-
-            if self.totSet is None:
-                self.totSet = np.zeros((npts, 4))
-
-            j = 0
-            k = imSize
-            for i in procSelect:
-                print "**** Processing image %d" % i
-                self._processOneImage(self.totSet[j:k,:], i, mode = mode)
-                j = j + imSize
-                k = k + imSize
-        
-        else:
-            ccdToQkwArgs = {}
-            if self.totSet is not None:
-                del self.totSet
-                gc.collect()
-                
-            print "\n**** Converting to Q"
-            t1 = time.time()
-            self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
-                                        mode        = self.frameMode,
-                                        ccd_size    = (self.detSizeX, self.detSizeY),
-                                        ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
-                                        ccd_cen     = (self.detX0, self.detY0),
-                                        dist        = self.detDis,
-                                        wavelength  = self.waveLen,
-                                        UBinv       = np.matrix(self.UBmat).I,
-                                        **ccdToQkwArgs)
-            t2 = time.time()
-            print "---- DONE (Processed in %f seconds)" % (t2 - t1)
-            self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
+        print "\n**** Converting to Q"
+        t1 = time.time()
+        self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
+                                    mode        = self.frameMode,
+                                    ccd_size    = (self.detSizeX, self.detSizeY),
+                                    ccd_pixsize = (self.detPixSizeX, self.detPixSizeY),
+                                    ccd_cen     = (self.detX0, self.detY0),
+                                    dist        = self.detDis,
+                                    wavelength  = self.waveLen,
+                                    UBinv       = np.matrix(self.UBmat).I,
+                                    **ccdToQkwArgs)
+        t2 = time.time()
+        print "---- DONE (Processed in %f seconds)" % (t2 - t1)
+        self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
             
         # for info file
-        self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets' % (self.totSet.shape[0], self.setEntLabel)
+        self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets (Took %f seconds)' % (self.totSet.shape[0], self.setEntLabel, (t2 - t1))
 
     def makeGridData(self, procSelect = None, mode = None, delete = False, backSub = None):
-        """Grid the data set into a cuboid
+        """Grid the data set into a cuboid.
+        
         Size of the cuboid : Qmin, Qmax = [Qx, Qy, Qz]_min, max
         Number of parts    : dQN = [Nqx, Nqy, Nqz]
 
@@ -1461,6 +1168,7 @@ class ImageProcessor():
 
         # mask the gridded data set
         #gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
+        
         # store intensity, occupation and no. of outside data points of the grid
         self.gridData = gridData
         self.gridOccu = gridOccu
@@ -1672,60 +1380,17 @@ class ImageProcessor():
         return intInten, backInten
 
     #
-    # fit part
-    #
-
-    def get1DFit(self, xVals, yVals, fitType = None, infoDes = '', nonZero = False):
-        """Fit a 1D data set
-
-        xVals   : x-values as list of arrays
-        yVals   : y-values as list of arrays
-        fitType : peak shape to fit from pyspec fitfuncs, use object default if None, e.g. 'lor2a'
-        infoDes : description of the current fit try for output, e.g. 'Line cut of Scan #244'
-        nonZero : do not considered y-values which are 0 for the fit
-        
-        returns
-        yFit    : y-values of the fit
-        fitRes  : results of the fit, [a1, b1, cen1, width1, area1], [0, 0, 0, 0, 0] if unsuccessful fit"""
-
-        if fitType == None:
-            fitType = self.fitType
-
-        yFit   = []
-        for i in range(len(xVals)):
-            yFit.append(np.zeros(len(xVals[i])))
-        fitRes = np.zeros((len(xVals),5))
-        for i in range(len(xVals)):
-            if nonZero == False:
-                xVal = xVals[i]
-                yVal = yVals[i]
-            elif nonZero == True:
-                conMask = yVals[i] != 0
-                xVal = xVals[i][conMask]
-                yVal = yVals[i][conMask]
-            try:
-                f = fit.fit(x=xVal, y=yVal, funcs = [fitfuncs.linear, getattr(fitfuncs, fitType)])
-                f.go()
-                yFit[i]   = fitfuncs.linear(xVals[i], f.result[:2]) + getattr(fitfuncs, fitType)(xVals[i], f.result[2:])
-                fitRes[i] = f.result
-            except:
-                print 'WARNING : %s %s could not be fitted to %s!' % (self.qLabel[i], infoDes, fitType)
-
-        # for info file
-        self.opProcInfo += self._makeFitInfo1D(fitRes, fitType = None, fitTitle = infoDes, fitNames = self.qLabel)
-
-        return yFit, fitRes
-    
-    #
     # input / output part
     #
 
     def makeInfo(self):
-        """Create the information about the current processing"""
+        """Create and return the information about the current processing"""
+        return str(self)
 
+    def __str__(self):
+        """Output the text about the current processing"""
         self._makeSetInfo()
         curInfo = '%s%s%s' % (self.opSetInfo, self.opModeInfo, self.opProcInfo)
-
         return curInfo
 
     def writeInfoFile(self, outFile = None):
@@ -1739,6 +1404,74 @@ class ImageProcessor():
         out = file(outFile, 'w')
         out.write(self.makeInfo())
         out.close()
+
+class CCDParamsConfigParser(ConfigParser):
+    """Class to read config file which defines all CCD parameters"""
+    def readAllLocations(self, filename):
+        _f = os.path.split(filename)
+
+        if _f[0] == '':
+        
+            locations = []
+            if os.name is 'posix':
+                if os.environ.has_key('HOME'):
+                    locations.append(os.environ['HOME'] + os.path.sep + ".pyspec")
+                locations.append('/usr/local/pyspec/etc')
+                locations.append('/etc/pyspec')
+            
+            for l in locations:
+                if os.path.isfile(l):
+                    self.read(l)
+                    break
+        else:
+            self.read(l)
+            
+    def getWithDefault(self,section, option, default):
+        return Config.get(section, option, vars = { option : default })
+    
+    def _getWithConvert(self,_conv_fcn, section, option, default):
+        try:
+            val = self.getWithDefault(section, option, default)
+        except:
+            raise Exception("Unable to read option %s from config file." % (option))
+        try:
+            val = _conv_fcn(val)
+        except:
+            raise Exception("Unable to convert option %s to correct datatype." % (option))
+        return val
+    def getFloat(self, *args, **kwargs):
+        self._getWithConvert(float, *args, **kwargs)
+    def getInt(self, *args, **kwargs):
+        self._getWithConvert(int, *args, **kwargs)
+    def getFloat(self, *args, **kwargs):
+        self._getWithConvert(float, *args, **kwargs)
+
+def get3DMesh(xVal, yVal, zVal):
+    """make a 3D meshgrid from the given values
+
+    xVal : x-values, [x0, x1, x(Nx-1)] (list or np.array)
+    yVal : y-values, [y0, y1, y(Ny-1)] (list or np.array)
+    zVal : z-values, [z0, z1, z(Nz-1)] (list or np.array)
+
+    returns xGrid, yGrid, zGrid as Nz x Ny x Nx np.arrays"""
+
+    # work first with lists
+    xVal = list(xVal)
+    yVal = list(yVal)
+    zVal = list(zVal)
+
+    # dimensions
+    Nx = len(xVal)
+    Ny = len(yVal)
+    Nz = len(zVal)
+
+    # grid results
+    xGrid = np.array(xVal * Ny * Nz).reshape(Nz, Ny, Nx)
+    yGrid = np.array(yVal * Nz * Nx).reshape(Nz, Nx, Ny).transpose(0,2,1)
+    zGrid = np.array(zVal * Nx * Ny).reshape(Nx, Ny, Nz).transpose(2,1,0)
+
+    return xGrid, yGrid, zGrid
+
         
 ####################################
 #
@@ -1796,7 +1529,9 @@ if __name__ == "__main__":
     ###    
     
     #testData.makeGridData(procSelect = [40])
-    testData.setGridBackOptions(backSub = True, backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255], backType = 'threeDLin')
+    testData.setGridBackOptions(backSub = True,
+                                backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255],
+                                backType = 'threeDLin')
     testData.setIntegrationOptions(intMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255])
     testData.makeGridData()
 
