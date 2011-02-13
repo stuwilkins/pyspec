@@ -20,7 +20,6 @@
 # Part of the "pyspec" package
 #
 
-from scipy import *
 import time as _time
 
 try:
@@ -98,7 +97,7 @@ def peakguess(x,y):
     return out
 
 def lor2a(x, p, mode='eval'):
-    """Lorentzian squared function defined by Area"""
+    """Lorentzian squared function defined by area"""
     if mode == 'eval':
         out = ((sqrt(2)*p[2])/(pi*p[1]) / (1 + 0.5*((x - p[0])/p[1])**2)**2);
     elif mode == 'params':
@@ -113,7 +112,12 @@ def lor2a(x, p, mode='eval'):
 
     return out
 def lor2(x, p, mode='eval'):
-    """Lorentzian Squared defined by amplitude"""
+    """Lorentzian squared defined by amplitude
+
+    Function:
+      :math:`f(x) = p_2\left(\\frac{1}{1 + \left(\\frac{x - p_0}{p_1}\\right)^2}\\right)^2`
+
+    """
     if mode == 'eval':
         out = p[2] * (1 / (1 + ((x - p[0]) / p[1])**2))**2
     elif mode == 'params':
@@ -140,7 +144,12 @@ def lor2(x, p, mode='eval'):
     return out
 
 def linear(x, p, mode='eval'):
-    """Linear (strait line)"""
+    """Linear (strait line)
+
+    Function:
+       :math:`f(x) = p_0 x + p_1`
+
+    """
     if mode == 'eval':
         out = (p[0] * x) + p[1]
     elif mode == 'params':
@@ -156,7 +165,12 @@ def linear(x, p, mode='eval'):
     return out
 
 def constant(x, p, mode='eval'):
-    """Single constant value"""
+    """Single constant value
+
+    Function:
+       :math:`f(x) = p_0`
+
+    """
     if mode == 'eval':
         out = p[0]
     elif mode == 'params':
@@ -172,6 +186,12 @@ def constant(x, p, mode='eval'):
     return out
 
 def lor(x, p, mode='eval'):
+    """Lorentzian defined by amplitude
+
+    Function:
+       :math:`f(x) = p_2\left(\\frac{1}{1 + \\left(\\frac{x - p_0}{p_1}\\right)^2}\\right)`
+
+    """
     if mode == 'eval':
         out = p[2] / (1 + ((x - p[0]) / p[1])**2)
     elif mode == 'params':
@@ -187,6 +207,12 @@ def lor(x, p, mode='eval'):
     return out
 
 def lorr(x, p, mode='eval'):
+    """Lorentzian defined by area
+
+    Function:
+       :math:`f(x) = \\frac{p_2}{p_1\pi} \left(\\frac{1}{1 + 4\left(\\frac{x - p_0}{p_1}\\right)^2}\\right)`
+
+    """
     if mode == 'eval':
         out = (2*p[2]/p[1]/pi) / (1 + 4*((x-p[0])/p[1])**2)
     elif mode == 'params':
@@ -219,6 +245,12 @@ def pvoight(x, p, mode='eval'):
     return out
 
 def gauss(x, p, mode='eval'):
+    """Gaussian defined by amplitide
+
+    Function:
+       :math:`f(x) = p_2 \exp\left(\\frac{-(x - p_0)^2}{2p_1^2}\\right)`
+
+    """
     if mode == 'eval':
         cent=p[0];wid=p[1];amp=p[2];
         out = amp * exp(-1.0 * (x - cent)**2 / (2 * wid**2))

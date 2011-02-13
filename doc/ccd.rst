@@ -8,7 +8,6 @@ CCD (2D Data) Processing and Transformation
    ccd_intro
    ccd_FileProcessor
    ccd_ImageProcessor
-   ccd_plotting
    ccd_ctrans
 
 The ``pyspec`` package contains a ccd module (``pyspec.ccd``) for

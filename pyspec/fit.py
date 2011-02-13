@@ -35,8 +35,6 @@ f.run()
 result = f.result
 errors = f.stdev
 
-
-
 """
 from scipy import *
 import pylab
@@ -321,17 +319,18 @@ def fitdata(funcs, ax = None, showguess = False, *args, **kwargs):
 
     Parameters
     ----------
-    funcs    : [list] list of the fit functions
-    ax       : [axis] axis to fit (if none the current
-    axis is used.
+    funcs    : list
+       list of the fit functions
+    ax       : matplotlib axis instance
+       axis to fit (if none the current axis is used)
 
     All the additional *args and **kwargs are passed onto
-    the fit class (see fit.__init__ for details).
+    the fit class (see class pyspec.fit.fit for details).
 
     Returns
     -------
 
-    "fit" Object with result.
+    pyspec.fit.fit instance with result.
     """
 
     if ax is None:
@@ -376,18 +375,49 @@ class fit:
     This class serves as a wrapper around various fit methods, requiring a standard
     function to allow for easy fitting of data.
 
-    Class members
-    -------------
+    Parameters:
+    -----------
+            x : ndarray
+                x data
+            y : ndarray
+                y data
+            e : ndarray
+                y error
+            funcs : list
+                A list of functions to be fitted.
+                These functions should be formed like the standard
+                fitting functions in the pyspec.fitfuncs.
+            guess : array or string
+                Array of the initial guess, or string for guess type:
+                    'auto' : Auto guess of parameters
+            quiet : bool
+                If True then don't print to the console any results.
+            ifix : ndarray
+                An array containing a '1' for fixed parameters
+            xlimits : ndarray
+                An (n x 2) array of the limits in x to fit.
+            xlimitstype : string
+                Either 'world' or 'index'
+            optimiser : string      :
+                Optimizer to use for fit: 'mpfit', 'leastsq', 'ODR'
+            interactive : bool
+                True/False launch interactive fitting mode
+            r2min : float
+                If r^2 is less than this value, drop into interactive mode
 
     After a sucsesful fit, the class will contain members for the following.
-
-    {fit}.result       : result of fit
-    {fit}.stdev        : errors on results (sigma)
-    {fit}.fit_result   : an array of both results and stdev for convinience
-    {fit}.covar        : covarience matrix of result
-    {fit}.corr         : correlation matrix of result
-    {fit}.r2           : R^2 value for fit.
-
+        {fit}.result
+           result of fit
+        {fit}.stdev
+           errors on results (sigma)
+        {fit}.fit_result
+           an array of both results and stdev for convinience
+        {fit}.covar
+           covarience matrix of result
+        {fit}.corr
+           correlation matrix of result
+        {fit}.r2
+           R^2 value for fit.
 
     """
     def __init__(self, x = None, y = None, e = None,
@@ -398,26 +428,6 @@ class fit:
                  xlimits = None, xlimitstype = 'world',
                  interactive = False,
                  r2min = 0.0, debug = 0):
-        """
-        Parameters:
-        -----------
-        x [array]               : x data
-        y [array]               : y data
-        e [array]               : y error
-        funcs [list]            : A list of functions to be fitted.
-                                  These functions should be formed like the standard
-                                  fitting functions in the pyspec.fitfuncs.
-        guess [array|string]    : Array of the initial guess, or string for guess type:
-                                  'auto'  : Auto guess of parameters
-        quiet [bool]            : If True then don't print to the console any results.
-        ifix [array]            : An array containing a '1' for fixed parameters
-        xlimits [array]         : An (n x 2) array of the limits in x to fit.
-        xlimitstype [string]    : Either 'world' or 'index'
-        optimiser [string]      : 'mpfit', 'leastsq', 'ODR'
-        interactive             : True/False launch interactive fitting mode
-        r2min                   : If r^2 is less than this value, drop into interactive mode
-
-        """
         self.debug = debug
 
         self.optimizer = optimizer
@@ -549,12 +559,17 @@ class fit:
 
         Parameters
         ----------
+        nxpts : int
+            Number of x data points if using the range of the input data.
+            If none then the x points of the dataset are used.
+        p : ndarray
+            Parameters of function. If None, use current fit result.
+        x : ndarray
+            Evaluate fit function at each point defined by the ndarray.
 
-        nxpts       : Number of x data points if using the range of the input data.
-        p           : Parameters of function. If None, use current fit result.
-        x           : X values (as array).
-
-        returns f(x)
+        Returns
+        -------
+        returns f(x) : ndarray
 
         """
         if x is None:
@@ -601,7 +616,7 @@ class fit:
 
         return f
 
-    def fitguess(self, mode = 'guess'):
+    def _fitguess(self, mode = 'guess'):
         """Evaluate the fit functions to get the initial guess"""
         out = array([])
         for i in range(len(self.funcs)):
@@ -695,16 +710,28 @@ class fit:
 ## Run the optimization
 ##
 
-    def run(self):
+    def run(self, interactive = False):
+        """Start the fit
+
+        Parameters
+        ----------
+        interactive : bool
+           If True, start the fit in interactive mode.
+        """
         self.go()
 
     def interactive(self):
-        """Launch interative mode for fitting."""
         cli = FitPlotCmd(self)
         cli.cmdloop()
 
     def go(self, interactive = False):
-        """Start the fit"""
+        """Start the fit
+
+        Parameters
+        ----------
+        interactive : bool
+           If True, start the fit in interactive mode.
+        """
 
         # Get the initial guess by calling the functions if we
         # have not supplied a guess.
@@ -712,9 +739,9 @@ class fit:
         if not interactive:
 
             if self.guess is None:
-                self.guess = self.fitguess()
+                self.guess = self._fitguess()
             elif self.guess == 'graph':
-                self.guess = self.fitguess('graphguess')
+                self.guess = self._fitguess('graphguess')
             elif self.guess == 'interactive':
                 self.interactive()
 
@@ -810,7 +837,7 @@ class fit:
 
         # Make the dictionaryies
 
-        self.resultsDict = self.makeDict(self.result)
+        self.resultsDict = self._makeDict(self.result)
 
         # Print out the result to console
 
@@ -828,7 +855,7 @@ class fit:
 
         return self.fit_result
 
-    def makeDict(self, values):
+    def _makeDict(self, values):
         """Make and return a dictionary of the parameters or errors"""
 
         alld = []
@@ -938,32 +965,31 @@ class fit:
         return p
 
     def chiSquared(self, norm = True, dist = 'poisson'):
-        """ Return the chi^2 value for the fit
+        """ Return the chi-squared value for the fit
 
         Calculate the chi-squared value for the fit. This is defined as
+           :math:`\chi^2 = \sum_N (x_{d,n} - x_{m,n})`
 
-        \Chi^2 = \Sum_N (x_{d,n} - x_{m,n})
+        Where d is the data and m is the model. The normalized chi-squared is given by
+           :math:`\chi^2_{norm} = \chi^2 / M`
 
-        Where d is the data and m is the model.
-        The normalized chi^2 is given by
-
-        \Chi^2_{norm} = \Chi^2 / M
-
-        where M = N - P, where P is the number of parameters.
+        where :math:`M = N - P`, where P is the number of parameters.
 
         If dist is 'poisson' then the data is divided by the model answer.
         i.e.
-
-        \Chi^2_{poisson} = \Sum_N ((x_{d,n} - x_{m,i}) /  x_{m,i})
+           :math:`\chi^2_{poisson} = \sum_N {(x_{d,n} - x_{m,i})} / {x_{m,i}}`
 
         Parameters
         ----------
-        norm     : [bool] return normalized chi^2
-        dist     : [string] distribution
+
+        norm : bool
+           If true calculate the normalized chi-squared. 
+        dist : string
+           The distribution to use, currently only 'poisson'
 
         Returns
         -------
-        chi^2 value
+        chi-squared value
 
         """
 

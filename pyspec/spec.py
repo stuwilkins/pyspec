@@ -257,7 +257,8 @@ class SpecDataFile:
         for s in self.findex.keys():
             self.getScan(s, *args, **kwargs)
 
-    def getScan(self, item, mask = None, setkeys = True, persistent = False):
+    def getScan(self, item, mask = None, setkeys = True, persistent = False,
+                nsubimages = None):
         """Get a scan from the data file
 
         This routine gets a scan from the data file and loads it into the
@@ -275,6 +276,8 @@ class SpecDataFile:
         Returns the ScanData object corresponding to the scan requested.
 
         """
+
+        self._nsubccdimages = nsubimages
 
         if type(item) == int:
             items = (item,)
@@ -303,7 +306,7 @@ class SpecDataFile:
                     print "**** Reading scan/item %s" % i
             if self.scandata.has_key(i) is False:
                 self._moveto(i)
-                self.scandata[i] = SpecScan(self, i, setkeys, mask = m)
+                self.scandata[i] = SpecScan(self, i, setkeys, mask = m, ccdsubimages = nsubimages)
 
             rval.append(self.scandata[i])
 
@@ -362,7 +365,7 @@ class SpecScan:
 
     """
 
-    def __init__(self, specfile, item, setkeys = True, mask = None):
+    def __init__(self, specfile, item, setkeys = True, mask = None, ccdsubimages = None):
         """Read scan data from SpecFile
 
         Initialize the SpecScan class from a SpecData instance.
@@ -481,7 +484,10 @@ class SpecScan:
                     self.ccdAcquirePeriod = pos[1]
                     self.ccdNumExposures = int(pos[2])
                     self.ccdNumImages = int(pos[3])
-                    self.ccdNumAcquisitions = int(pos[4])
+                    if ccdsubimages:
+                        self.ccdNumAcquisitions = ccdsubimages
+                    else:
+                        self.ccdNumAcquisitions = int(pos[4])
                 except:
                     print "**** Unable to parse CCD data (UCCD2)"
             
@@ -655,14 +661,32 @@ class SpecScan:
     def __str__(self):
         return self.show()
 
-    def show(self):
+    def show(self, prefix = "", nperline = 4):
         """Return string of statistics on SpecScan"""
         p = ""
-        p = p + "Scan:\n"
-        p = p + "\t%s\n" % self.scan
-        p = p + "Datafile:\n"
-        p = p + "\t%s\n" % self.datafile.file.name
-        p = p + self.scandata.show()
+        p = p + "Scan:\n\n"
+        p = p + "\t%s\n\n" % self.scan
+        p = p + "Datafile:\n\n"
+        p = p + "\t%s\n\n" % self.datafile.file.name
+        p = p + "Scan Command:\n\n"
+        p = p + "\t%s\n\n" % self.scan_command
+        p = p + "Scan Constants:\n\n"
+
+        j = nperline
+        typestoprint = [float, str, numpy.ndarray, int, numpy.float64]
+        
+        for d in self.__dict__:
+            if not self.scandata.values.has_key(d):
+                if typestoprint.count(type(getattr(self, d))):
+                    p = p + "%-19s " % d
+                    print d, type(getattr(self, d))
+                    j -= 1
+                    if j == 0:
+                        p = p + "\n"
+                        j = nperline
+                        
+        p = p + "\n\n"
+        p = p + self.scandata.show(prefix, nperline)
         return p
 
     def getYE(self, ycol = None, mcol = None):
@@ -751,11 +775,11 @@ class SpecData:
 
         j = nperline
         p = ""
-        p = p + prefix + "Motors:\n"
+        p = p + prefix + "Motors:\n\n"
         p = p + prefix
         for i in self.values.keys():
-            if self.values[i].shape == (1,):
-                p = p + "%10s " % i
+            if self.values[i].size == 1:
+                p = p + "%-19s " % i
                 j -= 1
                 if j == 0:
                     p = p + "\n" + prefix
@@ -771,8 +795,8 @@ class SpecData:
         p = p + prefix + "\n"
         j = nperline
         for i in self.values.keys():
-            if self.values[i].shape != (1,):
-                p = p + "%10s " % i
+            if self.values[i].size > 1:
+                p = p + "%-19s " % i
                 j -= 1
                 if j == 0:
                     p = p + "\n" + prefix
@@ -780,7 +804,6 @@ class SpecData:
 
         p = p + "\n"
         return p
-
 
 class SpecPlot:
     def __init__(self, specscan):

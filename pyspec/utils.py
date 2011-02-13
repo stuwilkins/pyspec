@@ -1,8 +1,8 @@
 #
 # utils.py (c) Stuart B. Wilkins 2008
 #
-# $Id: fit.py 114 2010-11-05 23:06:55Z stuwilkins $
-# $HeadURL: https://pyspec.svn.sourceforge.net/svnroot/pyspec/trunk/pyspec/fit.py $
+# $Id$
+# $HeadURL$
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by

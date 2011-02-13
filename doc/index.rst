@@ -3,6 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+==================================
 Welcome to pyspec's documentation!
 ==================================
 
@@ -19,12 +20,14 @@ Contents:
    :maxdepth: 2
 
    intro
-   tutorial
    spec
+   fit
    ccd
    diffractometer
+   utils
+   examples
 
-
+==================
 Indices and tables
 ==================
 

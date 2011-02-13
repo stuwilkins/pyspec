@@ -253,10 +253,14 @@ class FileProcessor():
         self._processBgnd(maskroi = maskroi, mask = mask)
         print "---- Done."
 
-    def process(self, dark = True, norm = True, dtype = np.float):
+    def process(self, dark = True, norm = True, dtype = np.float,
+                quiet = False):
         """Read in images and process into 3D array.
         
-        dark : if True, subtract the dark images from the data"""
+        dark  : if True, subtract the dark images from the data
+        norm  : if True normalize by monitor.
+        dtype : datatype (numpy) of data.
+        quiet : dont write to screen when reading images."""
 
         images = []
         darkimages = []
@@ -278,23 +282,24 @@ class FileProcessor():
         if dark:
             print "---- Correcting for dark current"
 
+        if quiet:
+            print "---- Reading Images"
+
         for i, (iname, diname, normVal) in enumerate(zip(self.filenames, self.darkfilenames, normData)):
             if type(iname) == list:
                 _images = []
                 _darkimages = []
                 for j, (_in, _din) in enumerate(zip(iname, diname)):
-                    if (j % 50) == 0:
-                        print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames),
-                                                                                                   j + 1, len(iname)),
+                    if not quiet:
+                        print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames), j + 1, len(iname)),
                         sys.stdout.flush()
                     image = self._getRawImage(_in).astype(dtype)
                     _images.append(image)
                     if os.path.exists(_din):
                         darkimage =  self._getRawImage(_din).astype(dtype)
                         _darkimages.append(darkimage)
-                        if (j % 50) == 0:
-                            print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.filenames),
-                                                                                                       j + 1, len(iname)),
+                        if not quiet:
+                            print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.darkfilenames), j + 1, len(diname)),
                             sys.stdout.flush()
                 image = np.array(_images).sum(0)
                 if len(_darkimages):
@@ -305,7 +310,8 @@ class FileProcessor():
                 if os.path.exists(diname):
                     darkimage =  self._getRawImage(diname).astype(dtype)
                     darkimages.append(darkimage)
-                print "---- Reading image %-3d of %-3d\r" % (i, len(self.filenames)),
+                if not quiet:
+                    print "---- Reading image %-3d of %-3d\r" % (i, len(self.filenames)),
             if dark:
                 if len(darkimages):
                     image = image - darkimages[-1]
@@ -315,7 +321,8 @@ class FileProcessor():
             if norm:
                 image = image / normVal
             images.append(image)
-        print "---- Processed %d images (%d dark images)" % (len(images), len(darkimages))
+
+        print "\n---- Processed %d images (%d dark images)" % (len(images), len(darkimages))
 
         self.images = np.array(images)
 
@@ -344,6 +351,14 @@ class FileProcessor():
             return self.images
         else:
             return self.images[n]
+
+    def saveImage(self, filename, inum = None, dtype = np.float32):
+        """Save image to binary file of specified datatype"""
+        if inum is None:
+            self.images.astype(dtype).tofile(filename)
+        else:
+            self.images[n].astype(dtype).tofile(filename)
+                               
 
     def save(self, filename, compressed = False):
         """Save an image sequance to a numpy binary file
