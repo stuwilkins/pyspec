@@ -47,11 +47,37 @@ can be used, where the member 'values' is a python dictionary of all scan variab
 In addition to the counters and motors, values defined in the header are also included.
 See the SpecScan class documentation for further information.
 
-Finally, the SpecScan class defines some helper routines for plotting, fitting etc.
-which can be used to help in data analysis. See the documentation on the SpecScan class
-for more information.
-These classes form the basis for the SPEC datafile handling. There are three objects, 
-the SpecDataFile the SpecScan and the SpecData.
+For example, to plot (using matplotlib) the *theta* values against the
+*detector* normalized to the *monitor* one could run the code::
+
+   >>>sd = SpecDataFile('data.01')
+   >>>scan = sd[100]
+   >>>plot(scan.Theta, scan.Detector / scan.Monitor)
+
+and error-bars can be plotted using::
+
+   >>>x = scan.Theta
+   >>>y = scan.Detector / scan.Monitor
+   >>>e = sqrt(scan.Detetor) / scan.Monitor
+   >>>errorbar(x, y, yerr = e)
+
+One can easily perform calculations on the data with this setup. For
+example, if measurements are taken with a photodiode, often the x-ray
+flux is the required value. The ``pyspec.utils`` contains the function
+:func:`itophotons()` which can be used to calculate the flux. For
+example:: 
+
+   >>>from pyspec.utils import itophotons
+   >>>x = scan.Theta
+   >>>y = itophotons(scan.pdiode, scan.energy)
+   >>>plot(x, y, 'ro')
+
+Finally, the ``SpecScan`` class defines some helper routines for
+plotting, fitting etc. which can be used to help in data analysis. See
+the documentation on the ``SpecScan`` class for more
+information. These classes form the basis for the SPEC datafile
+handling. There are three objects, the ``SpecDataFile`` the
+``SpecScan`` and the ``SpecData``. 
 
 =============
 Plotting Data
@@ -162,6 +188,11 @@ Spec Scan Class
 
 .. autoclass:: pyspec.spec.SpecScan
    :members:
+
+.. toctree::
+   :maxdepth: 2
+
+   extensions
 
 .. rubric:: Footnotes
 

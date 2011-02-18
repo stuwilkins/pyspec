@@ -30,6 +30,7 @@ from   scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from   pyspec import fit, fitfuncs
 from   pyspec.diffractometer import Diffractometer
+
 try:
     from   pyspec.ccd.files import *
 except:
@@ -153,8 +154,11 @@ class FileProcessor():
     def processBgnd(self, maskroi = None, mask = None):
         """Process the background by fitting each image
 
-        maskroi : list of 4 element tuples or lists for ROI to mask
-        mask    : (n x m) array for the background mask"""
+        maskroi : list of tuples
+           list of 4 element tuples or lists for ROI to mask
+        mask    : ndarray
+           (n x m) array for the background mask"""
+
         print "---- Subtracting background from images"
         self._processBgnd(maskroi = maskroi, mask = mask)
         print "---- Done."
@@ -163,10 +167,14 @@ class FileProcessor():
                 quiet = False):
         """Read in images and process into 3D array.
         
-        dark  : if True, subtract the dark images from the data
-        norm  : if True normalize by monitor.
-        dtype : datatype (numpy) of data.
-        quiet : dont write to screen when reading images."""
+        dark  : bool
+           If True, subtract the dark images from the data
+        norm  : bool
+           If True, normalize by monitor.
+        dtype : datatype 
+           numpy datatype of processed array.
+        quiet : bool
+           If True, dont write to screen when reading images."""
 
         images = []
         darkimages = []
@@ -258,7 +266,9 @@ class FileProcessor():
     def getImage(self, n = None):
         """Return the image data
 
-        n : Image number to return. If None return all images."""
+        n : int or None
+           Image number to return. If None, return all images."""
+
         if n is None:
             return self.images
         else:

@@ -871,7 +871,7 @@ class fit:
 
     def __str__(self):
         """Returns the fit summary"""
-        return textResult()
+        return self.textResult()
 
     def textResult(self):
         """Return a string containing the text results of the fit"""

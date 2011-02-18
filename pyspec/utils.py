@@ -118,8 +118,20 @@ def multifit(sf, scans, var, *args, **kwargs):
 def pickleit(filename, *args):
     """Pickle a python object
 
-    filename  : filename to pickle to
-    args      : Python objects to pickle"""
+    filename  : string
+       Filename of file to pickle objects to.
+    args      : list
+       List of python objects to pickle
+
+    This function can be used as a quick convenience function
+    for pickling python objects. For example::
+
+       >>> a = 'hello'
+       >>> b = array([1, 2, 3, 4])
+       >>> c = SpecDataFile('myfile.01')
+       >>> pickleit('spam.pckl', a, b, c)
+
+    """
 
     output = open(filename, 'wb')
 
@@ -140,7 +152,18 @@ def pickleit(filename, *args):
 def unpickleit(filename):
     """Unpickle a python object (created with pickleit)
     
-    filename : filename to pickle to"""
+    filename : string
+       filename of file to unpickle.
+
+    This routine can be used to easily unpickle a file and serves
+    as the companion to the :func:'pickle()' function.
+
+    If only one python object is unpickled then that object is
+    returned.
+
+    If multiple objects are pickled, then a list of these objects
+    is returned."""
+
     o = []
     f = open(filename, 'rb')
     while(1):
@@ -166,12 +189,19 @@ def makePanelPlot(n = 3, fig = None,
                   xlmargin = 0.15, ytmargin = 0.10,
                   xrmargin = 0.05, ybmargin = 0.10,
                   ylabels = True):
-    """Make a multi panel plot from matplotlib
+    """Make a multi panel plot from matplotlib.
 
-    n : number of panels
-    fig : figure object to use (If None creates new figure)
-    xmargin : margin at x-axis
-    ymargin : margin at y-axis
+    This function, makes a typical panel plot and returns a list
+    of the axes objects for plotting. 
+
+    n : int
+       Number of panels
+    fig : figure object
+       Figure object to use (If None creates new figure)
+    xmargin : float
+       Margin at x-axis
+    ymargin : float
+       Margin at y-axis
 
     """
     
@@ -198,12 +228,21 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
                  xformat = None, yformat = None):
     
     """Make nice plot by setting all border widths etc. 
-    Designed to make a pedantic figure suitable for PRL, PRB etc.
+    
 
-    xint    : Number of x intervals for minor tics
-    yint    : Number of y intervals for minor tics
-    xformat : String to format major labels
-    yformat : String to format minor labels
+    Designed to make a pedantic figure suitable for PRL, PRB etc.
+    This function formats the border, tickmarks and sets the 
+    axes labels and titles to sensible values for 'production' 
+    quality plots.
+
+    xint    : int
+       Number of x intervals for minor tics
+    yint    : int
+       Number of y intervals for minor tics
+    xformat : string
+       Format string for major labels
+    yformat : string
+       Format string for minor labels
     """
     
     for i in ax.spines.itervalues():
@@ -258,13 +297,6 @@ def makeNicePlot(ax, xint = 5, yint = 5, mxint = 4, myint = 4,
     for label in ax.get_xticklabels() + ax.get_yticklabels():
         label.set_fontsize(16)
 
-def drawResolutionLine(ax, pos, ):
-    """Draw the resolution line on the plot.
-
-    pos  : center position as tuple (x,y)
-    size : width and height"""
-
-    return
 
 def setImageRange(data, limits, bins = 100):
     
@@ -286,4 +318,26 @@ def setImageRange(data, limits, bins = 100):
 
     return dmin, dmax
 
+def writeString(filename, string, append = True):
+    """Write a sring out to a file.
+
+    filename : string
+       Filename to write to.
+    string : string or object
+       String to write to file. If this is a python object then
+       :func:'str()' is called to make a string output.
+    append : bool
+       If true append text to file"""
+
+    if append:
+        fmt = 'a'
+    else:
+        fmt = 'w'
+    f = open(filename, fmt)
+    if type(string) == type('string'):
+        f.write(string)
+    else:
+        f.write(str(string))
+
+    f.close()
 
