@@ -12,6 +12,9 @@ and enable transformations into reciprocal space coordinates.
 SPEC is from Certified Scientific Software (http://www.certif.com/)
 """
 
+from ez_setup import use_setuptools
+use_setuptools()
+
 classifiers = """\
 Development Status :: 4 - Beta
 Environment :: Console
