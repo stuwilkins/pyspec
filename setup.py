@@ -52,7 +52,8 @@ except:
 	svnR = ""
 
 setup(name='pyspec',
-      version="%s%s" % (__version__,svnR),
+      #version="%s%s" % (__version__,svnR),
+      version=__version__,
       author='Stuart Wilkins',
       author_email='stuwilkins@mac.com',
       maintainer="Stuart B. Wilkins",

@@ -9,10 +9,6 @@ if [ -d "dist" ]; then
 	rm -rf dist
 fi
 
-if [ -e "setup.cfg" ]; then
-	mv setup.cfg setup.cfg.insttmp
-fi
-
 $PYTHON setup.py build_sphinx upload_sphinx
 $PYTHON setup.py sdist --formats=gztar,zip upload
 scp dist/* stuwilkins,pyspec@frs.sourceforge.net:/home/frs/project/p/py/pyspec/$DIST
@@ -24,7 +20,6 @@ fi
 }
 
 function upload_docs {
-	cd $CWD
 	scp -r doc/redirect.html stuwilkins,pyspec@web.sourceforge.net:/home/groups/p/py/pyspec/htdocs/index.html
 }
 
