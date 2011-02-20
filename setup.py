@@ -26,7 +26,8 @@ Operating System :: MacOS :: MacOS X
 Operating System :: Unix
 """
 
-from distutils.core import setup, Extension
+#from distutils.core import setup, Extension
+from setuptools import setup, Extension
 from setupext import ext_modules
 import sys
 import subprocess
