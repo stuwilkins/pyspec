@@ -2,9 +2,7 @@
 PYSPEC=pyspec
 PYTHON=`which python`
 DIST=pyspec-0.2
-CWD=`pwd`
 function upload_package {	
-cd $PYSPEC
 
 if [ -d "dist" ]; then
 	echo "*** Removing dist directory ***"
@@ -27,7 +25,8 @@ fi
 
 function upload_docs {
 	cd $CWD
-	scp -r $PYSPEC/doc/_build/html/* stuwilkins,pyspec@web.sourceforge.net:/home/groups/p/py/pyspec/htdocs
+	scp -r doc/redirect.html stuwilkins,pyspec@web.sourceforge.net:/home/groups/p/py/pyspec/htdocs/index.html
 }
 
 upload_package
+upload_docs
