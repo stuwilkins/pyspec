@@ -43,20 +43,26 @@ class CCDSpecExtension(SpecExtension):
         return "SPEC / EPICS CCD Extension"
     def parseSpecScanHeader(self, object, line):
         if line[0:6] == "#UCCD2":
+            print "---- Reading CCD Header information"
             try:
                 pos = line[6:].strip().split()
                 pos = map(float, pos)
-                object.ccdAcquireTime = pos[0]
-                object.ccdAcquirePeriod = pos[1]
-                object.ccdNumExposures = int(pos[2])
-                object.ccdNumImages = int(pos[3])
-                if object.ccdsubimages:
-                    object.ccdNumAcquisitions = ccdsubimages
-                else:
-                    object.ccdNumAcquisitions = int(pos[4])
             except:
                 print "**** Unable to parse CCD data (UCCD2)"
+                return
+
+            object.ccdAcquireTime = pos[0]
+            object.ccdAcquirePeriod = pos[1]
+            object.ccdNumExposures = int(pos[2])
+            object.ccdNumImages = int(pos[3])
+            if hasattr(object, 'ccdSubImages'):
+                print "---- CCD Sub Images set to %d" % object.ccdSubImages
+                object.ccdNumAcquisitions = object.ccdSubImages
+            else:
+                object.ccdNumAcquisitions = int(pos[4])
+            
         return
+
     def concatenateSpecScan(self, object, a):
         object.ccdAcquireTime = numpy.concatenate((object.ccdAcquireTime, a.ccdAcquireTime))
         object.ccdAcquirePeriod = numpy.concatenate((object.ccdAcquirePeriod, a.ccdAcquirePeriod))

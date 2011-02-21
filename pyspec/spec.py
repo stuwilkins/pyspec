@@ -178,6 +178,10 @@ class SpecDataFile:
             # Set any keyword args into the base class
             setattr(self, arg, kwargs[arg])
 
+        self._loadSpecFile()
+        return
+
+    def _loadSpecFile(self):
         if __verbose__:
             print "**** Opening specfile %s." % self.filename
 
@@ -194,10 +198,33 @@ class SpecDataFile:
         mydict['file'] = None
         return mydict
 
-    def setMode(self, mode = 'concatenate'):
-        """Set the mdoe to deal with multiple scans
+    def reset(self):
+        """Reset the specfile class
 
-        'mode' can be either 'concatenate' or 'bin'"""
+        This routine resets the SpecDataFile, as if no scans
+        had been read."""
+
+        self.scandata = {}
+        if __verbose__:
+            print "**** SpecFile reset (all scans removed)"
+
+    def reload(self):
+        """Reload the data file
+
+        This routine reloads (reindexes) the datafile"""
+
+        if __verbose__:
+            print "**** Reloading SpecFile"
+        self._loadSpecFile()
+
+    def setMode(self, mode = 'concatenate'):
+        """Set the modee to deal with multiple scans
+
+        mode : string
+           If mode is 'concatenate' then concatenate scans together.
+           If mode is 'bin' then bin (numerically the scans together.
+        """
+
         if mode == 'concatenate':
             self.mode = 'concat'
             print "**** Multiple scans will be concatenated."
@@ -317,8 +344,8 @@ class SpecDataFile:
         for s in self.findex.keys():
             self.getScan(s, *args, **kwargs)
 
-    def getScan(self, item, mask = None, setkeys = True, persistent = False,
-                nsubimages = None):
+    def getScan(self, item, mask = None, setkeys = True, persistent = True,
+                reread = False, **kwargs):
         """Get a scan from the data file
 
         This routine gets a scan from the data file and loads it into the
@@ -336,8 +363,6 @@ class SpecDataFile:
         Returns the ScanData object corresponding to the scan requested.
 
         """
-
-        self._nsubccdimages = nsubimages
 
         if type(item) == int:
             items = (item,)
@@ -364,9 +389,9 @@ class SpecDataFile:
         for i,m in zip(items, mask):
             if __verbose__:
                     print "**** Reading scan/item %s" % i
-            if self.scandata.has_key(i) is False:
+            if (self.scandata.has_key(i) is False) or (reread is True):
                 self._moveto(i)
-                self.scandata[i] = SpecScan(self, i, setkeys, mask = m, ccdsubimages = nsubimages)
+                self.scandata[i] = SpecScan(self, i, setkeys, mask = m, **kwargs)
 
             rval.append(self.scandata[i])
 

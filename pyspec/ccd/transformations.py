@@ -201,31 +201,60 @@ class FileProcessor():
 
         for i, (iname, diname, normVal) in enumerate(zip(self.filenames, self.darkfilenames, normData)):
             if type(iname) == list:
-                _images = []
-                _darkimages = []
-                for j, (_in, _din) in enumerate(zip(iname, diname)):
-                    if not quiet:
-                        print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames), j + 1, len(iname)),
-                        sys.stdout.flush()
-                    image = self._getRawImage(_in).astype(dtype)
-                    _images.append(image)
+                _images = None
+                _darkimages = None
+                
+                #Start reading the light images
+                for j, _in in enumerate(iname):
+                    if os.path.exists(_in):
+                        image = self._getRawImage(_in).astype(dtype)
+                        if _images is not None:
+                            _images = _images + image
+                        else:
+                            _images = image
+                        #_images.append(image)
+                        if not quiet:
+                            print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames), j + 1, len(iname)),
+                            sys.stdout.flush()
+                    else:
+                        if not quiet:
+                            print "---- Missing image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.filenames), j + 1, len(iname)),
+                            sys.stdout.flush()
+
+                for j, _din in enumerate(diname):
                     if os.path.exists(_din):
                         darkimage =  self._getRawImage(_din).astype(dtype)
-                        _darkimages.append(darkimage)
+                        if _darkimages is not None:
+                            _darkimages = _darkimages + darkimage
+                        else:
+                            _darkimages = darkimage
+                        #_darkimages.append(darkimage)
                         if not quiet:
                             print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.darkfilenames), j + 1, len(diname)),
                             sys.stdout.flush()
-                image = np.array(_images).sum(0)
-                if len(_darkimages):
-                    darkimage = np.array(_darkimages).sum(0)
+                    else:
+                        if not quiet:
+                            print "---- Missing dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.darkfilenames), j + 1, len(diname)),
+                            sys.stdout.flush()
+
+                image = _images
+                if _darkimages is not None:
+                    darkimage = _darkimages
                     darkimages.append(darkimage)
+                #image = np.array(_images).sum(0)
+                #if len(_darkimages):
+                #    darkimage = np.array(_darkimages).sum(0)
+                #    darkimages.append(darkimage)
+
             else:
+                # Process only single image pair
                 image = self._getRawImage(iname).astype(dtype)
                 if os.path.exists(diname):
                     darkimage =  self._getRawImage(diname).astype(dtype)
                     darkimages.append(darkimage)
                 if not quiet:
                     print "---- Reading image %-3d of %-3d\r" % (i, len(self.filenames)),
+
             if dark:
                 if len(darkimages):
                     image = image - darkimages[-1]
