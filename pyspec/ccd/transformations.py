@@ -1,3 +1,4 @@
+
 #
 # transformations.py (c) Stuart B. Wilkins 2010 and (c) Sven Partzsch 2010
 #
@@ -36,7 +37,10 @@ try:
 except:
     pass
 
-from   pyspec.ccd.plotter import PlotImages, PlotGrid
+try:
+    from   pyspec.ccd.plotter import PlotImages, PlotGrid, PlotWindow
+except:
+    pass
 
 try:
     import pyspec.ccd.ctrans as ctrans
@@ -115,9 +119,8 @@ class FileProcessor():
         scan    : SpecScan instance
         norm    : spec counter to normalize against"""
         
-        self.filenames     = scan.getCCDFilenames()
-        # alternative because dark image not any more provided by pyspec Scan
-        self.darkfilenames = len(self.filenames) * [[self.filenames[0][0][:-9] + '-DARK_0000.spe']]
+        self.filenames     = scan.ccdFilenames
+        self.darkfilenames = scan.ccdDarkFilenames
         self.normData      = scan.values[mon]
 
     def _processBgnd(self, maskroi = None, mask = None):
@@ -768,9 +771,8 @@ class ImageProcessor():
 
         self.waveLen       = self.conScan.wavelength  # in Angstrom
         self.energy        = Diffractometer.hc_over_e / self.conScan.wavelength # in eV
-        self.imFileNames   = self.conScan.getCCDFilenames()
-        # alternative because dark image not any more provided by pyspec Scan
-        self.darkFileNames = len(self.imFileNames) * [[self.imFileNames[0][0][:-9] + '-DARK_0000.spe']]
+        self.imFileNames   = self.conScan.ccdFilenames
+        self.darkFileNames = self.conScan.ccdDarkFilenames
         self.settingAngles = self.conScan.getSIXCAngles()
         self.intentNorm    = self.conScan.Ring
         self.UBmat         = self.conScan.UB
@@ -1204,13 +1206,7 @@ class ImageProcessor():
         # 3D grid of the data set 
         print "**** Gridding Data."
         t1 = time.time()
-        gridRes = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
-        #print gridRes
-        print len(gridRes)
-        for i in range(2):
-            print gridRes[i].shape
-        print gridRes[2]
-        #gridData, gridOccu, gridStdErr, gridOut = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
+        gridData, gridOccu, gridStdErr, gridOut = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
         t2 = time.time()
         print "---- DONE (Processed in %f seconds)" % (t2 - t1)
         emptNb = (gridOccu == 0).sum()
@@ -1617,6 +1613,19 @@ if __name__ == "__main__":
     #testPlotter.plotMask1D('cut')
     #testPlotter.plotMask2D('cut')
 
+    ###
+    # plot errorbars
+    ###
+
+    plotErr = PlotWindow()
+    yVals = testData.get1DCut('gridStdErr')
+    qVals = testData.qVal
+    data1D    = [[qVals[0], yVals[0]], [qVals[1], yVals[1]], [qVals[2], yVals[2]]]
+    plotErr.setPlotData(data1D + testData.get2DCut('gridStdErr'))
+    plotErr.setPlotDetails(plotDim = 3*['oneD'] + 3*['twoD'])
+    plotErr.setWinLayout(plotHor = 2, plotOrd = 'vh', winTitle = 'Standard deviations as error bars')
+    plotErr.setPlotLayouts()
+    plotErr.plotAll()
     
 
     ###

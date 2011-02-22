@@ -262,53 +262,66 @@ class PlotWindow():
         """Get plotting data
 
         plotData : list of data to plot for 
-                   1D entry [xData, yData], 
+                   1D entry [xData, yData, yError], 
                    2D entry (n0, n1) np.array"""
 
         return self._plotData
 
-    def setPlotDetails(self, plotDim = None, plotLog = None, plotOrigins = None, plotExtents = None):
+    def setPlotDetails(self, plotType = None, plotLog = None, plotErr = None, plotOrigins = None, plotExtents = None, histBins = None):
         """Set details of the singel plots
 
-        plotDim     : list of 'oneD' and 'twoD', set from plotData if None
+        plotType    : list of 'oneD', 'twoD' and 'hist', set from plotData if None
         plotLog     : list of boolean, plot on log scale if True
+        plotErr     : list of boolean, plot with error bars if True
         plotOrigins : list of sting: None, 'upper' or 'lower' (only 2D)
-        plotExtents : list of extents (only 2D), [ax1Min, ax1Max, ax0Min, ax0Max]"""
+        plotExtents : list of extents (only 2D), [ax1Min, ax1Max, ax0Min, ax0Max]
+        histBins    : list of number of bins for histograms, default 50"""
 
-        if plotDim == None:
-            plotDim = self._plotNum * ['']
+        if plotType == None:
+            plotType = self._plotNum * ['']
             for i in range(self._plotNum):
-                plotType = type(self._plotData[i])
-                if plotType == list:
-                    plotDim[i] = 'oneD'
-                elif plotType == np.ndarray:
-                    plotDim[i] = 'twoD'
-                elif plotType == np.ma.core.MaskedArray:
-                    plotDim[i] = 'twoD'
+                plotDataType = type(self._plotData[i])
+                if plotDataType == list:
+                    if type(self._plotData[i][0]) == list:
+                        plotType[i] = 'oneD'
+                    else:
+                        plotType[i] = 'hist'
+                elif plotDataType == np.ndarray:
+                    plotType[i] = 'twoD'
+                elif plotDataType == np.ma.core.MaskedArray:
+                    plotType[i] = 'twoD'
                 else:
                     print '\n\nXXXX Type %s of plot entry %d is not supported!\n' % (plotType, i)
         
         if plotLog      == None:
             plotLog     =  self._plotNum * [False]
+        if plotErr      == None:
+            plotErr     =  self._plotNum * [False]
         if plotOrigins  == None:
             plotOrigins =  self._plotNum * [None]
         if plotExtents  == None:
             plotExtents =  self._plotNum * [None]
+        if histBins  == None:
+            histBins =  self._plotNum * [50]
 
-        self._plotDim     = plotDim
+        self._plotType     = plotType
         self._plotLog     = plotLog
+        self._plotErr     = plotErr
         self._plotOrigins = plotOrigins
         self._plotExtents = plotExtents
+        self._histBins    = histBins
 
     def getPlotDetails(self):
         """Get details of the singel plots
 
-        plotDim     : list of 'oneD' and 'twoD', set from plotData if None
+        plotType    : list of 'oneD', 'twoD' and 'hist', set from plotData if None
         plotLog     : list of boolean, plot on log scale if True
+        plotErr     : list of boolean, plot with error bars if True
         plotOrigins : list of sting: None, 'upper' or 'lower' (only 2D)
-        plotExtents : list of extents (only 2D), [ax1Min, ax1Max, ax0Min, ax0Max]"""
+        plotExtents : list of extents (only 2D), [ax1Min, ax1Max, ax0Min, ax0Max]
+        histBins    : list of number of bins for histograms, default 50"""
 
-        return self._plotDim, self._plotLog, self._plotOrigins, self._plotExtents
+        return self._plotType, self._plotLog, self._plotErr, self._plotOrigins, self._plotExtents, self._histBins
 
     #
     # set / get layout
@@ -426,28 +439,40 @@ class PlotWindow():
         self._fig.suptitle(self._winTitle, fontsize = 24)
       
     def _plot1D(self, i):
-        """Plot 1D data of entry i"""
+        """Plot 1D data of entry i, for 'oneD'"""
 
         # prepare plot
         ax        = self._allax[i]
         xVal      = self._plotData[i][0]
         yVal      = self._plotData[i][1]
+        if self._plotErr[i] == True:
+            yErr  = self._plotData[i][2]
+        else:
+            yErr  = None
         plotKind  = self._plotKinds[i]
-        plotLabel = self._plotLabels[i]
+        plotLabel = self._dataLabels[i]
         plotTitle = self._plotTitles[i]
         xLabel    = self._axesLabels[i][0]
         yLabel    = self._axesLabels[i][1]
 
-        if self.plotLog[i] == True:
-            ax.semilogy(xVal, yVal, plotKind, label = plotLabel)
-        else:
-            ax.plot(xVal, yVal,  plotKind, label = plotLabel)
+        if self._plotLog[i] == True:
+            ax.set_yscale('log')
+        #if self._plotErr[i] != True:
+            #if self._plotLog[i] == True:
+            #    ax.semilogy(xVal, yVal, plotKind, label = plotLabel)
+            #else:
+        #    ax.plot(xVal, yVal,  plotKind, label = plotLabel)
+        #else:
+            #if self._plotLog[i] == True:
+            #    ax.semilogy(xVal, yVal, plotKind, label = plotLabel)
+            #else:
+        ax.errorbar(xVal, yVal, yErr, fmt = plotKind, label = plotLabel)
         ax.set_xlabel(xLabel,   fontsize = 18)
         ax.set_ylabel(yLabel,   fontsize = 18)
         ax.set_title(plotTitle, fontsize = 20)
 
     def _plot2D(self, i):
-        """Plot 2D data of entry i"""
+        """Plot 2D data of entry i, for 'twoD'"""
 
         # prepare plot
         fig        = self._fig
@@ -468,7 +493,27 @@ class PlotWindow():
         ax.set_xlabel(ax1Label, fontsize = 18)
         ax.set_ylabel(ax0Label, fontsize = 18)
         ax.set_title(plotTitle, fontsize = 20)
-        
+
+    def _plotHist(self, i):
+        """Plot histogram of entry i, for 'hist'"""
+
+        # prepare plot
+        ax        = self._allax[i]
+        histData  = self._plotData[i]
+        histBin   = self._histBins[i]
+        plotTitle = self._plotTitles[i]
+        xLabel    = self._axesLabels[i][0]
+        yLabel    = self._axesLabels[i][1]
+
+        if self._plotLog[i] == True:
+            ax.hist(histData, histBin, log=True, facecolor='green')
+        else:
+            ax.hist(histData, histBin, facecolor='green')
+            ax.set_yscale('log')
+        ax.set_xlabel(xLabel,   fontsize = 18)
+        ax.set_ylabel(yLabel,   fontsize = 18)
+        ax.set_title(plotTitle, fontsize = 20)
+
     #
     # plot all
     #
@@ -477,11 +522,13 @@ class PlotWindow():
         """Plot all data wiht regarding layout and details"""
 
         for i in range(self._plotNum):
-            dim = self._plotDim[i]
-            if dim == 'oneD':
+            pType = self._plotType[i]
+            if pType == 'oneD':
                 self._plot1D(i)
-            elif dim == 'twoD':
+            elif pType == 'twoD':
                 self._plot2D(i)
+            elif pType == 'hist':
+                self._plotHist(i)
             else:
                 print '\n\nXXXX %s of entry %d is no correct plotting type!\n' % (dim, i)
 
@@ -1430,13 +1477,13 @@ class PlotGrid2():
         self.setPlotWindow()
         
         # plot flags: intensity, missing grid parts, histogram of occupation of the grid parts
-        self.plotFlag2D = 4
-        self.plotFlag1D = 4
-        self.logFlag1D  = 0
-        self.logFlag2D  = 0
-        self.histBin    = 50
+        self._plotFlag2D = 3
+        self._plotFlag1D = 3
+        self._logFlag1D  = 0
+        self._logFlag2D  = 0
+        self._histBin    = 50
         # plot the 1D fits
-        self.plot1DFit  = False
+        self._plot1DFit  = False
         
 
     #
@@ -1619,28 +1666,20 @@ class PlotGrid2():
         retrurns
         fig2   : plt.figure object of the plotting window
         allax2 : list of plt.axes objects which carry the figures"""
-
-        
         
         # extents [ax1Min, ax1Max, ax0Min, ax0Max], None
-        plotExtents  = [[self._imProc.Qmin[2], self._imProc.Qmax[2], 
-                         self._imProc.Qmin[1], self._imProc.Qmax[1]],
-                        [self._imProc.Qmin[2], self._imProc.Qmax[2], 
-                         self._imProc.Qmin[0], self._imProc.Qmax[0]],
-                        [self._imProc.Qmin[1], self._imProc.Qmax[1], 
-                         self._imProc.Qmin[0], self._imProc.Qmax[0]]] * 2
-        plotExtents += [None, None, None]
-        
-        # plot titles
-        plotTitles = ['Intensity', '', '', 
-                      'Occupation', '', '',
-                      'Histogram', '', '']
+        plotExtent  = [[self._imProc.Qmin[2], self._imProc.Qmax[2], 
+                        self._imProc.Qmin[1], self._imProc.Qmax[1]],
+                       [self._imProc.Qmin[2], self._imProc.Qmax[2], 
+                        self._imProc.Qmin[0], self._imProc.Qmax[0]],
+                       [self._imProc.Qmin[1], self._imProc.Qmax[1], 
+                        self._imProc.Qmin[0], self._imProc.Qmax[0]]]
 
         # axes labels [ax1, ax0], [x,y]
-        axesLabels   = [[self._axesLabels[2], self._axesLabels[1]],
-                        [self._axesLabels[2], self._axesLabels[0]],
-                        [self._axesLabels[1], self._axesLabels[0]]] * 2
-        axesLabels  += [['No. of Occupations', 'No. of Grid Parts']] * 3
+        ax2DLabel   = [[self._axesLabels[2], self._axesLabels[1]],
+                       [self._axesLabels[2], self._axesLabels[0]],
+                       [self._axesLabels[1], self._axesLabels[0]]]
+        axHistLabel = [['No. of Occupations', 'No. of Grid Parts']] * 3
                         
         if calcMode == 'sum':
             gridData2D = self._imProc.get2DSum(selType = 'gridData')
@@ -1656,14 +1695,48 @@ class PlotGrid2():
         for i in range(3):
             gridData2D[i] = np.ma.array(gridData2D[i], mask = (gridOccu2D[i] == 0))
             gridOccu2D[i] = np.ma.array(gridOccu2D[i], mask = (gridOccu2D[i] == 0))
-        plotData = gridData2D + gridOccu2D
-        plotDim  = 6 * ['twoD']
+        
+        # preparation for plot window
+        plotHor  = 0
+        plotData = []
+        plotType = []
+        plotExtents = []
+        plotTitles  = []
+        axesLabels  = []
+
+        # intensity
+        if self._plotFlag2D & 1:
+            plotHor     += 1
+            plotData    += gridData2D
+            plotType    += 3*['twoD']
+            plotExtents += plotExtent
+            plotTitles  += ['Intensity', '', '']
+            axesLabels  += ax2DLabel
+
+        # occupation
+        if self._plotFlag2D & 2:
+            plotHor     += 1
+            plotData    += gridOccu2D
+            plotType    += 3*['twoD']
+            plotExtents += plotExtent
+            plotTitles  += ['Occupation', '', '']
+            axesLabels  += ax2DLabel
+
+        # histogram
+        if self._plotFlag2D & 4:
+            plotHor      += 1
+            for i in range(3):
+                plotData += [np.ravel(gridData2D[i])]
+            plotType     += 3*['hist']
+            plotExtents  += 3*[None]
+            plotTitles   += ['Histogram', '', '']
+            axesLabels   += axHistLabel
         
         # plot window
         plotWin = PlotWindow()
-        plotWin.setPlotData(gridData2D + gridOccu2D)
-        plotWin.setPlotDetails(plotDim = plotDim, plotExtents = plotExtents)
-        plotWin.setWinLayout(figSize = (11, 8.5), plotHor = 3, plotVer = 3, plotOrd = 'vh',
+        plotWin.setPlotData(plotData)
+        plotWin.setPlotDetails(plotType = plotType, plotExtents = plotExtents)
+        plotWin.setWinLayout(figSize = (11, 8.5), plotHor = plotHor, plotVer = 3, plotOrd = 'vh',
                              winTitle = winTitle)
         plotWin.setPlotLayouts(plotTitles = plotTitles, axesLabels = axesLabels)
         plotWin.plotAll()
@@ -1793,13 +1866,15 @@ if __name__ == "__main__":
     
     # plotter for grid
     testPlotter = PlotGrid2(testData)
-
+    print testPlotter.getPlotFlags()
+    testPlotter.setPlotFlags(7, 7)
+    print testPlotter.getPlotFlags()
     testPlotter.setLogFlags(7, 7)
     testPlotter.setPlot1DFit(True)
     #testPlotter.plotGrid1D('sum')
     #testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
-    testPlotter.plotGrid2D('sum')
+    #testPlotter.plotGrid2D('sum')
     testPlotter.plotGrid2D('cut')
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
