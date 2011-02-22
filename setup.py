@@ -46,13 +46,7 @@ if sys.version_info < (2, 3):
             del kwargs["classifiers"]
         _setup(**kwargs)
 
-try:
-	svnR = "_" + subprocess.Popen(['svnversion', '.'], stdout=subprocess.PIPE).communicate()[0].rstrip("\n")
-except:
-	svnR = ""
-
 setup(name='pyspec',
-      #version="%s%s" % (__version__,svnR),
       version=__version__,
       author='Stuart Wilkins',
       author_email='stuwilkins@mac.com',
