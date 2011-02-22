@@ -115,9 +115,10 @@ class FileProcessor():
         scan    : SpecScan instance
         norm    : spec counter to normalize against"""
         
-        self.filenames = scan.ccdFilenames
-        self.darkfilenames = scan.ccdDarkFilenames
-        self.normData = scan.values[mon]
+        self.filenames     = scan.getCCDFilenames()
+        # alternative because dark image not any more provided by pyspec Scan
+        self.darkfilenames = len(self.filenames) * [[self.filenames[0][0][:-9] + '-DARK_0000.spe']]
+        self.normData      = scan.values[mon]
 
     def _processBgnd(self, maskroi = None, mask = None):
 
@@ -767,8 +768,9 @@ class ImageProcessor():
 
         self.waveLen       = self.conScan.wavelength  # in Angstrom
         self.energy        = Diffractometer.hc_over_e / self.conScan.wavelength # in eV
-        self.imFileNames   = self.conScan.ccdFilenames
-        self.darkFileNames = self.conScan.ccdDarkFilenames
+        self.imFileNames   = self.conScan.getCCDFilenames()
+        # alternative because dark image not any more provided by pyspec Scan
+        self.darkFileNames = len(self.imFileNames) * [[self.imFileNames[0][0][:-9] + '-DARK_0000.spe']]
         self.settingAngles = self.conScan.getSIXCAngles()
         self.intentNorm    = self.conScan.Ring
         self.UBmat         = self.conScan.UB
@@ -1139,7 +1141,13 @@ class ImageProcessor():
         if self.totSet is not None:
             del self.totSet
             gc.collect()
-            
+
+        # if images not yet processed, do it
+        try:
+            getattr(self.fileProcessor, 'images')
+        except:
+            self.fileProcessor.process()
+                    
         print "\n**** Converting to Q"
         t1 = time.time()
         self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
@@ -1196,7 +1204,13 @@ class ImageProcessor():
         # 3D grid of the data set 
         print "**** Gridding Data."
         t1 = time.time()
-        gridData, gridOccu, gridStdErr, gridOut = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
+        gridRes = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
+        #print gridRes
+        print len(gridRes)
+        for i in range(2):
+            print gridRes[i].shape
+        print gridRes[2]
+        #gridData, gridOccu, gridStdErr, gridOut = ctrans.grid3d(self.totSet, self.Qmin, self.Qmax, self.dQN, norm = 1)
         t2 = time.time()
         print "---- DONE (Processed in %f seconds)" % (t2 - t1)
         emptNb = (gridOccu == 0).sum()
@@ -1209,9 +1223,9 @@ class ImageProcessor():
         #gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
         
         # store intensity, occupation and no. of outside data points of the grid
-        self.gridData = gridData
-        self.gridOccu = gridOccu
-        self.gridOut  = gridOut
+        self.gridData   = gridData
+        self.gridOccu   = gridOccu
+        self.gridOut    = gridOut
         self.gridStdErr = gridStdErr
 
         # masks for the data and occupation no.
@@ -1598,8 +1612,8 @@ if __name__ == "__main__":
 
     #testPlotter.plotGrid1D('sum')
     #testPlotter.plotGrid2D('sum')
-    testPlotter.plotGrid1D('cut')
-    testPlotter.plotGrid2D('cut')
+    #testPlotter.plotGrid1D('cut')
+    #testPlotter.plotGrid2D('cut')
     #testPlotter.plotMask1D('cut')
     #testPlotter.plotMask2D('cut')
 
