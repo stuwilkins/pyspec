@@ -359,7 +359,7 @@ class ImageProcessor():
         spec       : SpecScan object used to obtain information"""
         
         # file processor to provied the needed images
-        self.fileProcessor = fP
+        self.setFileProcessor(fP)
 
         self.ccdName = ccdname
         
@@ -381,11 +381,10 @@ class ImageProcessor():
         # grid background subtraction
         self.setGridBackOptions()
         # cut indicies and position
-        self.cutInd = None
+        self.setCutInd(cutInd = None)
         self.setCutPos(cutMode = 'max')
         # 1D fit options
-        self.fit1D       = False
-        self.fitType     = 'lor2a'
+        self.set1DFitOptions()
         # output information
         self.opTitle     = 'Image Processing'
         self._makeSetInfo()
@@ -543,6 +542,7 @@ class ImageProcessor():
         self.fileProcessor.setFromSpec(conScan)
         # Sven : Don't do this. Always wait for the user to iniciate this!
         #self.fileProcessor.process() # NO NO NO NO NO NO !!!!!
+        # Stuart: Thanks, found your message on Feb 23rd, from when was it?
    
     def getSpecScan(self):
         """Get the pyspec scan object which was used for the set settings
@@ -701,7 +701,7 @@ class ImageProcessor():
 
         return self.intMaskBox
 
-    def setCutInd(self, cutInd):
+    def setCutInd(self, cutInd = None):
         """Set the cut indicies
 
         cutInd : cut indices, [nx, ny, nz]
@@ -733,13 +733,45 @@ class ImageProcessor():
         cutMode : 'fix' for fixed setting of 'max' for cut at positon of maximum"""
 
         return self.cutPos, self.cutMode
-   
+    
+    def set1DFitOptions(self, selType = 'cut', fitType = 'lor2a', fitFuncs = None):
+        """Set 1D fit options of the selected lines
+
+        setType  : type of line, 'sum' or 'cut' (default)
+        fitType  : type of peak shape, 'lorr' or 'lor2a' (default)
+        fitFuncs : fit functions like in the fit package from pyspec, prefered if given"""
+
+        self._selType  = selType
+        self._fitType  = fitType
+        self._fitFuncs = fitFuncs
+
+    def get1DFitOptions(self):
+        """Get 1D fit options of the selected lines
+
+        setType  : type of line, 'sum' or 'cut' (default)
+        fitType  : type of peak shape, 'lorr' or 'lor2a' (default)
+        fitFuncs : fit functions like in the fit package from pyspec, prefered if given"""
+
+        return self._selType, self._fitType, self._fitFuncs
+
+
     #
     # get set functions for input output
     #
 
     def setFileProcessor(self, fp = None):
+        """Set the FileProcessor object for treating the CCD images
+
+        fp : FileProcessor object with the CCD images"""
+        
         self.fileProcessor = fp
+
+    def getFileProcessor(self):
+        """Get the FileProcessor object for treating the CCD images
+
+        fp : FileProcessor object with the CCD images"""
+        
+        return self.fileProcessor
 
     #
     # help function part
@@ -1427,6 +1459,45 @@ class ImageProcessor():
             backInten = 0.0
         
         return intInten, backInten
+
+    def get1DFit(self, setType = None, fitType = None, fitFuncs = None):
+        """Get 1D fits of the selected lines
+
+        setType  : type of line, 'sum' or 'cut' (rank: given, set-default, 'cut')
+        fitType  : type of peak shape, 'lorr' or 'lor2a' (rank: given, set-default, 'lor2a')
+        fitFuncs : fit functions like in the fit package from pyspec, prefered if given or set-default"""
+
+        if fitFuncs == None:
+            fitFuncs = self._fitFuncs
+        if fitFuncs == None:
+            if fitType == None:
+                fitType = self._fitType
+            if fitType == None:
+                fitType = 'lor2a'
+            fitFuncs = ['linear', fitType]
+
+        if setType == None:
+            setType = self._setType
+        if setType == None:
+            setType = 'cut'
+
+        if setType == 'sum':
+            data1D = self.get1DSum()
+        elif setType == 'cut':
+            data1D = self.get1DCut()
+        else:
+            print 'xxxx %s is no prober line type for 1D fit!' % (setType)
+            print "---- choose 'sum' or 'cut' instead"
+
+        qVals = self.qVal
+        fit1D = []
+        res1D = []
+
+        for i in range(3):
+            f = fit.fit(qVals[i], data1D[i], funcs = fitFuncs)
+            f.go()
+            res1D.append(f.result)
+
 
     #
     # input / output part

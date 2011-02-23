@@ -304,7 +304,7 @@ class PlotWindow():
         if histBins  == None:
             histBins =  self._plotNum * [50]
 
-        self._plotType     = plotType
+        self._plotType    = plotType
         self._plotLog     = plotLog
         self._plotErr     = plotErr
         self._plotOrigins = plotOrigins
@@ -447,8 +447,10 @@ class PlotWindow():
         yVal      = self._plotData[i][1]
         if self._plotErr[i] == True:
             yErr  = self._plotData[i][2]
+            print 'pWin: with error-bars'
         else:
             yErr  = None
+            print 'pWin: without error-bars'
         plotKind  = self._plotKinds[i]
         plotLabel = self._dataLabels[i]
         plotTitle = self._plotTitles[i]
@@ -509,11 +511,10 @@ class PlotWindow():
             ax.hist(histData, histBin, log=True, facecolor='green')
         else:
             ax.hist(histData, histBin, facecolor='green')
-            ax.set_yscale('log')
         ax.set_xlabel(xLabel,   fontsize = 18)
         ax.set_ylabel(yLabel,   fontsize = 18)
         ax.set_title(plotTitle, fontsize = 20)
-
+        
     #
     # plot all
     #
@@ -1174,6 +1175,12 @@ class PlotGrid():
                 if i == 0:
                     ax.set_title('Histogram of Flattend Array', fontsize = 20)
                 allax.append(ax)
+                print 'i=%d type(hist[i]): %s' % (i, type(np.ravel(occuArea[i])))
+                try:
+                    print 'check'
+                    print 'occuArea[i].shape: %s' % ((np.ravel(occuArea[i])).shape)
+                except:
+                    pass
 
         return fig, allax
 
@@ -1476,14 +1483,13 @@ class PlotGrid2():
         # plot window
         self.setPlotWindow()
         
-        # plot flags: intensity, missing grid parts, histogram of occupation of the grid parts
-        self._plotFlag2D = 3
-        self._plotFlag1D = 3
-        self._logFlag1D  = 0
-        self._logFlag2D  = 0
-        self._histBin    = 50
+        # plot/log flags: intensity, occupation, histogram of occupation of the grid parts
+        self.setPlotFlags(7, 7)
+        self.setLogFlags(0, 0)
+        self.setPlotErr(True)
+        self.setHistBin(50)
         # plot the 1D fits
-        self._plot1DFit  = False
+        self.setPlot1DFit(False)
         
 
     #
@@ -1584,6 +1590,20 @@ class PlotGrid2():
         
         return self._logFlag1D, self._logFlag2D
 
+    def setPlotErr(self, plotErr):
+        """Set whether 1D data is shown with or without y-errorbars
+
+        plotErr : plot 1D y-errorbars if True"""
+
+        self._plotErr = plotErr
+
+    def getPlotErr(self):
+        """Get whether 1D data is shown with or without y-errorbars
+
+        plotErr : plot 1D y-errorbars if True"""
+
+        return self._plotErr
+
     def setHistBin(self, histBin = 50):
         """Set the no. of bins for the histograms
 
@@ -1612,50 +1632,118 @@ class PlotGrid2():
     # plot jobs
     #
 
-    def plotGrid1D(self, calcMode = 'sum', intenFits = None):
+    def plotGrid1D(self, calcMode = 'sum'):
         """Select and plots the 1D Lines of the data grid
 
         calcMode  : select which calculated values are plotted, 'sum', 'cut', 'cutAv'
-        intenFits : intensity of the 1D fits, do not consider if None
 
         retrurns
         fig1   : plt.figure object of the plotting window
-        allax1 : list of plt.axes objects which carry the figures
-        allRes : all results of the fits, [[a1, b1, cen1, width1, area1],...], [0, 0, 0, 0, 0] if unsuccessful fit"""
+        allax1 : list of plt.axes objects which carry the figures"""
 
-        # results for fit of 1D data, None if no fitting
-        allRes = np.zeros((3,5))
+        # q-values
+        qVals = self._imProc.getGridVectors()
 
-        # axes and data configuration
-        self.setPlot1DAxes(self.imProc.qVal, self.axesLabels)
+        # axes labels [ax1, ax0], [x,y]
+        ax1DDataLabel = [[self._axesLabels[0], 'Intensity' ],
+                         [self._axesLabels[1], 'Intensity' ],
+                         [self._axesLabels[2], 'Intensity' ]]
+        ax1DOccuLabel = [[self._axesLabels[0], 'Occupation'],
+                         [self._axesLabels[1], 'Occupation'],
+                         [self._axesLabels[2], 'Occupation']]
+        axHistLabel = [['No. of Occupations', 'No. of Grid Parts']] * 3
+                        
         if calcMode == 'sum':
-            gridData1D = self.imProc.get1DSum(selType = 'gridData')
-            gridOccu1D = self.imProc.get1DSum(selType = 'gridOccu')
-            if self.imProc.backSub == True:
-                gridBack1D = self.imProc.get1DSum(selType = 'griBack')
-            plotTitle  = '1D Lines, over other directions is summed'
+            gridData1D = self._imProc.get1DSum(selType = 'gridData')
+            gridOccu1D = self._imProc.get1DSum(selType = 'gridOccu')
+            if self._plotErr == True:
+                yErrData1D = self._imProc.get1DSum(selType = 'gridStdErr')
+            else:
+                yErrData1D = 3*[None]
+            winTitle  = '1D Lines, over other direction is summed'
         elif calcMode == 'cut':
-            gridData1D = self.imProc.get1DCut(selType = 'gridData')
-            gridOccu1D = self.imProc.get1DCut(selType = 'gridOccu')
-            if self.imProc.backSub == True:
-                gridBack1D = self.imProc.get1DCut(selType = 'gridBack')
-            plotTitle  = '1D Line cuts at selected position'
+            gridData1D = self._imProc.get1DCut(selType = 'gridData')
+            gridOccu1D = self._imProc.get1DCut(selType = 'gridOccu')
+            if self._plotErr == True:
+                yErrData1D = self._imProc.get1DCut(selType = 'gridStdErr')
+                print 'with error-bars'
+            else:
+                yErrData1D = 3*[None]
+                print 'without error-bars'
+            winTitle  = '1D Line cuts at selctedposition'
         else:
-            gridData1D, gridOccu1D = self.imProc.get1DCutAv()
-            plotTitle = '1D average over 9 line cuts around maximum position'
-        self.setPlot1DData(gridData1D, gridOccu1D, plotTitle = plotTitle)
-        if self.imProc.backSub == True:
-            gridData1D += gridBack1D
-            self.backLine = gridBack1D
-        # plot, get figure and axes back
-        fig1, allax1 = self.plot1DData()
-        # if there are fits, show them
-        if intenFits != None:
+            print '\n\nXXXX CalcMode %s is not supported!' % (calcMode)
+            print "---- Choose 'sum' or 'cut'"
+                
+        # preparation for plot window
+        plotHor    = 0
+        plotData   = []
+        plotType   = []
+        plotLog    = []
+        plotErr    = []
+        plotTitles = []
+        axesLabels = []
+
+        # intensity
+        if self._plotFlag1D & 1:
+            plotHor     += 1
             for i in range(3):
-                if intentFits != None:
-                    allax1[i].plot(self.imProc.qVal[i], intenFits[i], '-r')
-       
-        return fig1, allax1, allRes
+                plotData    += [[qVals[i], gridData1D[i], yErrData1D[i]]]
+            plotType    += 3*['oneD']
+            if self._logFlag1D & 1:
+                plotLog += 3*[True]
+            else:
+                plotLog += 3*[False]
+            if self._plotErr == True:
+                plotErr += 3*[True]
+            else:
+                plotErr += 3*[False]
+            plotTitles  += ['Intensity', '', '']
+            axesLabels  += ax1DDataLabel
+
+        # occupation
+        if self._plotFlag1D & 2:
+            plotHor     += 1
+            for i in range(3):
+                plotData    += [[qVals[i], gridOccu1D[i]]]
+            plotType    += 3*['oneD']
+            if self._logFlag1D & 2:
+                plotLog += 3*[True]
+            else:
+                plotLog += 3*[False]
+            plotErr     += 3*[False]
+            plotTitles  += ['Occupation', '', '']
+            axesLabels  += ax1DOccuLabel
+
+        # histogram
+        if self._plotFlag1D & 4:
+            plotHor      += 1
+            for i in range(3):
+                plotData += [np.ravel(gridData1D[i])]
+            plotType     += 3*['hist']
+            if self._logFlag1D & 4:
+                plotLog  += 3*[True]
+            else:
+                plotLog  += 3*[False]
+            plotErr      += 3*[False]
+            plotTitles   += ['Histogram', '', '']
+            axesLabels   += axHistLabel
+        
+        # plot window
+        plotWin = self.getPlotWindow()
+        plotWin.setPlotData(plotData)
+        plotWin.setPlotDetails(plotType = plotType, plotLog = plotLog, plotErr = plotErr)
+        plotWin.setWinLayout(figSize = (11, 8.5), plotHor = plotHor, plotVer = 3, plotOrd = 'vh',
+                             winTitle = winTitle)
+        plotWin.setPlotLayouts(plotTitles = plotTitles, axesLabels = axesLabels)
+        plotWin.plotAll()
+        # plot, get figure and axes back
+        winInfo = plotWin.getWinLayout()
+        fig1, allax1 = winInfo[0], winInfo[1]
+
+        return fig1, allax1
+
+
 
     def plotGrid2D(self, calcMode = 'sum'):
         """Select and plots the 2D Areas of the data grid
@@ -1688,7 +1776,7 @@ class PlotGrid2():
         elif calcMode == 'cut':
             gridData2D = self._imProc.get2DCut(selType = 'gridData')
             gridOccu2D = self._imProc.get2DCut(selType = 'gridOccu')
-            winTitle  = '2D Line cuts at maximum position'
+            winTitle  = '2D Area cuts at selected position'
         else:
             print '\n\nXXXX CalcMode %s is not supported!' % (calcMode)
             print "---- Choose 'sum' or 'cut'"
@@ -1700,6 +1788,7 @@ class PlotGrid2():
         plotHor  = 0
         plotData = []
         plotType = []
+        plotLog  = []
         plotExtents = []
         plotTitles  = []
         axesLabels  = []
@@ -1709,6 +1798,10 @@ class PlotGrid2():
             plotHor     += 1
             plotData    += gridData2D
             plotType    += 3*['twoD']
+            if self._logFlag2D & 1:
+                plotLog += 3*[True]
+            else:
+                plotLog += 3*[False]
             plotExtents += plotExtent
             plotTitles  += ['Intensity', '', '']
             axesLabels  += ax2DLabel
@@ -1718,6 +1811,10 @@ class PlotGrid2():
             plotHor     += 1
             plotData    += gridOccu2D
             plotType    += 3*['twoD']
+            if self._logFlag2D & 2:
+                plotLog += 3*[True]
+            else:
+                plotLog += 3*[False]
             plotExtents += plotExtent
             plotTitles  += ['Occupation', '', '']
             axesLabels  += ax2DLabel
@@ -1728,14 +1825,18 @@ class PlotGrid2():
             for i in range(3):
                 plotData += [np.ravel(gridData2D[i])]
             plotType     += 3*['hist']
+            if self._logFlag2D & 4:
+                plotLog  += 3*[True]
+            else:
+                plotLog  += 3*[False]
             plotExtents  += 3*[None]
             plotTitles   += ['Histogram', '', '']
             axesLabels   += axHistLabel
         
         # plot window
-        plotWin = PlotWindow()
+        plotWin = self.getPlotWindow()
         plotWin.setPlotData(plotData)
-        plotWin.setPlotDetails(plotType = plotType, plotExtents = plotExtents)
+        plotWin.setPlotDetails(plotType = plotType, plotLog = plotLog, plotExtents = plotExtents)
         plotWin.setWinLayout(figSize = (11, 8.5), plotHor = plotHor, plotVer = 3, plotOrd = 'vh',
                              winTitle = winTitle)
         plotWin.setPlotLayouts(plotTitles = plotTitles, axesLabels = axesLabels)
@@ -1821,8 +1922,8 @@ class PlotGrid2():
         self.plotGrid2D('sum')
         self.plotGrid1D('cut')
         self.plotGrid2D('cut')
-        self.plotGrid1D('cutAv')
-        self.plotGrid2D('cutAv')
+        #self.plotGrid1D('cutAv')
+        #self.plotGrid2D('cutAv')
     
 
 ####################################
@@ -1866,19 +1967,18 @@ if __name__ == "__main__":
     
     # plotter for grid
     testPlotter = PlotGrid2(testData)
-    print testPlotter.getPlotFlags()
     testPlotter.setPlotFlags(7, 7)
-    print testPlotter.getPlotFlags()
     testPlotter.setLogFlags(7, 7)
+    testPlotter.setPlotErr(False)
     testPlotter.setPlot1DFit(True)
     #testPlotter.plotGrid1D('sum')
-    #testPlotter.plotGrid1D('cut')
+    testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
     #testPlotter.plotGrid2D('sum')
-    testPlotter.plotGrid2D('cut')
+    #testPlotter.plotGrid2D('cut')
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
-
+    #print testPlotter.getPlotWindow().getPlotDetails()
     """
 
     testData = np.array([[range(0,3),range(3,6)],[range(6,9),range(9,12)]])
