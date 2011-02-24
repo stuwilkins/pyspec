@@ -257,6 +257,7 @@ class PlotWindow():
         self._plotNum  = len(plotData)
         self.setPlotDetails()
         self.setPlotLayouts()
+        self.setPlotMarker()
 
     def getPlotData(self):
         """Get plotting data
@@ -403,6 +404,38 @@ class PlotWindow():
         
         return self._plotTitles, self._axesLabels, self._plotKinds, self._dataLabels, self._plotLegends
 
+    def setPlotMarker(self, markerSizes = None, markerEdgeWidths = None, errLineWidths = None, capSizes = None):
+        """Set layout properties of plot markers
+        
+        markerSizes      : list of marker sizes in pt         , default 5
+        markerEdgeWidths : list of marker edges widths in pt  , default 2
+        errLineWidths    : list of error bar line widths in pt, default 2
+        capSizes         : list of error bar cap sizes in pt  , default 5"""
+
+        if markerSizes      == None:
+            markerSizes      = self._plotNum * [5]
+        if markerEdgeWidths == None:
+            markerEdgeWidths = self._plotNum * [2]
+        if errLineWidths    == None:
+            errLineWidths    = self._plotNum * [2]
+        if capSizes         == None:
+            capSizes         = self._plotNum * [3]
+
+        self._markerSizes      = markerSizes
+        self._markerEdgeWidths = markerEdgeWidths
+        self._errLineWidths    = errLineWidths
+        self._capSizes         = capSizes
+
+    def getPlotMarker(self, markerSizes = None, markerEdgeWidths = None, errLineWidths = None, capSizes = None):
+        """Set layout properties of plot markers
+        
+        markerSizes      : list of marker sizes in pt         , default 5
+        markerEdgeWidths : list of marker edges widths in pt  , default 2
+        errLineWidths    : list of error bar line widths in pt, default 2
+        capSizes         : list of error bar cap sizes in pt  , default 5"""
+
+        return self._markerSizes, self._markerEdgeWidths, self._errLineWidths, self._capSizes
+
     #
     # help functions
     #
@@ -447,10 +480,8 @@ class PlotWindow():
         yVal      = self._plotData[i][1]
         if self._plotErr[i] == True:
             yErr  = self._plotData[i][2]
-            print 'pWin: with error-bars'
         else:
             yErr  = None
-            print 'pWin: without error-bars'
         plotKind  = self._plotKinds[i]
         plotLabel = self._dataLabels[i]
         plotTitle = self._plotTitles[i]
@@ -459,16 +490,9 @@ class PlotWindow():
 
         if self._plotLog[i] == True:
             ax.set_yscale('log')
-        #if self._plotErr[i] != True:
-            #if self._plotLog[i] == True:
-            #    ax.semilogy(xVal, yVal, plotKind, label = plotLabel)
-            #else:
-        #    ax.plot(xVal, yVal,  plotKind, label = plotLabel)
-        #else:
-            #if self._plotLog[i] == True:
-            #    ax.semilogy(xVal, yVal, plotKind, label = plotLabel)
-            #else:
-        ax.errorbar(xVal, yVal, yErr, fmt = plotKind, label = plotLabel)
+        ax.errorbar(xVal, yVal, yErr, fmt = plotKind, label = plotLabel, 
+                    markersize = self._markerSizes[i]  , markeredgewidth = self._markerEdgeWidths[i], 
+                    elinewidth = self._errLineWidths[i], capsize = self._capSizes[i])
         ax.set_xlabel(xLabel,   fontsize = 18)
         ax.set_ylabel(yLabel,   fontsize = 18)
         ax.set_title(plotTitle, fontsize = 20)
@@ -1666,10 +1690,8 @@ class PlotGrid2():
             gridOccu1D = self._imProc.get1DCut(selType = 'gridOccu')
             if self._plotErr == True:
                 yErrData1D = self._imProc.get1DCut(selType = 'gridStdErr')
-                print 'with error-bars'
             else:
                 yErrData1D = 3*[None]
-                print 'without error-bars'
             winTitle  = '1D Line cuts at selctedposition'
         else:
             print '\n\nXXXX CalcMode %s is not supported!' % (calcMode)
@@ -1683,6 +1705,7 @@ class PlotGrid2():
         plotErr    = []
         plotTitles = []
         axesLabels = []
+        plotKinds  = []
 
         # intensity
         if self._plotFlag1D & 1:
@@ -1700,6 +1723,7 @@ class PlotGrid2():
                 plotErr += 3*[False]
             plotTitles  += ['Intensity', '', '']
             axesLabels  += ax1DDataLabel
+            plotKinds   += 3*['xb']
 
         # occupation
         if self._plotFlag1D & 2:
@@ -1714,6 +1738,7 @@ class PlotGrid2():
             plotErr     += 3*[False]
             plotTitles  += ['Occupation', '', '']
             axesLabels  += ax1DOccuLabel
+            plotKinds   += 3*['xb']
 
         # histogram
         if self._plotFlag1D & 4:
@@ -1728,6 +1753,7 @@ class PlotGrid2():
             plotErr      += 3*[False]
             plotTitles   += ['Histogram', '', '']
             axesLabels   += axHistLabel
+            plotKinds    += 3*[None]
         
         # plot window
         plotWin = self.getPlotWindow()
@@ -1735,7 +1761,7 @@ class PlotGrid2():
         plotWin.setPlotDetails(plotType = plotType, plotLog = plotLog, plotErr = plotErr)
         plotWin.setWinLayout(figSize = (11, 8.5), plotHor = plotHor, plotVer = 3, plotOrd = 'vh',
                              winTitle = winTitle)
-        plotWin.setPlotLayouts(plotTitles = plotTitles, axesLabels = axesLabels)
+        plotWin.setPlotLayouts(plotTitles = plotTitles, axesLabels = axesLabels, plotKinds = plotKinds)
         plotWin.plotAll()
         # plot, get figure and axes back
         winInfo = plotWin.getWinLayout()
@@ -1968,9 +1994,10 @@ if __name__ == "__main__":
     # plotter for grid
     testPlotter = PlotGrid2(testData)
     testPlotter.setPlotFlags(7, 7)
-    testPlotter.setLogFlags(7, 7)
+    testPlotter.setLogFlags(0, 7)
     testPlotter.setPlotErr(False)
     testPlotter.setPlot1DFit(True)
+    testPlotter.getPlotWindow().setPlotDetails(plotKinds = 9*['bo'])
     #testPlotter.plotGrid1D('sum')
     testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
