@@ -1508,12 +1508,12 @@ class PlotGrid2():
         self.setPlotWindow()
         
         # plot/log flags: intensity, occupation, histogram of occupation of the grid parts
-        self.setPlotFlags(7, 7)
-        self.setLogFlags(0, 0)
-        self.setPlotErr(True)
-        self.setHistBin(50)
+        self.setPlotFlags()
+        self.setLogFlags()
+        self.setPlotErr()
+        self.setHistBin()
         # plot the 1D fits
-        self.setPlot1DFit(False)
+        self.setPlot1DFit()
         
 
     #
@@ -1573,8 +1573,8 @@ class PlotGrid2():
     def setPlotFlags(self, flag1D = 7, flag2D = 7):
         """Set the ploting flags for 1D and 2D plots
 
-        flag1D : flag to select 2D plots
-        flag2D : flag to select 1D plots
+        flag1D : flag to select 2D plots, default 7
+        flag2D : flag to select 1D plots, default 7
 
         binary code, flag & 1: intensity, flag & 2: occupation numbers of the grid parts (bins),
         flag & 4: histogram of occupation of the grid parts (bins)"""
@@ -1585,8 +1585,8 @@ class PlotGrid2():
     def getPlotFlags(self):
         """Get the ploting flags for 1D and 2D plots
 
-        flag1D : flag to select 1D plots
-        flag2D : flag to select 2D plots
+        flag1D : flag to select 1D plots, default 7
+        flag2D : flag to select 2D plots, default 7
 
         binary code, flag & 1: intensity, flag & 2: occupation numbers of the grid parts (bins),
         flag & 4: histogram of occupation of the grid parts (bins)"""
@@ -1596,8 +1596,8 @@ class PlotGrid2():
     def setLogFlags(self, flag1D = 0, flag2D = 0):
         """Set whether data are plotted on linear (0) or logarithmic (1) scale
 
-        flag1D : flag to select scale of 1D plots
-        flag2D : flag to select scale of 2D plots
+        flag1D : flag to select scale of 1D plots, default 0
+        flag2D : flag to select scale of 2D plots, default 0
 
         binary code, flag & 1: intensity, flag & 2: missing grid parts"""
         
@@ -1607,48 +1607,52 @@ class PlotGrid2():
     def getLogFlags(self):
         """Get whether data are plotted on linear (0) or logarithmic (1) scale
 
-        flag1D : flag to select scale of 1D plots
-        flag2D : flag to select scale of 2D plots
+        flag1D : flag to select scale of 1D plots, default 0
+        flag2D : flag to select scale of 2D plots, default 0
 
         binary code, flag & 1: intensity, flag & 2: missing grid parts"""
         
         return self._logFlag1D, self._logFlag2D
 
-    def setPlotErr(self, plotErr):
+    def setPlotErr(self, plotErr = False):
         """Set whether 1D data is shown with or without y-errorbars
 
-        plotErr : plot 1D y-errorbars if True"""
+        plotErr : plot 1D y-errorbars if True, default False"""
 
         self._plotErr = plotErr
 
     def getPlotErr(self):
         """Get whether 1D data is shown with or without y-errorbars
 
-        plotErr : plot 1D y-errorbars if True"""
+        plotErr : plot 1D y-errorbars if True, default False"""
 
         return self._plotErr
 
     def setHistBin(self, histBin = 50):
         """Set the no. of bins for the histograms
 
-        hisBin : no. of bins for the histograms of the occupation numbers"""
+        hisBin : no. of bins for the histograms of the occupation numbers, default 50"""
         
         self._histBin = histBin
 
     def getHistBin(self, histBin = 50):
         """Get the no. of bins for the histograms
 
-        hisBin : no. of bins for the histograms of the occupation numbers"""
+        hisBin : no. of bins for the histograms of the occupation numbers, default 50"""
         
         return self._histBin
   
-    def setPlot1DFit(self, plot1DFit):
-        """Set plotting the 1D fits"""
+    def setPlot1DFit(self, plot1DFit = False):
+        """Set plotting the 1D fits
+
+        plot1DFit : plot 1D fits if True, default False"""
 
         self._plot1DFit = plot1DFit
               
     def getPlot1DFit(self):
-        """Get plotting the 1D fits"""
+        """Get plotting the 1D fits
+
+        plot1DFit : plot 1D fits if True, default False"""
 
         return self._plot1DFit
 
@@ -1767,8 +1771,18 @@ class PlotGrid2():
         winInfo = plotWin.getWinLayout()
         fig1, allax1 = winInfo[0], winInfo[1]
 
-        return fig1, allax1
+        # add 1D fits
+        if self._plot1DFit == True and self._plotFlag1D & 1:
+            try:
+                fitData, fitRes = self._imProc.get1DFit()
+                for i in range(3):
+                    ax = allax1[i]
+                    ax.plot(plotData[i][0], fitData[i], '-r')
+            except:
+                print '\n\nxxxx Should plot 1D fit, but no data found!'
+                print '---- Perform 1D fit in ImageProcessor before'
 
+        return fig1, allax1
 
 
     def plotGrid2D(self, calcMode = 'sum'):
@@ -1987,7 +2001,10 @@ if __name__ == "__main__":
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
     #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
     testData.makeGridData()
-
+    #testData.set1DFitOptions('cut', 'lor2a')
+    #testData.do1DFit()
+    print '\n\n'
+    print testData.makeInfo()
     #testPlotter = PlotGrid3D(testData)
     #testPlotter.plot3D()
     
@@ -1997,7 +2014,7 @@ if __name__ == "__main__":
     testPlotter.setLogFlags(0, 7)
     testPlotter.setPlotErr(False)
     testPlotter.setPlot1DFit(True)
-    testPlotter.getPlotWindow().setPlotDetails(plotKinds = 9*['bo'])
+    #testPlotter.getPlotWindow().setPlotLayouts(plotKinds = 9*['bo'])
     #testPlotter.plotGrid1D('sum')
     testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')

@@ -38,7 +38,7 @@ except:
     pass
 
 try:
-    from   pyspec.ccd.plotter import PlotImages, PlotGrid, PlotWindow
+    from   pyspec.ccd.plotter import PlotImages, PlotGrid, PlotGrid2, PlotWindow
 except:
     pass
 
@@ -383,6 +383,8 @@ class ImageProcessor():
         # cut indicies and position
         self.setCutInd(cutInd = None)
         self.setCutPos(cutMode = 'max')
+        # integration region
+        self.setIntegrationRegion()
         # 1D fit options
         self.set1DFitOptions()
         # output information
@@ -687,19 +689,36 @@ class ImageProcessor():
 
         return self.backSub, self.backMaskBox, self.backType
 
-    def setIntegrationOptions(self, intMaskBox = None):
-        """Set the options for the integration of intensity and background
+    def setIntegrationRegion(self, intAll = None, intMask = None, intBox = None, freshhold = None):
+        """Set the region for the integration of intensity and background
 
-        intMaskBox : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array"""
+        ranked by following order. if None use next one
+        intAll     : integrated over all voxels if True, default False
+        intMask    : mask of grid size, True if point gets integrated, default None
+        intBox     : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array to construct intMask, default None
+        freshhold  : all voxels with intensity less than freshold * standard error excluded, default 3"""
 
-        self.intMaskBox = intMaskBox
-
-    def getIntegrationOptions(self):
-        """Get the options for the integration of intensity and background                                      
+        self.intAll    = intAll
+        self.intMask   = intMask
+        self.intBox    = intBox
+        self.freshhold = freshhold
         
-        intMaskBox : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array"""
+    def getIntegrationRegion(self):
+        """Set the region for the integration of intensity and background
 
-        return self.intMaskBox
+        ranked by following order. if None use next one
+        intAll     : integrated over all voxels if True, default False
+        intMask    : mask of grid size, True if point gets integrated, default None
+        intBox     : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array to construct intMask, default None
+        freshhold  : all voxels with intensity less than freshold * standard error excluded, default 3
+        intMode    : 'all', 'mask', 'box', 'freshhold'"""
+
+        try:
+            intMode = self.intMode
+        except:
+            intMode = None
+
+        return self.intAll, self.intMask, self.intBox, self.freshhold, intMode
 
     def setCutInd(self, cutInd = None):
         """Set the cut indicies
@@ -853,6 +872,7 @@ class ImageProcessor():
         stores:
         qVal   : list of Qx-, Qy- and Qz-values
         dVec   : np.array of difference step in Qx, Qy and Qz
+        dVol   : difference volume in 3D reciprocal space
         qxGrid : 3D grid of Qx-values
         qyGrid : 3D grid of Qy-values
         qzGrid : 3D grid of Qz-values"""
@@ -868,6 +888,7 @@ class ImageProcessor():
         qzVal = np.arange(minBox[2], maxBox[2] - dVec[2]/2, dVec[2]) + dVec[2]/2
         self.qVal = [qxVal, qyVal, qzVal]
         self.dVec = dVec
+        self.dVol = dVec[0] * dVec[1] * dVec[2]
         
         # qx, qy, qz as gird in order z,y,x
         qx, qy, qz = get3DMesh(self.qVal[0], self.qVal[1], self.qVal[2])
@@ -1084,9 +1105,7 @@ class ImageProcessor():
 
     def _makeGridBackInfo(self, maskBox):
         """Create information about background subtraction of the grid"""
-
-        intInten, backInten = self.getIntIntensity()
-    
+            
         gridBackInfo  = '\n\n**** Background subtraction of grid'
         if self.backType == 'mean':
             gridBackInfo += ' by mean value'
@@ -1123,27 +1142,25 @@ class ImageProcessor():
         
         return gridBackInfo
 
-    def _makeIntIntensityInfo(self):
+    def _makeIntIntensityInfo(self, intAll, conMask, intBox, freshhold):
         """Create information about integrated intensity of the grid"""
 
-        intInten, backInten = self.getIntIntensity()
+        intInten, errInten, backInten, intMode = self.getIntIntensity()
     
-        gridIntInfo  = '\n\n**** Integrated intensities of the grid'
+        gridIntInfo  = '\n\n**** Integrated intensities of the grid in mode %s' % (intMode)
         gridIntInfo += '\nTotal Intensity : \t %.4e' % (intInten + backInten)
-        gridIntInfo += '\nGrid  Intensity : \t %.4e' % (intInten)
-        gridIntInfo += '\nBackground Intensity : \t %.4e' % (backInten)
+        gridIntInfo += '\nData  Intensity : \t %.4e' % (intInten)
+        gridIntInfo += '\nDiff   Intensity : \t %.4e' % (errInten)
+        gridIntInfo += '\nBack  Intensity : \t %.4e' % (backInten)
         gridIntInfo += '\n---- Considered region:'
-        try:
-            maskBox = self.intMaskBox
-        except:
-            maskBox = None
-        if maskBox == None:
-            gridIntInfo += '\nAll'
-        else:
+        gridIntInfo += '\n %.2e voxels out of %.2e used' % (conMask.sum(), self.gridData.size)
+        if   intMode == 'intBox':
             gridIntInfo += '\n\t min \t\t max'
             line = '\n%s' + 2*' \t %.2e'
             for i in range(3):
-                gridIntInfo += line % (self.qLabel[i], maskBox[i], maskBox[i+3])
+                gridIntInfo += line % (self.qLabel[i], intBox[i], intBox[i+3])
+        elif intMode == 'freshhold':
+            gridIntInfo += '\nVoxel intensity higher than %.1f times standard deviation' % (freshhold)
 
         return gridIntInfo
 
@@ -1161,6 +1178,37 @@ class ImageProcessor():
             cutIndInfo += line % (self.qLabel[i], self.cutInd[i], self.qVal[i][self.cutInd[i]])
 
         return cutIndInfo
+
+    def _make1DFitInfo(self, selType, fitFuncs, fitRes):
+        """Create information about the fitting of the 1D data
+
+        selType  : type of the 1D data, 'sum' or 'cut'
+        fitFuncs : list of used fit functions from pyspec.fitfuncs, e.g. 'linear', 'lor2a'
+        fitRes   : parameters of the fit"""
+
+        fitNames  = ''
+        fitPara   = []
+        fitParams = ''
+        Nfunc     = len(fitFuncs)
+        resInfos  = self.qLabel
+        # go through all fit functions
+        for i in range(Nfunc):
+            if i != 0:
+                fitNames += ' + '
+            fitNames += fitFuncs[i](0, 1, mode = 'name')
+            fitPara  += fitFuncs[i](0, 1, mode = 'params')
+        # go through all parameters
+        for i in range(len(fitPara)):
+            fitParams += '\t %s\t' % (fitPara[i])
+            for j in range(3):
+                resInfos[j] += '\t %.2e' % (fitRes[j][i])
+            
+        fitInfo  = '\n\n**** Fitting of 1D %s by %s' % (selType, fitNames)
+        fitInfo += '\n%s' % (fitParams)
+        for j in range(3):
+            fitInfo += '\n%s' % (resInfos[j])
+            
+        return fitInfo
 
     #
     # process part
@@ -1265,15 +1313,16 @@ class ImageProcessor():
 
         # for info file about gridding
         self.opProcInfo += self._makeGridInfo()
-
+              
         # background subtraction
         if backSub == None:
             backSub = self.backSub
         if backSub == True:
+            print "\n**** Substract Background of Data Grid."
+            tb1 = time.time()
             self._processBgnd()
-
-        # for info file about integrated intensities
-        self.opProcInfo += self._makeIntIntensityInfo()
+            tb2 = time.time()
+            print "---- DONE (Processed in %f seconds)" % (tb2 - tb1)
 
         # position of maximum and cutting of the data grid
         self._calcMax()
@@ -1430,43 +1479,90 @@ class ImageProcessor():
             gridOccu2DCutAv[2] += self.gridOccu[:,:,self.cutInd[2]+i-1]/3.0
         return gridData2DCutAv, gridOccu2DCutAv
 
-    def getIntIntensity(self, maskBox = None):
-        """Get the integrated intensity of the peak by summing over all grid parts (bins)
+    def doIntIntensity(self, intAll = None, intMask = None, intBox = None, freshhold = None):
+        """Integrated intensity y summing over all considered voxels and multiply by dVol
 
-        maskBox   : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array
+        ranked by following order. if None use next one
+        each is ranked by given, set-value, default
+        intAll     : integrated over all voxels if True, default False
+        intMask    : mask of grid size, True if point gets integrated, default None
+        intBox     : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array to construct intMask, default None
+        freshhold  : all voxels with intensity less than freshold * standard error excluded, default 3
+        
+        stores
+        intInten   : integrated intensity
+        errInten   : intensity difference by the standard deviations
+        backInten  : background intensity
+        intMode    : 'all', 'mask', 'box', 'freshhold'"""
 
-        returns
-        intInten  : integrated intensity
-        backInten : background intensity"""
-
-        # prepare considered region with mask
-        if maskBox == None:
-            try:
-                maskBox = self.intMaskBox
-            except:
-                pass
-
-        if maskBox == None:
+        if intAll == None:
+            intAll = self.intAll
+        if intAll == True:
+            # integrated all voxels
             conMask = np.ones(self.gridData.shape).astype(int)
+            intMode = 'all'
         else:
-            conMask = self._box2mask(maskBox)
-
+            if intMask == None:
+                intMask = self.intMask
+            if intMask != None:
+                # integrated voxels in intMask
+                conMask = intMask
+                intMode = 'mask'
+            else:
+                if intBox == None:
+                    intBox = self.intBox
+                if intBox != None:
+                    # integrated voxels in intBox
+                    conMask = self._box2mask(intBox)
+                    intMode = 'box'
+                else:
+                    if freshhold == None:
+                        freshhold = self.freshhold
+                    if freshhold == None:
+                        freshhold = 3
+                    # integration of voxels intensities higher freshhold * stdErr
+                    conMask = self.gridData > (freshhold * self.gridStdErr)
+                    intMode = 'freshhold'
+        
         # integrated intensity and background in considered region
-        intInten = self.gridData[conMask].sum()
+        intInten = self.gridData[conMask].sum()*self.dVol
+        errInten = self.gridStdErr[conMask].sum()*self.dVol
         if self.backSub == True:
-            backInten = self.gridBack[conMask].sum()
+            backInten = self.gridBack[conMask].sum()*self.dVol
         else:
             backInten = 0.0
+
+        self.intMode   = intMode
+        self.intInten  = intInten
+        self.errInten  = errInten
+        self.backInten = backInten
+
+        # for info file about integrated intensities
+        self.opProcInfo += self._makeIntIntensityInfo(intAll, conMask, intBox, freshhold)
+
+    def getIntIntensity(self, intAll = None, intMask = None, intBox = None, freshhold = None):
+        """Get results of integration by summing over all considerd voxels and multiply by dVol
         
-        return intInten, backInten
+        stores
+        intInten   : integrated intensity
+        errInten   : intensity difference by the standard deviations
+        backInten  : background intensity
+        intMode    : 'all', 'mask', 'box', 'freshhold'"""
 
-    def get1DFit(self, setType = None, fitType = None, fitFuncs = None):
-        """Get 1D fits of the selected lines
+        return self.intInten, self.errInten, self.backInten, self.intMode
 
-        setType  : type of line, 'sum' or 'cut' (rank: given, set-default, 'cut')
-        fitType  : type of peak shape, 'lorr' or 'lor2a' (rank: given, set-default, 'lor2a')
+    def do1DFit(self, selType = None, fitType = None, fitFuncs = None):
+        """Do 1D fits of the selected lines
+
+        selType  : selected type of line, 'sum' or 'cut' (rank: given, set-value, 'cut')
+        fitType  : type of peak shape, 'lorr' or 'lor2a' (rank: given, set-value, 'lor2a')
         fitFuncs : fit functions like in the fit package from pyspec, prefered if given or set-default"""
 
+        print "\n**** Fit 1D Data."
+        t1 = time.time()
+            
+           
+        # prepare fitting functions
         if fitFuncs == None:
             fitFuncs = self._fitFuncs
         if fitFuncs == None:
@@ -1474,21 +1570,28 @@ class ImageProcessor():
                 fitType = self._fitType
             if fitType == None:
                 fitType = 'lor2a'
-            fitFuncs = ['linear', fitType]
+            fitFuncs = [fitfuncs.linear, getattr(fitfuncs, fitType)]
+        # prepare fitting parameter sets
+        Nfunc = len(fitFuncs)
+        Npara = range(Nfunc + 1)
+        for i in range(Nfunc):
+            Npara[i+1] = Npara[i] + len(fitFuncs[i](0, 1, mode = 'params'))
 
-        if setType == None:
-            setType = self._setType
-        if setType == None:
-            setType = 'cut'
+        # prepare 1D data
+        if selType == None:
+            selType = self._selType
+        if selType == None:
+            selType = 'cut'
 
-        if setType == 'sum':
+        if selType == 'sum':
             data1D = self.get1DSum()
-        elif setType == 'cut':
+        elif selType == 'cut':
             data1D = self.get1DCut()
         else:
             print 'xxxx %s is no prober line type for 1D fit!' % (setType)
             print "---- choose 'sum' or 'cut' instead"
 
+        # prepare fit
         qVals = self.qVal
         fit1D = []
         res1D = []
@@ -1497,6 +1600,29 @@ class ImageProcessor():
             f = fit.fit(qVals[i], data1D[i], funcs = fitFuncs)
             f.go()
             res1D.append(f.result)
+            fitLine = np.zeros(qVals[i].size)
+            for j in range(Nfunc):
+                fitLine += fitFuncs[j](qVals[i], res1D[i][Npara[j]:Npara[j+1]])
+            fit1D.append(fitLine)
+
+        # for info file
+        self.opProcInfo += self._make1DFitInfo(selType, fitFuncs, res1D)
+
+        # store fitterd data and parameters
+        self._fitData1D = fit1D
+        self._fitRes1D  = res1D
+
+        t2 = time.time()
+        print "---- DONE (Processed in %f seconds)" % (t2 - t1)
+
+    def get1DFit(self):
+        """Get the data and parameters of the 1D fits
+
+        return
+        fitData1D : list of the fitted data values at the 1D cuts or sums
+        fitRes1D  : list of the fitted parameters"""
+
+        return self._fitData1D, self._fitRes1D
 
 
     #
@@ -1652,8 +1778,19 @@ if __name__ == "__main__":
     testData.setGridBackOptions(backSub = True,
                                 backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255],
                                 backType = 'threeDLin')
-    testData.setIntegrationOptions(intMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255])
+    testData.setIntegrationRegion(freshhold = 3)
+        #intBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255])
     testData.makeGridData()
+    testData.set1DFitOptions('cut', 'lor2a')
+    testData.do1DFit()
+    testData.doIntIntensity()
+    print '\n\n'
+    print testData.makeInfo()
+    print 'Max Peak Intensity  = %.2e' % (testData.gridData.max())
+    print 'Max Diff Intensity  = %.2e' % (testData.gridBack.max())
+    print 'Max Back Intensity  = %.2e' % (testData.gridStdErr.max())
+    #print 'Peak region (voxel) = %.2e' % (testData._box2mask(testData.intMaskBox).sum())
+    #print 'Grid region (voxel) = %.2e' % (testData.gridData.size)
 
     ###
     # plot of raw images
@@ -1668,12 +1805,14 @@ if __name__ == "__main__":
     # plot grid data
     ###
 
-    testPlotter = PlotGrid(testData)
+    testPlotter = PlotGrid2(testData)
     #testPlotter.setPlotFlags(7, 7)
     testPlotter.setLogFlags(7, 7)
-    #testPlotter.setFit1D(True)
     #testPlotter.setHistBin(50)
+    testPlotter.setPlotErr(True)
     testPlotter.setPlot1DFit(True)
+    #testPlotter.plotGrid1D('cut')
+    #testPlotter.plotGrid2D('cut')
 
     # plot jobs
 
@@ -1687,7 +1826,7 @@ if __name__ == "__main__":
     ###
     # plot errorbars
     ###
-
+    """
     plotErr = PlotWindow()
     yVals = testData.get1DCut('gridStdErr')
     qVals = testData.qVal
@@ -1697,13 +1836,13 @@ if __name__ == "__main__":
     plotErr.setWinLayout(plotHor = 2, plotOrd = 'vh', winTitle = 'Standard deviations as error bars')
     plotErr.setPlotLayouts()
     plotErr.plotAll()
-    
+    """
 
     ###
     # second run with same objects
     ###
 
-    scan2 = sf[361]
+    #scan2 = sf[361]
     #testData.setSpecScan(scan2)
     #testData.makeGridData()
     #testPlotter.plotGrid1D('cut')
@@ -1713,10 +1852,10 @@ if __name__ == "__main__":
     # processing information
     ###
 
-    info1 = testData.makeInfo()
+    #info1 = testData.makeInfo()
     #testData.writeInfoFile(outFile = 'infoFile.dat')
-    print '\n\n'
-    print info1
+    #print '\n\n'
+    #print info1
 
 
 
@@ -1724,9 +1863,9 @@ if __name__ == "__main__":
 
     
     #print info2
-    print '\n'
+    #print '\n'
 
-    plt.show()
+    #plt.show()
 
     #raw_input('Waiting...')
 
