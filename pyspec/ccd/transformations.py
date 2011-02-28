@@ -499,7 +499,7 @@ class ImageProcessor():
 
         return self.binX, self.binY
 
-    def setSetSettings(self, waveLen, imFilesNames, darkFileNames,
+    def setSetSettings(self, waveLen, imFileNames, darkFileNames,
                        settingAngles, intentNorm, UBmat, setName,
                        setNum, setSize):
         """Set the settings for the set 
@@ -516,7 +516,7 @@ class ImageProcessor():
         setSize       : no. of images in the set, e.g. 81"""
 
         self.waveLen       = waveLen
-        self.imFileNames   = imFilesNames
+        self.imFileNames   = imFileNames
         self.darkFileNames = darkFileNames
         self.settingAngles = settingAngles
         self.intentNorm    = intentNorm
@@ -539,7 +539,7 @@ class ImageProcessor():
         setNum        : no. to determine the set, e.g. 244 in the spec case
         setSize       : no. of images in the set, e.g. 81"""
 
-        return self.waveLen, self.imFilesNames, self.darkFilesNames, self.settingAngles, self.intentNorm, self.UBmat, self.setName, self.setNum, self.setSize
+        return self.waveLen, self.imFileNames, self.darkFileNames, self.settingAngles, self.intentNorm, self.UBmat, self.setName, self.setNum, self.setSize
 
     def setSpecScan(self, conScan):
         """Set the settings for the set from the considered pyspec scan object
