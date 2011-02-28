@@ -1526,11 +1526,7 @@ class PlotGrid2():
         imProc : instance of the ImageProcessor class"""
 
         self._imProc = imProc
-        # set proper labels for axes
-        if imProc.frameMode == 4:
-            self.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
-        else:
-            self.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
+        self.setAxLabelsByFrameMode()
 
     def getImProcessor(self, imProc):
         """Get instance of ImageProcessor to handle all data
@@ -1655,6 +1651,15 @@ class PlotGrid2():
         plot1DFit : plot 1D fits if True, default False"""
 
         return self._plot1DFit
+
+    def setAxLabelsByFrameMode(self):
+        """Set the labels of the axes regarding the frame mode"""
+
+        # set proper labels for axes
+        if self._imProc.frameMode == 4:
+            self.setAxesLabels(['H (r.l.u.)', 'K (r.l.u.)', 'L (r.l.u.)'])
+        else:
+            self.setAxesLabels([ur"Qx (\u00c5$^{-1}$)", ur"Qy (\u00c5$^{-1}$)", ur"Qz (\u00c5$^{-1}$)"])
 
     #
     # plot jobs
@@ -1990,11 +1995,13 @@ if __name__ == "__main__":
     
     # image processor
     testData = ImageProcessor(fp)
+    testPlotter = PlotGrid2(testData)
     #testData.setDetectorAngle(-1.24)
     testData.setBins(4, 4)
     testData.setSpecScan(scan)
     #testData.setConRoi([1, 325, 1, 335])
-    testData.setFrameMode(1)
+    testData.setFrameMode(4)
+    testPlotter.setAxLabelsByFrameMode()
 
     # grid data
     testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 160, 30])
@@ -2009,17 +2016,17 @@ if __name__ == "__main__":
     #testPlotter.plot3D()
     
     # plotter for grid
-    testPlotter = PlotGrid2(testData)
+    #testPlotter = PlotGrid2(testData)
     testPlotter.setPlotFlags(7, 7)
     testPlotter.setLogFlags(0, 7)
     testPlotter.setPlotErr(False)
     testPlotter.setPlot1DFit(True)
     #testPlotter.getPlotWindow().setPlotLayouts(plotKinds = 9*['bo'])
     #testPlotter.plotGrid1D('sum')
-    testPlotter.plotGrid1D('cut')
+    #testPlotter.plotGrid1D('cut')
     #testPlotter.plotGrid1D('cutAv')
     #testPlotter.plotGrid2D('sum')
-    #testPlotter.plotGrid2D('cut')
+    testPlotter.plotGrid2D('cut')
     #testPlotter.plotGrid2D('cutAv')
     #testPlotter.plotAll()
     #print testPlotter.getPlotWindow().getPlotDetails()

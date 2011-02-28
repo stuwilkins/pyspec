@@ -1827,7 +1827,7 @@ if __name__ == "__main__":
     testPlotter.setPlotErr(True)
     testPlotter.setPlot1DFit(True)
     #testPlotter.plotGrid1D('cut')
-    #testPlotter.plotGrid2D('cut')
+    testPlotter.plotGrid2D('cut')
 
     # plot jobs
 
