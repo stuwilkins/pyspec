@@ -465,11 +465,32 @@ class ImageProcessor():
         
         binX : no. of pixels along detector X-direction which are bined
         binY : no. of pixels along detector Y-direction which are bined"""
-        
+    
+        # try to get old bins
+        try:
+            oldBinX = self.binX
+        except:
+            oldBinX = 1
+        try:
+            oldBinY = self.binY
+        except:
+            oldBinY = 1
+
+        # scaling ratios
+        ratX = 1.0*binX/oldBinX
+        ratY = 1.0*binY/oldBinY
+
+        # apply changes to detector probperties
+        self.detPixSizeX *= ratX
+        self.detPixSizeY *= ratY
+        self.detSizeX     = int(self.detSizeX / ratX)
+        self.detSizeY     = int(self.detSizeY / ratY)
+        self.detX0       /= ratX
+        self.detY0       /= ratY
+
         self.binX = binX
         self.binY = binY
-        self._applyBins()
-
+        
     def getBins(self, binX, binY):
         """Set no. of bins. Takes them into acount for pixel size, detector size and detector center
         
@@ -796,14 +817,7 @@ class ImageProcessor():
     # help function part
     #
 
-    def _applyBins(self):
-        """Takes binning into acount for pixel size, detector size and detector center"""
-        self.detPixSizeX *= self.binX
-        self.detPixSizeY *= self.binY
-        self.detSizeX    /= self.binX
-        self.detSizeY    /= self.binY
-        self.detX0       /= self.binX
-        self.detY0       /= self.binY
+    
 
     def _setBySpec(self):
         """Set the settings for the set from the considered pyspec scan object
@@ -1866,7 +1880,7 @@ if __name__ == "__main__":
     #print info2
     #print '\n'
 
-    #plt.show()
+    plt.show()
 
     #raw_input('Waiting...')
 
