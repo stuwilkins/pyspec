@@ -1532,15 +1532,16 @@ class ImageProcessor():
         else:
             backInten = 0.0
 
-        self.intMode   = intMode
-        self.intInten  = intInten
-        self.errInten  = errInten
-        self.backInten = backInten
+        self.intMode    = intMode
+        self.intConMask = conMask
+        self.intInten   = intInten
+        self.errInten   = errInten
+        self.backInten  = backInten
 
         # for info file about integrated intensities
         self.opProcInfo += self._makeIntIntensityInfo(intAll, conMask, intBox, freshhold)
 
-    def getIntIntensity(self, intAll = None, intMask = None, intBox = None, freshhold = None):
+    def getIntIntensity(self):
         """Get results of integration by summing over all considerd voxels and multiply by dVol
         
         stores
@@ -1832,7 +1833,7 @@ if __name__ == "__main__":
     qVals = testData.qVal
     data1D    = [[qVals[0], yVals[0]], [qVals[1], yVals[1]], [qVals[2], yVals[2]]]
     plotErr.setPlotData(data1D + testData.get2DCut('gridStdErr'))
-    plotErr.setPlotDetails(plotDim = 3*['oneD'] + 3*['twoD'])
+    plotErr.setPlotDetails(plotType = 3*['oneD'] + 3*['twoD'])
     plotErr.setWinLayout(plotHor = 2, plotOrd = 'vh', winTitle = 'Standard deviations as error bars')
     plotErr.setPlotLayouts()
     plotErr.plotAll()
