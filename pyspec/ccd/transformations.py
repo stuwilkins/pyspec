@@ -109,15 +109,24 @@ class FileProcessor():
     def setMeanMonitor(self, b):
         """Set if the images are normalized by the mean of the monitor
 
-        If True then normalize all images by the mean of the monitor counts present"""
+        b : bool
+           If True, normalize to mean of monitor counts."""
         
         self.meanMonitor = b
 
     def setFromSpec(self, scan, mon = 'Monitor'):
         """Set the filenames from a SpecScan instance
 
+        This function sets the following from a SpecScan instance:
+           
+           CCD Filenames
+           CCD Dark Filenames
+           Monitor normalization values.
+
         scan    : SpecScan instance
-        norm    : spec counter to normalize against"""
+           SpecScan to use for data
+        mon     : String
+           Name of monitor in SpecScan instance"""
         
         self.filenames     = scan.ccdFilenames
         self.darkfilenames = scan.ccdDarkFilenames
@@ -167,8 +176,8 @@ class FileProcessor():
         self._processBgnd(maskroi = maskroi, mask = mask)
         print "---- Done."
 
-    def process(self, dark = True, norm = True, dtype = np.float,
-                quiet = False):
+    def process(self, dark = True, norm = True, 
+                dtype = np.float, quiet = False):
         """Read in images and process into 3D array.
         
         dark  : bool
@@ -286,7 +295,7 @@ class FileProcessor():
     def _computeMeanImage(self):
         N = self.images.shape[0]
         self.mean = self.images.sum(0) / N
-        stdev = (self.images - self.mean)**2
+        self.stderr = (self.images - self.mean)**2
 
     def getMeanImage(self):
         """Return the mean image after processing.
@@ -308,7 +317,16 @@ class FileProcessor():
             return self.images[n]
 
     def saveImage(self, filename, inum = None, dtype = np.float32):
-        """Save image to binary file of specified datatype"""
+        """Save image to binary file of specified datatype
+
+        filename : string
+           Filename to save image stack to.
+        inum     : Integer
+           Image number to save
+        dtype    : numpy data type
+           Datatype for images
+
+        """
         if inum is None:
             self.images.astype(dtype).tofile(filename)
         else:
@@ -318,24 +336,27 @@ class FileProcessor():
     def save(self, filename, compressed = False):
         """Save an image sequance to a numpy binary file
         
-        filename   : filename to save to.
-        compressed : if True save as compressed file"""
+        filename   : string
+           Filename to save to.
+        compressed : bool
+           If True save as compressed file"""
         
         obj = {'images'   : self.images,
                'normData' : self.normData}
 
         np.savez(filename, **obj)
-        print "*** Image saved to %s" % filename
+        print "**** Image saved to %s" % filename
 
     def load(self, filename):
         """Load images from previous save operation
 
-        filename : filename of images"""
+        filename : string
+           Filename of images previously stored by save()"""
         
-        print "Loading image from %s" % filename
+        print "**** Loading image from %s" % filename
         obj = np.load(filename)
         self.images = obj['images']
-        self.normData = obj['images']
+        self.normData = obj['normData']
 
 #
 # image processor class
@@ -349,80 +370,126 @@ class ImageProcessor():
     the set of reciprocal vectors and intensities is gridded on a regular cuboid
     the needed informations can be provided by a spec scan from the pyspec package"""
 
-    def __init__(self, fP = None, configfile = None, ccdname = 'CCD',
-                 spec = None):
+    def __init__(self, fP = None, configfile = "ccd.cfg", ccdname = None, spec = None):
         """Initialize the image processor
 
-        fP         : file processor object for getting the images
-        configfile : file defining config of CCD
-        ccdname    : name of CCD (used in config file)
-        spec       : SpecScan object used to obtain information"""
+        fP         : pyspec.ccd.transformations.FileProcessor instance
+                     File processor object for getting the images
+        configfile : string
+                     File defining config of CCD
+        ccdname    : string
+                     Name of CCD as defined in config file. If none, then 
+                     do not process config file
+        spec       : pyspec.spec.SpecScan instance
+                     Spec Scan used to obtain information on current set"""
         
         # file processor to provied the needed images
-        self.setFileProcessor(fP)
-
-        self.ccdName = ccdname
-        
+        if fP is not None:
+            self.setFileProcessor(fP)
+             
         # set parameters to configure the CCD setup
         # detector distance 30cm and detector pixel size 20um
         self.setDetectorProp(0.020, 0.020, 1300, 1340, 650.0, 670.0)
         self.setDetectorPos(300, 0.0)
+        
         # Overide if a config file is used.
-        if configfile:
+        self.ccdname = ccdname
+        self.ccdConfigFile = configfile
+        if ccdname is not None:
             self.readConfigFile(configfile)
         
-        # image treatment
-        self.setName     = 'Set #'
-        self.setNum      = 1
-        self.conRoi      = None
+        # Default to frame mode 1
         self.setFrameMode(1)
-        # gridder options
-        self.setGridOptions()
-        # grid background subtraction
-        self.setGridBackOptions()
-        # cut indicies and position
-        self.setCutInd(cutInd = None)
-        self.setCutPos(cutMode = 'max')
-        # integration region
-        self.setIntegrationRegion()
-        # 1D fit options
-        self.set1DFitOptions()
-        # output information
-        self.opTitle     = 'Image Processing'
-        self._makeSetInfo()
-        self._makeModeInfo()
-        self.opProcInfo  = ''
-        # Define variables
-        #self.fileProcessor = None
-        self.processMode = 'fast'
-        self.totSet = None
+        
+        self.totSet   = None
+        
+        self.gridData   = None
+        self.gridOccu   = None
+        self.gridOut    = None
+        self.gridStdErr = None
+
+        self.maskData   = None
+        self.maskOccu   = None
+
+        self.Qmin  = None
+        self.Qmax  = None
+        self.dQN   = None
 
     def readConfigFile(self, filename):
+        """Read config file and set detector parameters
+
+        This routine will read the detector vital statistics from 
+        a config file of name 'filename'. If the config file does not
+        exitst in the path, then standard locations are searched.
+
+        filename : string
+           filename of config file.
+
+        """
         config = CCDParamsConfigParser()
-        config.read(filename)
-        config.get(self.ccdname, '', vars = {})
+        fname = config.readAllLocations(filename)
+        print "---- Reading config '%s' from %s" % (self.ccdName, fname)
+        xsize = config.getInt(self.ccdName, 'xsize', 1300)
+        ysize = config.getInt(self.ccdName, 'ysize', 1340)
+        pixx  = config.getFloat(self.ccdName, 'pixel_xsize', 0.020)
+        pixy  = config.getFloat(self.ccdName, 'pixel_ysize', 0.020)
+        xcen  = config.getFloat(self.ccdName, 'xcen', 650.0)
+        ycen  = config.getFloat(self.ccdName, 'ycen', 570.0)
+        dist  = config.getFloat(self.ccdName, 'sample_det_distance', 300.0)
+        rot   = config.getFloat(self.ccdName, 'detector_rotation', 0.0)
+        self.setDetectorProp(pixx, pixy, xsize, ysize, xcen, ycen)
+        self.setDetectorPos(dist, rot)
         
     #
     # set and get part
     #
+
+    def getGrid(self):
+        """Convinience function to return useful grid values
+
+        This function returns the X, Y and Z coordinates of the grid
+        along with the intensity and standard error grids. For example::
+
+            >>>X, Y, Z, I, E = ip.getGrid()
+
+        """
+        X, Y, Z = self.getGridMesh()
+        I = self.getGridData()
+        E = self.getGridStdErr()
+        
+        return X, Y, Z, I, E
 
     def getImageData(self):
         """Get the totat image data, transformed into Q"""
         return self.totSet
 
     def getGridData(self):
-        """Get the data on the grid"""
+        """Return the intensity grid"""
         return self.gridData
 
+    def getGridStdErr(self):
+        """Return the standard error grid"""
+        return self.gridStdErr
+
+    def getGridStdDev(self):
+        """Return the standard deviation grid"""
+        return self.gridStdErr * sqrt(self.gridOccu)
+        
     def setDetectorProp(self, detPixSizeX, detPixSizeY, detSizeX, detSizeY, detX0, detY0):
         """Set properties of used detector
 
-        detPixSizeX : detector pixel size in detector X-direction (float in mm)
-        detPixSizeY : detector pixel size in detector Y-direction (float in mm)
-        detSizeX    : detector no. of pixels (size) in detector X-direction (integer)
-        detSizeY    : detector no. of pixels (size) in detector Y-direction (integer)
-        detX0       : detector X-coordinate of center for reference gamma-value (float)
-        detY0       : detector Y-coordinate of center for reference delta-value (float)"""
+        detPixSizeX : float (mm)
+             Detector pixel size in detector X-direction.
+        detPixSizeY : float (mm)
+             Detector pixel size in detector Y-direction.
+        detSizeX    : integer
+             Detector no. of pixels (size) in detector X-direction.
+        detSizeY    : integer
+             Detector no. of pixels (size) in detector Y-direction.
+        detX0       : float
+             Detector X-coordinate of center for reference.
+        detY0       : float
+             Detector Y-coordinate of center for reference."""
         
         self.detPixSizeX = detPixSizeX  
         self.detPixSizeY = detPixSizeY
@@ -434,20 +501,28 @@ class ImageProcessor():
     def getDetectorProp(self):
         """Get properties of used detector returned as a tuple
 
-        detPixSizeX : detector pixel size in detector X-direction (float in mm)
-        detPixSizeY : detector pixel size in detector Y-direction (float in mm)
-        detSizeX    : detector no. of pixels (size) in detector X-direction (integer)
-        detSizeY    : detector no. of pixels (size) in detector Y-direction (integer)
-        detX0       : detector X-coordinate of center for reference gamma-value (float)
-        detY0       : detector Y-coordinate of center for reference delta-value (float)"""
+        detPixSizeX : float (mm)
+             Detector pixel size in detector X-direction.
+        detPixSizeY : float (mm)
+             Detector pixel size in detector Y-direction.
+        detSizeX    : integer
+             Detector no. of pixels (size) in detector X-direction.
+        detSizeY    : integer
+             Detector no. of pixels (size) in detector Y-direction.
+        detX0       : float
+             Detector X-coordinate of center for reference.
+        detY0       : float
+             Detector Y-coordinate of center for reference."""
 
         return self.detPixSizeX, self.detPixSizeY, self.detSizeX, self.detSizeY, self.detX0, self.detY0
 
     def setDetectorPos(self, detDis = 300.0, detAng = 0.0):
         """Set the detector position
 
-        detDis : detector distance (float in mm)
-        detAng : detector miss alignement angle (float in deg)"""
+        detDis : float (mm)
+           Detector distance from sample.
+        detAng : float (deg)
+           Detector miss alignement angle (rotation around incident beam)"""
         
         self.detDis = detDis
         self.detAngle = detAng
@@ -455,16 +530,24 @@ class ImageProcessor():
     def getDetectorPos(self, detDis = 30.0, detAng = 0.0):
         """Get the detector position
 
-        detDis : detector distance (float in mm)
-        detAng : detector miss alignement angle (float in deg)"""
+        detDis : float (mm)
+           Detector distance from sample.
+        detAng : float (deg)
+           Detector miss alignement angle (rotation around incident beam)"""
         
         return self.detDis, self.detAngle    
 
-    def setBins(self, binX, binY):
-        """Set no. of bins. Takes them into acount for pixel size, detector size and detector center
-        
-        binX : no. of pixels along detector X-direction which are bined
-        binY : no. of pixels along detector Y-direction which are bined"""
+    def setBins(self, binX = 1, binY = 1):
+        """Set detector binning.
+
+        This function sets the detector binning, and modifies the detector paremeters accordingly.
+
+        binX : integer
+           Binning in x-direction.
+        binY : integer
+           Binning in y-direction.
+           
+        """
     
         # try to get old bins
         try:
@@ -499,47 +582,19 @@ class ImageProcessor():
 
         return self.binX, self.binY
 
-    def setSetSettings(self, waveLen, imFileNames, darkFileNames,
-                       settingAngles, intentNorm, UBmat, setName,
-                       setNum, setSize):
+    def setSetSettings(self, waveLen, settingAngles, UBmat):
         """Set the settings for the set 
 
         The set settings are:
-        waveLen       : wavelength of the X-rays (float in Angstrom)
-        imFileNames   : filenames for each image
-        darkFileNames : filenames of the dark images
+        waveLen       : float
+           Wavelength of the X-rays (Angstroms).
         settingAngles : setting angles of the diffractometer at each image (data point)
-        intentNorm    : normalization factor (division) for each image
         UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
-        setName       : name of the considered set, e.g. 'Scan #' in the spec case
-        setNum        : no. to determine the set, e.g. 244 in the spec case
-        setSize       : no. of images in the set, e.g. 81"""
+        """
 
         self.waveLen       = waveLen
-        self.imFileNames   = imFileNames
-        self.darkFileNames = darkFileNames
         self.settingAngles = settingAngles
-        self.intentNorm    = intentNorm
         self.UBmat         = UBmat
-        self.setName       = setName
-        self.setNum        = setNum
-        self.setSize       = setSize
-
-    def getSetSettings(self):
-        """Get the settings for the set 
-
-        The set settings are:
-        waveLen       : wavelength of the X-rays (float in Angstrom)
-        imFileNames   : filenames for each image
-        darkFileNames : filenames of the dark images
-        settingAngles : setting angles of the diffractometer at each image (data point)
-        intentNorm    : normalization factor (division) for each image
-        UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
-        setName       : name of the considered set, e.g. 'Scan #' in the spec case
-        setNum        : no. to determine the set, e.g. 244 in the spec case
-        setSize       : no. of images in the set, e.g. 81"""
-
-        return self.waveLen, self.imFileNames, self.darkFileNames, self.settingAngles, self.intentNorm, self.UBmat, self.setName, self.setNum, self.setSize
 
     def setSpecScan(self, conScan):
         """Set the settings for the set from the considered pyspec scan object
@@ -561,11 +616,7 @@ class ImageProcessor():
         The file Processor processes the corresponding images"""
 
         self.conScan = conScan
-        self._setBySpec()
-        self.fileProcessor.setFromSpec(conScan)
-        # Sven : Don't do this. Always wait for the user to iniciate this!
-        #self.fileProcessor.process() # NO NO NO NO NO NO !!!!!
-        # Stuart: Thanks, found your message on Feb 23rd, from when was it?
+        self._setFromSpecScan()
    
     def getSpecScan(self):
         """Get the pyspec scan object which was used for the set settings
@@ -574,22 +625,11 @@ class ImageProcessor():
 
         return self.conScan
 
-    def setConRoi(self, conRoi):
-        """Set the region of interest used to process the images
-
-        conRoi : [xMin, xStep, yMin, yStep]"""
-        
-        self.conRoi = conRoi
-
-    def getConRoi(self):
-        """Get the region of interest used to process all the images
-
-        conRoi : [xMin, xStep, yMin, yStep]"""
-        
-        return self.conRoi
-
     def setFrameMode(self, mode):
         """Set the mode of the output frame for (Qx, Qy, Qz)
+
+        mode : Integer
+           Mode (see below)
 
         The image processor uses a number of modes which defile the
         coordinates of the final grid. These are:
@@ -610,59 +650,55 @@ class ImageProcessor():
         else:
             self.frameMode = mode
 
-        self._preAxesLabels()
-        self._makeModeInfo()
-
     def getFrameMode(self):
         """Get the mode of the output frame for (Qx, Qy, Qz)
 
-        mode: : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame)"""
+        mode 1 : 'theta'    : Theta axis frame.  
+        mode 2 : 'phi'      : Phi axis frame.
+        mode 3 : 'cart'     : Crystal cartesian frame.
+        mode 4 : 'hkl'      : Reciproal lattice units frame."""
 
         return self.frameMode
 
-    def setProcIm(self, procImSelect = None):
-        """Set the selection of the images for processing
+    def setGridOptions(self, *args, **kwargs):
+        """Depreciated function
 
-        procImSelect : list with the images which will be processed, all if None"""
-                
-        if procImSelect == None:
-            self.procImSelect = range(self.setSize)
-        else:
-            self.procImSelect = procImSelect
-        
-    def getProcIm(self, procImSelect = None):
-        """Get the selection of the images for processing
+        .. warning::
+           This function is depreciated. See :func:setGridSize()
+        """
+        raise Exception("Depriciated Function, use : setGridSize()")
 
-        procImSelect : list with the images which will be processed, all if None"""
-                
-        return self.procImSelect
+    def getGridOptions(self, *args, **kwargs):
+        """Depreciated function
 
-    def setGridOptions(self, Qmin = None, Qmax = None, dQN = None):
+        .. warning::
+           This function is depreciated. See :func:getGridSize()
+        """
+        raise Exception("Depriciated Function, use : getGridSize()")
+
+    def setGridSize(self, Qmin = None, Qmax = None, dQN = None):
         """Set the options for the gridding of the dataset
 
-        Qmin : minimum values of the cuboid [Qx, Qy, Qz]_min
-        Qmax : maximum values of the cuboid [Qx, Qy, Qz]_max
-        dQN  : no. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
-        
-        self.Qmin = np.array(Qmin)
-        self.Qmax = np.array(Qmax)
-        self.dQN  = np.array(dQN)
+        Qmin : ndarray
+           Minimum values of the cuboid [Qx, Qy, Qz]_min
+        Qmax : ndarray
+           Maximum values of the cuboid [Qx, Qy, Qz]_max
+        dQN  : ndarray
+           No. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
 
-    def getGridOptions(self):
+        if Qmin:
+            self.Qmin = np.array(Qmin)
+        if Qmax:
+            self.Qmax = np.array(Qmax)
+        if dQN:
+            self.dQN  = np.array(dQN)
+
+    def getGridSize(self):
         """Get the options for the gridding of the dataset
 
-        Qmin : minimum values of the cuboid [Qx, Qy, Qz]_min
-        Qmax : maximum values of the cuboid [Qx, Qy, Qz]_max
-        dQN  : no. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
+        returns tuple of (Qmin, Qmax, dQN)"""
 
         return self.Qmin, self.Qmax, self.dQN
-
-    def getGridVectors(self):
-        """Get the values for the underlying grid vectors
-
-        qVal : list of the Qx, Qy, and Qz values"""
-
-        return self.qVal
 
     def getGridMesh(self):
         """Return the grid vectors as a mesh.
@@ -690,111 +726,6 @@ class ImageProcessor():
         
         return X, Y, Z
 
-    def setGridBackOptions(self, backSub = False, backMaskBox = None, backType = 'threeDLin'):
-        """Set the masked box for the background subtraction of the grid
-
-        backSub     : substract background from grid if True
-        backMaskBox : [xMin, yMin, zMin, xMax, yMax, zMax]
-        backType    : type of background subtraction, 'mean', 'threeDLin'"""
-
-        self.backSub     = backSub
-        self.backMaskBox = backMaskBox
-        self.backType    = backType
-
-    def getGridBackOptions(self):
-        """Get the masked box for the background subtraction of the grid
-
-        backSub     : substract background from grid if True
-        backMaskBox : [xMin, yMin, zMin, xMax, yMax, zMax]
-        backType    : type of background subtraction, 'mean', 'threeDLin'"""
-
-        return self.backSub, self.backMaskBox, self.backType
-
-    def setIntegrationRegion(self, intAll = None, intMask = None, intBox = None, freshhold = None):
-        """Set the region for the integration of intensity and background
-
-        ranked by following order. if None use next one
-        intAll     : integrated over all voxels if True, default False
-        intMask    : mask of grid size, True if point gets integrated, default None
-        intBox     : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array to construct intMask, default None
-        freshhold  : all voxels with intensity less than freshold * standard error excluded, default 3"""
-
-        self.intAll    = intAll
-        self.intMask   = intMask
-        self.intBox    = intBox
-        self.freshhold = freshhold
-        
-    def getIntegrationRegion(self):
-        """Set the region for the integration of intensity and background
-
-        ranked by following order. if None use next one
-        intAll     : integrated over all voxels if True, default False
-        intMask    : mask of grid size, True if point gets integrated, default None
-        intBox     : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array to construct intMask, default None
-        freshhold  : all voxels with intensity less than freshold * standard error excluded, default 3
-        intMode    : 'all', 'mask', 'box', 'freshhold'"""
-
-        try:
-            intMode = self.intMode
-        except:
-            intMode = None
-
-        return self.intAll, self.intMask, self.intBox, self.freshhold, intMode
-
-    def setCutInd(self, cutInd = None):
-        """Set the cut indicies
-
-        cutInd : cut indices, [nx, ny, nz]
-                 if None, indicies of maximum is taken"""
-
-        self.cutInd = cutInd
-
-    def getCutInd(self):
-        """Get the cut indicies
-
-        cutInd : cut indices, [nx, ny, nz]
-                 if None, indicies of maximum is taken"""
-
-        return self.cutInd
-    
-    def setCutPos(self, cutPos = None, cutMode = 'fix'):
-        """Set the cut position and cut mode
-
-        cutPos  : cut position, [qx, qy, qz]
-        cutMode : 'fix' for fixed setting of 'max' for cut at positon of maximum"""
-
-        self.cutPos  = np.array(cutPos)
-        self.cutMode = cutMode
-
-    def getCutPos(self):
-        """Get the cut position and cut mode
-
-        cutPos  : cut position, [qx, qy, qz]
-        cutMode : 'fix' for fixed setting of 'max' for cut at positon of maximum"""
-
-        return self.cutPos, self.cutMode
-    
-    def set1DFitOptions(self, selType = 'cut', fitType = 'lor2a', fitFuncs = None):
-        """Set 1D fit options of the selected lines
-
-        setType  : type of line, 'sum' or 'cut' (default)
-        fitType  : type of peak shape, 'lorr' or 'lor2a' (default)
-        fitFuncs : fit functions like in the fit package from pyspec, prefered if given"""
-
-        self._selType  = selType
-        self._fitType  = fitType
-        self._fitFuncs = fitFuncs
-
-    def get1DFitOptions(self):
-        """Get 1D fit options of the selected lines
-
-        setType  : type of line, 'sum' or 'cut' (default)
-        fitType  : type of peak shape, 'lorr' or 'lor2a' (default)
-        fitFuncs : fit functions like in the fit package from pyspec, prefered if given"""
-
-        return self._selType, self._fitType, self._fitFuncs
-
-
     #
     # get set functions for input output
     #
@@ -802,7 +733,8 @@ class ImageProcessor():
     def setFileProcessor(self, fp = None):
         """Set the FileProcessor object for treating the CCD images
 
-        fp : FileProcessor object with the CCD images"""
+        fp : FileProcessor instance
+           FileProcessor to use to obtain CCD images"""
         
         self.fileProcessor = fp
 
@@ -817,9 +749,7 @@ class ImageProcessor():
     # help function part
     #
 
-    
-
-    def _setBySpec(self):
+    def _setFromSpecScan(self):
         """Set the settings for the set from the considered pyspec scan object
 
         The set settings are:
@@ -845,23 +775,8 @@ class ImageProcessor():
         self.setNum        = self.conScan.scan
         self.setSize       = self.settingAngles.shape[0]
         self.procImSelect  = range(self.setSize)
-        self._makeSetInfo()
-
-    def _preAxesLabels(self, mode = None):
-        """Prepare the labels of the axes regarding the frame mode
-
-        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
-
-        if mode == None:
-            mode = self.frameMode
-
-        if mode != 4:
-            self.qLabel = ['Qx', 'Qy', 'Qz']
-            self.setEntLabel = '(Qx, Qy, Qz, I)'
-        else:
-            self.qLabel = ['H', 'K', 'L']
-            self.setEntLabel = '(H, K, L, I)'
-
+        
+    
     def _XYCorrect(self, xVal, yVal):
         """Correct the miss alignement of the CCD camera
 
@@ -880,369 +795,88 @@ class ImageProcessor():
 
         return xNew, yNew
 
-    def _calcVecDataSet(self):
-        """Calculats the vector data set for the grid points
-
-        stores:
-        qVal   : list of Qx-, Qy- and Qz-values
-        dVec   : np.array of difference step in Qx, Qy and Qz
-        dVol   : difference volume in 3D reciprocal space
-        qxGrid : 3D grid of Qx-values
-        qyGrid : 3D grid of Qy-values
-        qzGrid : 3D grid of Qz-values"""
-
-        # aliases
-        minBox = self.Qmin
-        maxBox = self.Qmax
-        dVec   = (maxBox - minBox) / self.dQN
-        
-        # vector data set of the center of each grid part (bin)
-        qxVal = np.arange(minBox[0], maxBox[0] - dVec[0]/2, dVec[0]) + dVec[0]/2
-        qyVal = np.arange(minBox[1], maxBox[1] - dVec[1]/2, dVec[1]) + dVec[1]/2
-        qzVal = np.arange(minBox[2], maxBox[2] - dVec[2]/2, dVec[2]) + dVec[2]/2
-        self.qVal = [qxVal, qyVal, qzVal]
-        self.dVec = dVec
-        self.dVol = dVec[0] * dVec[1] * dVec[2]
-        
-        # qx, qy, qz as gird in order z,y,x
-        qx, qy, qz = get3DMesh(self.qVal[0], self.qVal[1], self.qVal[2])
-        # qx, qy, qz as gird in order x,y,z like data grid and everything else
-        self.qxGrid = qx.transpose(2,1,0)
-        self.qyGrid = qy.transpose(2,1,0)
-        self.qzGrid = qz.transpose(2,1,0)
-
-    def _q2n(self, q):
-        """Transform q-vector in grid indices
-
-        q : q-vector as np.array
-
-        return
-        n : grid indices as np.array"""
-        n = np.array((q - self.Qmin)/(self.Qmax - self.Qmin)*self.dQN).astype(int)
-        if (n > np.array(self.dQN)).all():
-            print '\n\nXXXX q-vector %s gives grid indices %s,' % (q, n)
-            print '---- which are bigger than grid size %s' % (self.dQN)
-            n = np.array(self.dQN)/2
-            print '---- indices set to %s' % (n)
-        return n
-
-    def _box2mask(self, maskBox):
-        """Transform box-values to mask grid region
-
-        maskBox  : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array
-
-        return
-        maskGrid : masking grid, True if in maskBox"""
-
-        # qx, qy, qz as gird in order x,y,z                                                                     
-        qx, qy, qz = self.qxGrid, self.qyGrid, self.qzGrid
-
-        xMask = (qx >= maskBox[0]) & (qx <= maskBox[3])
-        yMask = (qy >= maskBox[1]) & (qy <= maskBox[4])
-        zMask = (qz >= maskBox[2]) & (qz <= maskBox[5])
-
-        maskGrid = xMask & yMask & zMask
-        return maskGrid
-
-    def _calcMax(self):
-        """Calculates the position of the maximum as indicies
-
-        stores
-        maxInd : indices of intensity maximum as np.array"""
-        maxN = self.gridData.argmax()
-        ind2 = maxN % self.dQN[2]
-        ind1 = maxN / self.dQN[2] % self.dQN[1]
-        ind0 = maxN / self.dQN[2] / self.dQN[1]
-        self.maxInd = np.array([ind0, ind1, ind2])
-
-    def _calcCutInd(self):
-        """Calculates the cutting indices regarding the cutting modes
-
-        'fix' : from the given position
-        'max' : from the position of maximum"""
-        
-        if self.cutMode == 'fix':
-            self.cutInd = self._q2n(self.cutPos)
-        elif self.cutMode == 'max':
-            self.cutInd = self.maxInd
-
-        # for info file
-        self.opProcInfo += self._makeCutIndInfo()
-
-    def _processBgnd(self, maskBox = None):
-        """Background subtraction of grid
-
-        maskBox  : masked box [xMin, yMin, zMin, xMax, yMax, zMax]
-
-        stores
-        pBack    : parameters of background [mx, my, mz, d]
-        gridBack : grid of the background
-        maskBack : True if point in maskBox (False if part of background)
-        maskFit  : False if point used for fit"""
-
-        # function to discribe background
-        bgndfunc = self._threeDLinRes
-
-        # qx, qy, qz as gird in order x,y,z
-        qx, qy, qz = self.qxGrid, self.qyGrid, self.qzGrid
-                        
-        # background and fit mask
-        if maskBox == None:
-            maskBox = self.backMaskBox
-        if maskBox == None:
-            self.maskBack = np.ones(self.gridData.shape) == 0
-            self.maskFit  = self.maskOccu
-        else:
-            self.maskBack = self._box2mask(maskBox)
-            self.maskFit  = self.maskOccu | self.maskBack
-
-        # considered positions for background fit
-        conMask = (self.maskFit == False)
-        _qx = np.ravel(qx[conMask])
-        _qy = np.ravel(qy[conMask])
-        _qz = np.ravel(qz[conMask])
-
-        # background subtraction
-        if self.backType == 'mean':
-            backMean      = self.gridData[conMask].mean()
-            self.pBack    = [backMean]
-            self.gridBack = np.ones(qx.shape) * backMean
-        elif self.backType == 'threeDLin':
-            bgndFunc = self._threeDLin
-            bgndRes  = self._threeDLinRes
-            guess    = [1e-6, 1e-6, 1e-6, self.gridData.mean()]
-            fMes     = np.ravel(self.gridData[conMask])
-            plsq     = leastsq(bgndRes, guess, args = (fMes, _qx, _qy, _qz))
-            self.pBack    = plsq[0]
-            self.gridBack = bgndFunc(plsq[0], qx, qy, qz)
-        self.gridBack[self.maskOccu] = 0.0
-        self.gridData = self.gridData - self.gridBack     
-
-        # for info file
-        self.opProcInfo += self._makeGridBackInfo(maskBox)
-        
-    def _threeDLin(self, p, x, y, z):
-        """3D linear function
-
-        p       : parameter [mx, my, mz, d]
-        x, y, z : coordinates"""
-        
-        mx, my, mz, d = p
-        f = (mx * x) + (my * y) + (mz * z) + d
-        return f
-
-    def _threeDLinRes(self, p, f, x, y, z):
-        """3D linear function residual
-
-        p       : parameter [mx, my, mz, d]
-        f       : measured value
-        x, y, z : coordinates"""
-        
-        err = f - self._threeDLin(p, x, y, z)
-        return err
-    
     #
     # help functions for input / output
     #
 
-    def _makeSetInfo(self):
-        """Create the information about the set of images"""
-        
-        self.opSetInfo = '**** %s%s\n' % (self.setName, self.setNum)
-        try:
-            self.opSetInfo += '\nImages: %s\n' % (self.procImSelect)
-        except:
-            pass
-        try:
-            self.opSetInfo += '\nPhoton Wavelength: \t %.2f Angst.\n' % (self.waveLen)
-        except:
-            pass
-        try:
-            self.opSetInfo += '\nPhoton Energy: \t\t %.2f eV\n' % (self.energy)
-        except:
-            pass
-    
-    def _makeModeInfo(self, mode = None):
-        """Create info description of the used frame mode
+    def __str__(self):
+        """Create the information about the grid process"""
+ 
+        _s = "Detector Parameters:\n\n"
 
-        mode : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
+        _s += "Detector size        :%d x %d [pixels]\n" % (self.detSizeX, self.detSizeY)
+        _s += "Detector pixel size  :%f x %f [mm]\n" % (self.detPixSizeX, self.detPixSizeY)
+        _s += "Zero (center) of CCD :(%f, %f) [pixels]\n" % (self.detX0, self.detY0)
+        _s += "Sample Detector dist.:%f [mm]\n" % self.detDis
+        _s += "Detector rot. ang.   :%f [deg]\n" % self.detAngle
 
-        self.opModeInfo = '\n\n**** '
+        if self.totSet is not None:
+            _s += "\n\nData Set:\n" 
 
-        if mode == None:
-            mode = self.frameMode
+            _s += "Number of Pixels : %.2e\n" % self.totSet.shape[0]
+            _s += 'Q_min            : [%.3e %.3e %.3e]\n' % (self.totSet[:,0].min(), 
+                                                             self.totSet[:,1].min(), 
+                                                             self.totSet[:,2].min())
+            _s += 'Q_max            : [%.3e %.3e %.3e]\n' % (self.totSet[:,0].max(), 
+                                                             self.totSet[:,1].max(), 
+                                                             self.totSet[:,2].max())
+            _s += 'I_min            : %.3e\n' % self.totSet[:,3].min()
+            _s += 'I_max            : %.3e\n' % self.totSet[:,3].max()
+            _s += 'I_ave            : %.3e\n' % self.totSet[:,3].mean()
 
+        _s += "\n\nGrid Parameters:\n\n"
+        mode = self.frameMode
         if mode == 1:
-            self.opModeInfo += 'Frame Mode 1: (Qx, Qy, Qz) in theta-frame and (1/Angstrom)\n' 
-        if mode == 2:
-            self.opModeInfo += 'Frame Mode 2: (Qx, Qy, Qz) in phi-frame and (1/Angstrom)\n'
-        if mode == 3:
-            self.opModeInfo += 'Frame Mode 3: (Qx, Qy, Qz) in cartesian-frame and (1/Angstrom)\n'
-        if mode == 4:
-            self.opModeInfo += 'Frame Mode 4: (H, K, L) in hkl-frame and (reciprocal lattice units)\n'
+            _s += 'Frame Mode 1: (Qx, Qy, Qz) in theta-frame and (1/Angstrom)\n' 
+        elif mode == 2:
+            _s += 'Frame Mode 2: (Qx, Qy, Qz) in phi-frame and (1/Angstrom)\n'
+        elif mode == 3:
+            _s += 'Frame Mode 3: (Qx, Qy, Qz) in cartesian-frame and (1/Angstrom)\n'
+        elif mode == 4:
+            _s += 'Frame Mode 4: (H, K, L) in hkl-frame and (reciprocal lattice units)\n'
 
-    def _makeGridInfo(self, gData = None, gOccu = None, gOut = None, gMin = None, gMax = None, dg = None):
-        """Create information about the grid
+        _s += '\n\nGrid Vectors:\n\n'
+        if self.Qmin is not None:
+            _s += 'Q_min     : [%.3e %.3e %.3e]\n' % (self.Qmin[0], self.Qmin[1], self.Qmin[2])
+        if self.Qmax is not None:
+            _s += 'Q_max     : [%.3e %.3e %.3e]\n' % (self.Qmax[0], self.Qmax[1], self.Qmax[2])
+        if self.dQN is not None:
+            _s += 'Grid Size : [%.3e %.3e %.3e]\n' % (self.dQN[0], self.dQN[1], self.dQN[2])
 
-        gridData : values at the grid parts (bins)
-        gridOccu : occupation no. of the grid parts (bins)
-        gridOut  : no. of data points outside the grid
-        Qmin     : minimal Q-values of the grid
-        Qmax     : maximal Q-values of the grid
-        dQN      : no. of grid parts (bins) in the three principal directions"""
-
-        # prepare information, if not given, take it from the object
-        if gData == None:
-            gData = self.gridData
-        if gOccu == None:
-            gOccu = self.gridOccu
-        if gOut  == None:
-            gOut  = self.gridOut
-        if gMin == None:
-            gMin = self.Qmin
-        if gMax == None:
-            gMax = self.Qmax
-        if dg == None:
-            dg = (gMax - gMin) / self.dQN
-        emptNb = (gOccu == 0).sum()
-        
-        gridInfo = '\n\n**** %s sets processed to grid\n'   % (self.setEntLabel) + \
-            'No. of bins in the grid : \t %.2e\n'      % (gData.size) + \
-            'Data points outside the grid : \t %.2e\n' % (gOut) + \
-            'Bins with zero information : \t %.2e'     % (emptNb)
-        gridInfo += '\n\t min \t\t max \t\t step \t\t width'
-        line = '\n%s' + 4*' \t %.2e'
-        for i in range(gMin.size):
-            gridInfo += line % (self.qLabel[i], gMin[i], gMax[i], dg[i], gMax[i]-gMin[i])
-
-        return gridInfo
-
-    def _makeGridBackInfo(self, maskBox):
-        """Create information about background subtraction of the grid"""
+        if self.gridData is not None:
+            _s += '\n\nGrid Statistics:\n\n'
+            _s += 'No. of voxels in grid           : \t %.2e\n' % (self.gridData.size)
+            _s += 'No. of data points outside grid : \t %.2e\n' % (self.gridOut)
+            _s += 'No. of empty voxels             : \t %.2e\n' % ((self.gridOccu == 0).sum())
             
-        gridBackInfo  = '\n\n**** Background subtraction of grid'
-        if self.backType == 'mean':
-            gridBackInfo += ' by mean value'
-        elif self.backType == 'threeDLin':
-            gridBackInfo += ' by fitted 3D linear function'
-        gridBackInfo += '\n---- Masked region'
-        if maskBox == None:
-            gridBackInfo += '\nNo'
-        else:
-            gridBackInfo += '\n\t min \t\t max'
-            line = '\n%s' + 2*' \t %.2e'
-            for i in range(3):
-                gridBackInfo += line % (self.qLabel[i], maskBox[i], maskBox[i+3])
-
-        gridBackInfo += '\n---- Fitted parameters:'
-        if self.backType == 'mean':
-            gridBackInfo += '\nmean'
-            gridBackInfo += ('\n%.2e') % self.pBack[0]
-        elif self.backType == 'threeDLin':
-            gridBackInfo += '\nmx \t\t my \t\t mz \t\t d'
-            gridBackInfo += ('\n%.2e' + 3*' \t %.2e') % tuple(self.pBack)
-
-            gridBackInfo += '\n---- Background values at corners'
-            cornList = [['min', 'min', 'min'], ['max', 'min', 'min'], ['max', 'max', 'min'],
-                        ['min', 'max', 'min'], ['min', 'min', 'max'], ['max', 'min', 'max'], 
-                        ['max', 'max', 'max'], ['min', 'max', 'max']]
-            cornLayo = ['\n(%s_%s, ', '%s_%s, ', '%s_%s) : \t ']
-            for i in range(len(cornList)):
-                cornVal = self.pBack[3]
-                for j in range(3):
-                    gridBackInfo += cornLayo[j] % (self.qLabel[j], cornList[i][j])
-                    cornVal      += getattr(self, 'Q' + cornList[i][j])[j]*self.pBack[j]
-                gridBackInfo += '%.2e' % (cornVal)
-        
-        return gridBackInfo
-
-    def _makeIntIntensityInfo(self, intAll, conMask, intBox, freshhold):
-        """Create information about integrated intensity of the grid"""
-
-        intInten, errInten, backInten, intMode = self.getIntIntensity()
-    
-        gridIntInfo  = '\n\n**** Integrated intensities of the grid in mode %s' % (intMode)
-        gridIntInfo += '\nTotal Intensity : \t %.4e' % (intInten + backInten)
-        gridIntInfo += '\nData  Intensity : \t %.4e' % (intInten)
-        gridIntInfo += '\nDiff   Intensity : \t %.4e' % (errInten)
-        gridIntInfo += '\nBack  Intensity : \t %.4e' % (backInten)
-        gridIntInfo += '\n---- Considered region:'
-        gridIntInfo += '\n %.2e voxels out of %.2e used' % (conMask.sum(), self.gridData.size)
-        if   intMode == 'intBox':
-            gridIntInfo += '\n\t min \t\t max'
-            line = '\n%s' + 2*' \t %.2e'
-            for i in range(3):
-                gridIntInfo += line % (self.qLabel[i], intBox[i], intBox[i+3])
-        elif intMode == 'freshhold':
-            gridIntInfo += '\nVoxel intensity higher than %.1f times standard deviation' % (freshhold)
-
-        return gridIntInfo
-
-    def _makeCutIndInfo(self):
-        """Create information about the cutting position of the grid"""
-
-        cutIndInfo = '\n\n**** Cutting the grids'
-        if self.cutMode == 'fix':
-            cutIndInfo += ' at fixed position'
-        elif self.cutMode == 'max':
-            cutIndInfo += ' at maximum postion'
-        cutIndInfo += '\n\t index \t value'
-        line = '\n%s' + ' \t %d' + ' \t %.2e'
-        for i in range(3):
-            cutIndInfo += line % (self.qLabel[i], self.cutInd[i], self.qVal[i][self.cutInd[i]])
-
-        return cutIndInfo
-
-    def _make1DFitInfo(self, selType, fitFuncs, fitRes):
-        """Create information about the fitting of the 1D data
-
-        selType  : type of the 1D data, 'sum' or 'cut'
-        fitFuncs : list of used fit functions from pyspec.fitfuncs, e.g. 'linear', 'lor2a'
-        fitRes   : parameters of the fit"""
-
-        fitNames  = ''
-        fitPara   = []
-        fitParams = ''
-        Nfunc     = len(fitFuncs)
-        resInfos  = self.qLabel
-        # go through all fit functions
-        for i in range(Nfunc):
-            if i != 0:
-                fitNames += ' + '
-            fitNames += fitFuncs[i](0, 1, mode = 'name')
-            fitPara  += fitFuncs[i](0, 1, mode = 'params')
-        # go through all parameters
-        for i in range(len(fitPara)):
-            fitParams += '\t %s\t' % (fitPara[i])
-            for j in range(3):
-                resInfos[j] += '\t %.2e' % (fitRes[j][i])
-            
-        fitInfo  = '\n\n**** Fitting of 1D %s by %s' % (selType, fitNames)
-        fitInfo += '\n%s' % (fitParams)
-        for j in range(3):
-            fitInfo += '\n%s' % (resInfos[j])
-            
-        return fitInfo
+        return _s
 
     #
     # process part
     #
     
-    def processOneSet(self, procSelect = None, mode = None):
+    def processToQ(self):
         """Process selcted images of the full set into (Qx, Qy, Qz, I)
 
-        procSelect : list with the images which will be processed, take object default if None
-        mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None"""
+        This function takes the images provided by a FileProcessor instance, and
+        converts them to a set of (Qx, Qy, Qz, I) values in the frame mode which
+        is set prevously in this class.
+
+        """
         ccdToQkwArgs = {}
         if self.totSet is not None:
             del self.totSet
             gc.collect()
 
+        if not self.fileProcessor:
+            raise Exception("No FileProcessor specified.")
+
         # if images not yet processed, do it
-        try:
-            getattr(self.fileProcessor, 'images')
-        except:
+        if getattr(self.fileProcessor, 'images', None) is None:
             self.fileProcessor.process()
+
+        if self.settingAngles is None:
+            raise Exception("No setting angles specified.")
                     
         print "\n**** Converting to Q"
         t1 = time.time()
@@ -1260,41 +894,28 @@ class ImageProcessor():
         self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
             
         # for info file
-        self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets (Took %f seconds)' % (self.totSet.shape[0], self.setEntLabel, (t2 - t1))
+        #self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets (Took %f seconds)' % (self.totSet.shape[0], self.setEntLabel, (t2 - t1))
 
-    def makeGridData(self, procSelect = None, mode = None, delete = False, backSub = None):
-        """Grid the data set into a cuboid.
-        
-        Size of the cuboid : Qmin, Qmax = [Qx, Qy, Qz]_min, max
-        Number of parts    : dQN = [Nqx, Nqy, Nqz]
+    def process(self):
+        """Convinience function to perform all processing"""
+        self.processToQ()
+        self.processGrid()
 
-        procSelect : list with the images which will be processed, take object default if None
-        mode       : 1 (theta-) , 2 (phi-), 3 (cartesian-) or 4 (hkl-frame), take object default if None
-        backSub    : subtract linear background if True; if None take class default
+    def processGrid(self):
+        """Process imageset of (Qx, Qy, Qz, I) into grid 
 
-        stores
-        gridData : values at the grid parts (bins)
-        gridOccu : occupation no. of the grid parts (bins)
-        gridBack : background values if backSub == True
-        gridOut  : no. of the data points outside the grid
-        maskData : mask True if gridData == 0
-        maskOccu : mask True if gridOccu == 0
-        maskBack : mask True if point not for background fit, only if backSub == True"""
-
-        if procSelect == None:
-            procSelect = self.procImSelect
-        if mode == None:
-            mode = self.frameMode
-
-        self.processOneSet(procSelect = procSelect, mode = mode)
+        This function, process the set of (Qx, Qy, Qz, I) values and grid the data."""
         print "---- Total data is %f MBytes\n" % (self.totSet.nbytes / 1024.0**2)
         
-        # prepare min, max,...
-        if (self.Qmin == np.array(None)).all():
+        if self.totSet is None:
+            raise Exception("No set of (Qx, Qy, Qz, I). Cannot process grid.")
+
+        # prepare min, max,... from defaults if not set
+        if not self.Qmin:
             self.Qmin = np.array([ self.totSet[:,0].min(), self.totSet[:,1].min(), self.totSet[:,2].min() ])
-        if (self.Qmax == np.array(None)).all():
+        if not self.Qmax:
             self.Qmax = np.array([ self.totSet[:,0].max(), self.totSet[:,1].max(), self.totSet[:,2].max() ])
-        if (self.dQN  == np.array(None)).all():
+        if not self.dQN:
             self.dQN = [100, 100, 100]
 
         # 3D grid of the data set 
@@ -1309,10 +930,7 @@ class ImageProcessor():
         if emptNb:
             print "---- Warning : There are %.2e values zero in the grid" % emptNb
 
-        # mask the gridded data set
-        #gridData = np.ma.array(gridData / gridOccu, mask = (gridOccu == 0))
-        
-        # store intensity, occupation and no. of outside data points of the grid
+       # store intensity, occupation and no. of outside data points of the grid
         self.gridData   = gridData
         self.gridOccu   = gridOccu
         self.gridOut    = gridOut
@@ -1322,357 +940,15 @@ class ImageProcessor():
         self.maskData = (gridData == 0)
         self.maskOccu = (gridOccu == 0)
 
-        # calculated the corresponding vectors and maximum intensity position of the grid
-        self._calcVecDataSet()
-
-        # for info file about gridding
-        self.opProcInfo += self._makeGridInfo()
-              
-        # background subtraction
-        if backSub == None:
-            backSub = self.backSub
-        if backSub == True:
-            print "\n**** Substract Background of Data Grid."
-            tb1 = time.time()
-            self._processBgnd()
-            tb2 = time.time()
-            print "---- DONE (Processed in %f seconds)" % (tb2 - tb1)
-
-        # position of maximum and cutting of the data grid
-        self._calcMax()
-        self._calcCutInd()
-
-    def get1DSum(self, selType = 'gridData'):
-        """1D Lines of the selected grid by summing in the other directions
-
-        selType : select type of summed grid, e.g. 'gridData'
-
-        returns
-        oneDSum : set in the order Qx, Qy, Qz as list"""
-
-        try:
-            selGrid = getattr(self, selType)
-            oneDSum = [selGrid.sum(1).sum(1),
-                       selGrid.sum(0).sum(1),
-                       selGrid.sum(0).sum(0)]
-        except:
-            print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
-        
-        return oneDSum
-
-    def get2DSum(self, selType = 'gridData'):
-        """2D Areas of the selected grid by summing in the other direction
-
-        selType : select type of summed grid, e.g. 'gridData'
-
-        returns
-        twoDSum : set in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
-
-        try:
-            selGrid = getattr(self, selType)
-            twoDSum = [selGrid.sum(0), selGrid.sum(1), selGrid.sum(2)]
-        except:
-            print 'xxxx %s is not a corecct type of a grid from ImageProcessor!' % (selType)
-
-        return twoDSum
+    def makeGridData(self, *args, **kwargs):
+        """Convinience to call makeGrid"""
+        self.makeGrid(*args, **kwargs)
     
-    def get1DCut(self, selType = 'gridData', cutInd = None):
-        """1D Lines of the selected grid at the cut position
-
-        selType : select type of cutted grid, e.g. 'gridData'
-        cutInd  : cut indices, [nx, ny, nz], if None, default
-                  if default None, indicies of maximum is taken
-
-        returns
-        oneDCut : set in the order Qx, Qy, Qz as list"""
-        
-        if cutInd == None:
-            cutInd = self.cutInd
-        if cutInd == None:
-            cutInd = self.maxInd
-
-        try:
-            selGrid = getattr(self, selType)
-            oneDCut = [selGrid[:, cutInd[1], cutInd[2]],
-                       selGrid[cutInd[0], :, cutInd[2]],
-                       selGrid[cutInd[0], cutInd[1], :]]
-        except:
-            print '\nxxxx %s is not a corecct type of a grid from ImageProcessor!\n' % (selType)
-           
-        return oneDCut
-
-    def get2DCut(self, selType = 'gridData', cutInd = None):
-        """2D Areas of the selected grid at the cut position
-
-        selType : select type of cutted grid, e.g. 'gridData'
-        cutInd  : cut indices, [nx, ny, nz], if None, default
-                  if default None, indicies of maximum is taken
-
-        returns
-        twoDCut : set in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
-
-        if cutInd == None:
-            cutInd = self.cutInd
-        if cutInd == None:
-            cutInd = self.maxInd 
-
-        try:
-            selGrid = getattr(self, selType)
-            twoDCut = [selGrid[cutInd[0], :, :],
-                       selGrid[:, cutInd[1], :],
-                       selGrid[:, :, cutInd[2]]]
-        except:
-            print '\nxxxx %s is not a corecct type of a grid from ImageProcessor!\n' % (selType)
-        
-        return twoDCut
-
-    def get1DCutAv(self):
-        """1D averaged Lines of the grid data and occupations at the position of the maximum
-        intensity and its eight neighbored lines 
-
-        cutInd : cut indices, [nx, ny, nz], if None, default
-                 if default None, indicies of maximum is taken
-
-        returns
-        gridData1DCutAv : intensity set  in the order Qx, Qy, Qz as list
-        gridOccu1DCutAv : occupation no. in the order Qx, Qy, Qz as list"""
-
-        if cutInd == None:
-            cutInd = self.cutInd
-        if cutInd == None:
-            cutInd = self.maxInd 
-
-        # initialize with correct size as zeros
-        gridData1DCutAv = [np.zeros(self.dQN[0]),np.zeros(self.dQN[1]),np.zeros(self.dQN[2])]
-        gridOccu1DCutAv = [np.zeros(self.dQN[0]),np.zeros(self.dQN[1]),np.zeros(self.dQN[2])]
-
-        #print self.dQN[0]
-        # go through the neighbors
-        for i in range(3):
-            for j in range(3):
-                gridData1DCutAv[0] += self.gridData[:,self.cutInd[1]+i-1,self.cutInd[2]+j-1]/9.0
-                gridData1DCutAv[1] += self.gridData[self.cutInd[0]+i-1,:,self.cutInd[2]+j-1]/9.0
-                gridData1DCutAv[2] += self.gridData[self.cutInd[0]+i-1,self.cutInd[1]+j-1,:]/9.0
-                gridOccu1DCutAv[0] += self.gridOccu[:,self.cutInd[1]+i-1,self.cutInd[2]+j-1]/9.0
-                gridOccu1DCutAv[1] += self.gridOccu[self.cutInd[0]+i-1,:,self.cutInd[2]+j-1]/9.0
-                gridOccu1DCutAv[2] += self.gridOccu[self.cutInd[0]+i-1,self.cutInd[1]+j-1,:]/9.0
-        
-        return gridData1DCutAv, gridOccu1DCutAv
-
-    def get2DCutAv(self):
-        """2D average Areas of the grid data and occupations at the position of the maximum
-        intensity and the their two neighbors
-
-        cutInd : cut indices, [nx, ny, nz], if None, default
-                 if default None, indicies of maximum is taken
-
-        returns
-        gridData2DCutAv : intensity set  in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list
-        gridOccu2DCutAv : occupation no. in the order (Qy, Qz), (Qx, Qz), (Qx, Qy) as list"""
-
-        if cutInd == None:
-            cutInd = self.cutInd
-        if cutInd == None:
-            cutInd = self.maxInd 
-
-        # initialize with correct size as zeros
-        gridData2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1])))[0],
-                           np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[0])))[0],
-                           np.array(np.meshgrid(np.zeros(self.dQN[1]),np.zeros(self.dQN[0])))[0]]
-        gridOccu2DCutAv = [np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[1])))[0],
-                           np.array(np.meshgrid(np.zeros(self.dQN[2]),np.zeros(self.dQN[0])))[0],
-                           np.array(np.meshgrid(np.zeros(self.dQN[1]),np.zeros(self.dQN[0])))[0]]
-        print gridData2DCutAv[0].shape
-        # go through the neighbors
-        for i in range(3):
-            gridData2DCutAv[0] += self.gridData[self.cutInd[0]+i-1,:,:]/3.0
-            gridData2DCutAv[1] += self.gridData[:,self.cutInd[1]+i-1,:]/3.0
-            gridData2DCutAv[2] += self.gridData[:,:,self.cutInd[2]+i-1]/3.0
-            gridOccu2DCutAv[0] += self.gridOccu[self.cutInd[0]+i-1,:,:]/3.0
-            gridOccu2DCutAv[1] += self.gridOccu[:,self.cutInd[1]+i-1,:]/3.0
-            gridOccu2DCutAv[2] += self.gridOccu[:,:,self.cutInd[2]+i-1]/3.0
-        return gridData2DCutAv, gridOccu2DCutAv
-
-    def doIntIntensity(self, intAll = None, intMask = None, intBox = None, freshhold = None):
-        """Integrated intensity y summing over all considered voxels and multiply by dVol
-
-        ranked by following order. if None use next one
-        each is ranked by given, set-value, default
-        intAll     : integrated over all voxels if True, default False
-        intMask    : mask of grid size, True if point gets integrated, default None
-        intBox     : [xmin, ymin, zmin, xmax, ymax, zmax] as np.array to construct intMask, default None
-        freshhold  : all voxels with intensity less than freshold * standard error excluded, default 3
-        
-        stores
-        intInten   : integrated intensity
-        errInten   : intensity difference by the standard deviations
-        backInten  : background intensity
-        intMode    : 'all', 'mask', 'box', 'freshhold'"""
-
-        if intAll == None:
-            intAll = self.intAll
-        if intAll == True:
-            # integrated all voxels
-            conMask = np.ones(self.gridData.shape).astype(int)
-            intMode = 'all'
-        else:
-            if intMask == None:
-                intMask = self.intMask
-            if intMask != None:
-                # integrated voxels in intMask
-                conMask = intMask
-                intMode = 'mask'
-            else:
-                if intBox == None:
-                    intBox = self.intBox
-                if intBox != None:
-                    # integrated voxels in intBox
-                    conMask = self._box2mask(intBox)
-                    intMode = 'box'
-                else:
-                    if freshhold == None:
-                        freshhold = self.freshhold
-                    if freshhold == None:
-                        freshhold = 3
-                    # integration of voxels intensities higher freshhold * stdErr
-                    conMask = self.gridData > (freshhold * self.gridStdErr)
-                    intMode = 'freshhold'
-        
-        # integrated intensity and background in considered region
-        intInten = self.gridData[conMask].sum()*self.dVol
-        errInten = self.gridStdErr[conMask].sum()*self.dVol
-        if self.backSub == True:
-            backInten = self.gridBack[conMask].sum()*self.dVol
-        else:
-            backInten = 0.0
-
-        self.intMode    = intMode
-        self.intConMask = conMask
-        self.intInten   = intInten
-        self.errInten   = errInten
-        self.backInten  = backInten
-
-        # for info file about integrated intensities
-        self.opProcInfo += self._makeIntIntensityInfo(intAll, conMask, intBox, freshhold)
-
-    def getIntIntensity(self):
-        """Get results of integration by summing over all considerd voxels and multiply by dVol
-        
-        stores
-        intInten   : integrated intensity
-        errInten   : intensity difference by the standard deviations
-        backInten  : background intensity
-        intMode    : 'all', 'mask', 'box', 'freshhold'"""
-
-        return self.intInten, self.errInten, self.backInten, self.intMode
-
-    def do1DFit(self, selType = None, fitType = None, fitFuncs = None):
-        """Do 1D fits of the selected lines
-
-        selType  : selected type of line, 'sum' or 'cut' (rank: given, set-value, 'cut')
-        fitType  : type of peak shape, 'lorr' or 'lor2a' (rank: given, set-value, 'lor2a')
-        fitFuncs : fit functions like in the fit package from pyspec, prefered if given or set-default"""
-
-        print "\n**** Fit 1D Data."
-        t1 = time.time()
-            
-           
-        # prepare fitting functions
-        if fitFuncs == None:
-            fitFuncs = self._fitFuncs
-        if fitFuncs == None:
-            if fitType == None:
-                fitType = self._fitType
-            if fitType == None:
-                fitType = 'lor2a'
-            fitFuncs = [fitfuncs.linear, getattr(fitfuncs, fitType)]
-        # prepare fitting parameter sets
-        Nfunc = len(fitFuncs)
-        Npara = range(Nfunc + 1)
-        for i in range(Nfunc):
-            Npara[i+1] = Npara[i] + len(fitFuncs[i](0, 1, mode = 'params'))
-
-        # prepare 1D data
-        if selType == None:
-            selType = self._selType
-        if selType == None:
-            selType = 'cut'
-
-        if selType == 'sum':
-            data1D = self.get1DSum()
-        elif selType == 'cut':
-            data1D = self.get1DCut()
-        else:
-            print 'xxxx %s is no prober line type for 1D fit!' % (setType)
-            print "---- choose 'sum' or 'cut' instead"
-
-        # prepare fit
-        qVals = self.qVal
-        fit1D = []
-        res1D = []
-
-        for i in range(3):
-            f = fit.fit(qVals[i], data1D[i], funcs = fitFuncs)
-            f.go()
-            res1D.append(f.result)
-            fitLine = np.zeros(qVals[i].size)
-            for j in range(Nfunc):
-                fitLine += fitFuncs[j](qVals[i], res1D[i][Npara[j]:Npara[j+1]])
-            fit1D.append(fitLine)
-
-        # for info file
-        self.opProcInfo += self._make1DFitInfo(selType, fitFuncs, res1D)
-
-        # store fitterd data and parameters
-        self._fitData1D = fit1D
-        self._fitRes1D  = res1D
-
-        t2 = time.time()
-        print "---- DONE (Processed in %f seconds)" % (t2 - t1)
-
-    def get1DFit(self):
-        """Get the data and parameters of the 1D fits
-
-        return
-        fitData1D : list of the fitted data values at the 1D cuts or sums
-        fitRes1D  : list of the fitted parameters"""
-
-        return self._fitData1D, self._fitRes1D
-
-
-    #
-    # input / output part
-    #
-
-    def makeInfo(self):
-        """Create and return the information about the current processing"""
-        return str(self)
-
-    def __str__(self):
-        """Output the text about the current processing"""
-        self._makeSetInfo()
-        curInfo = '%s%s%s' % (self.opSetInfo, self.opModeInfo, self.opProcInfo)
-        return curInfo
-
-    def writeInfoFile(self, outFile = None):
-        """Write information about the current processing into a file
-
-        outFile : path and file name of the output file"""
-
-        if outFile == None:
-            outFile = self.infoFile
-
-        out = file(outFile, 'w')
-        out.write(self.makeInfo())
-        out.close()
-
 class CCDParamsConfigParser(ConfigParser):
     """Class to read config file which defines all CCD parameters"""
     def readAllLocations(self, filename):
-        _f = os.path.split(filename)
-
-        if _f[0] == '':
         
+        if not os.path.isfile(filename):
             locations = []
             if os.name is 'posix':
                 if os.environ.has_key('HOME'):
@@ -1681,14 +957,23 @@ class CCDParamsConfigParser(ConfigParser):
                 locations.append('/etc/pyspec')
             
             for l in locations:
-                if os.path.isfile(l):
-                    self.read(l)
-                    break
+                _f = l + os.path.sep + filename
+                if os.path.isfile(_f):
+                    self.read(_f)
+                    return _f
         else:
-            self.read(l)
+            self.read(filename)
+            return filename
+
+        return None
             
     def getWithDefault(self,section, option, default):
-        return Config.get(section, option, vars = { option : default })
+        try:
+            r = self.get(section, option)
+        except ConfigParser.NoOptionError:
+            r = default
+            print "**** Using default value for %s." % option
+        return r
     
     def _getWithConvert(self,_conv_fcn, section, option, default):
         try:
@@ -1700,38 +985,13 @@ class CCDParamsConfigParser(ConfigParser):
         except:
             raise Exception("Unable to convert option %s to correct datatype." % (option))
         return val
+
     def getFloat(self, *args, **kwargs):
-        self._getWithConvert(float, *args, **kwargs)
+        return self._getWithConvert(float, *args, **kwargs)
     def getInt(self, *args, **kwargs):
-        self._getWithConvert(int, *args, **kwargs)
+        return self._getWithConvert(int, *args, **kwargs)
     def getFloat(self, *args, **kwargs):
-        self._getWithConvert(float, *args, **kwargs)
-
-def get3DMesh(xVal, yVal, zVal):
-    """make a 3D meshgrid from the given values
-
-    xVal : x-values, [x0, x1, x(Nx-1)] (list or np.array)
-    yVal : y-values, [y0, y1, y(Ny-1)] (list or np.array)
-    zVal : z-values, [z0, z1, z(Nz-1)] (list or np.array)
-
-    returns xGrid, yGrid, zGrid as Nz x Ny x Nx np.arrays"""
-
-    # work first with lists
-    xVal = list(xVal)
-    yVal = list(yVal)
-    zVal = list(zVal)
-
-    # dimensions
-    Nx = len(xVal)
-    Ny = len(yVal)
-    Nz = len(zVal)
-
-    # grid results
-    xGrid = np.array(xVal * Ny * Nz).reshape(Nz, Ny, Nx)
-    yGrid = np.array(yVal * Nz * Nx).reshape(Nz, Nx, Ny).transpose(0,2,1)
-    zGrid = np.array(zVal * Nx * Ny).reshape(Nx, Ny, Nz).transpose(2,1,0)
-
-    return xGrid, yGrid, zGrid
+        return self._getWithConvert(float, *args, **kwargs)
 
         
 ####################################
@@ -1744,148 +1004,22 @@ def get3DMesh(xVal, yVal, zVal):
 if __name__ == "__main__":
 
     from pyspec import spec
-    #sf   = spec.SpecDataFile('/home/tardis/swilkins/data/lbco5/lbco125.01', 
-    #			     ccdpath = '/mounts/davros/nasshare/images/nov10')
-    #scan = sf[91]
-
+    
     sf   = spec.SpecDataFile('/home/tardis/spartzsch/data/ymn2o5_oct10/ymn2o5_oct10_1', 
     			     ccdpath = '/mounts/davros/nasshare/images/oct10')
     scan = sf[360]
 
-    ###
-    # file processor
-    ###
-
-    fp = FileProcessor()
-    #fp.setFromSpec(scan)
-    #fp.process()
-    #fp.processBgnd(maskroi =[[100, 100, 100, 100]])
-    #fp.save('/mounts/timelord/storage/tmpimage.npz')
-    #fp.load('/mounts/timelord/storage/tmpimage.npz')
-
-    ###
-    # image processor and options
-    ###
+    fp = FileProcessor(spec = scan)
+    fp.process()
 
     testData = ImageProcessor(fp)
-    #testData.processMode = 'builtin'
-    testData.setDetectorPos(detAng = -1.24)
+    #testData.setDetectorPos(detAng = -1.24)
     testData.setBins(4, 4)
-    #testData.setFileProcessor(fp)
     testData.setSpecScan(scan)
-    #fp.processBgnd(maskroi =[[63, 100, 67, 100]])
-    #testData.setConRoi([1, 325, 1, 335])
     testData.setFrameMode(4)
-    testData.setGridOptions(Qmin = None, Qmax = None, dQN = [90, 80, 80])
-    # ICM, HKL
-    #testData.setCutPos([0.4750, 0.0, 0.2856])
-    # CM, HKL
-    #testData.setCutPos([0.4924, 0.0, 0.246])
-    #testData.processMode = 'builtin'
-    #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [200, 400, 100])
-    #testData.setGridOptions(Qmin = None, Qmax = None, dQN = [100, 100, 100])
 
-    ###
-    # grid of image set
-    ###    
-    
-    #testData.makeGridData(procSelect = [40])
-    testData.setGridBackOptions(backSub = True,
-                                backMaskBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255],
-                                backType = 'threeDLin')
-    testData.setIntegrationRegion(freshhold = 3)
-        #intBox = [0.475, -0.009, 0.235, 0.508, 0.009, 0.255])
-    testData.makeGridData()
-    testData.set1DFitOptions('cut', 'lor2a')
-    testData.do1DFit()
-    testData.doIntIntensity()
-    print '\n\n'
-    print testData.makeInfo()
-    print 'Max Peak Intensity  = %.2e' % (testData.gridData.max())
-    print 'Max Diff Intensity  = %.2e' % (testData.gridBack.max())
-    print 'Max Back Intensity  = %.2e' % (testData.gridStdErr.max())
-    #print 'Peak region (voxel) = %.2e' % (testData._box2mask(testData.intMaskBox).sum())
-    #print 'Grid region (voxel) = %.2e' % (testData.gridData.size)
+    testData.process()
 
-    ###
-    # plot of raw images
-    ###
-
-    #plIm = PlotImages(fp, testData)
-    #plIm.setPlotContent(plotSelect = range(0,121,10), plotType = 'norm')
-    #plIm.setPlotLayout(, plotImHor = 4, plotImVer = 3)
-    #plIm.plotImages()
-    
-    ###
-    # plot grid data
-    ###
-
-    testPlotter = PlotGrid2(testData)
-    #testPlotter.setPlotFlags(7, 7)
-    testPlotter.setLogFlags(7, 7)
-    #testPlotter.setHistBin(50)
-    testPlotter.setPlotErr(True)
-    testPlotter.setPlot1DFit(True)
-    #testPlotter.plotGrid1D('cut')
-    testPlotter.plotGrid2D('cut')
-
-    # plot jobs
-
-    #testPlotter.plotGrid1D('sum')
-    #testPlotter.plotGrid2D('sum')
-    #testPlotter.plotGrid1D('cut')
-    #testPlotter.plotGrid2D('cut')
-    #testPlotter.plotMask1D('cut')
-    #testPlotter.plotMask2D('cut')
-
-    ###
-    # plot errorbars
-    ###
-    """
-    plotErr = PlotWindow()
-    yVals = testData.get1DCut('gridStdErr')
-    qVals = testData.qVal
-    data1D    = [[qVals[0], yVals[0]], [qVals[1], yVals[1]], [qVals[2], yVals[2]]]
-    plotErr.setPlotData(data1D + testData.get2DCut('gridStdErr'))
-    plotErr.setPlotDetails(plotType = 3*['oneD'] + 3*['twoD'])
-    plotErr.setWinLayout(plotHor = 2, plotOrd = 'vh', winTitle = 'Standard deviations as error bars')
-    plotErr.setPlotLayouts()
-    plotErr.plotAll()
-    """
-
-    ###
-    # second run with same objects
-    ###
-
-    #scan2 = sf[361]
-    #testData.setSpecScan(scan2)
-    #testData.makeGridData()
-    #testPlotter.plotGrid1D('cut')
-    #testPlotter.plotGrid2D('cut')
-
-    ###
-    # processing information
-    ###
-
-    #info1 = testData.makeInfo()
-    #testData.writeInfoFile(outFile = 'infoFile.dat')
-    #print '\n\n'
-    #print info1
-
-
-
-    #info2 = testData.makeInfo()
+    print testData
 
     
-    #print info2
-    #print '\n'
-
-    plt.show()
-
-    #raw_input('Waiting...')
-
-    #del testData
-    #del fp
-    #gc.collect()
-    #raw_input('Waiting...')
-     
