@@ -80,14 +80,21 @@ class FileProcessor():
     def __init__(self, filenames = None, 
                  darkfilenames = None, 
                  norm = None, format = 'SPE',
-                 spec = None):
+                 spec = None, process = False):
         """Initialize the class
 
-        filenames      : list of filenames for all images (2d list will bin images)
-        darkfilenames  : list of filenames for the dark images (2d list will bin images)
-        spec           : SpecScan object from which to obtain data file names
-        norm           : Normalize individual images to this numpy array.
-        format         : Data file format. 'SPE' princeton format.
+        filenames      : list of strings.
+           List of filenames for all images (2d list will bin images).
+        darkfilenames  : list of strings.
+           List of filenames fror all dark images. (2d list will bin images).
+        spec           : SpecScan object.
+           SpecScan object from which to obtain image file names.
+        norm           : ndarray.
+           Normalize individual images to this numpy array.
+        format         : string.
+           Data file format. 'SPE' princeton format.
+        process        : Bool.
+           If True, then process the images once class is initialized.
         """
         self._format = format
         self.filenames = filenames
@@ -101,10 +108,19 @@ class FileProcessor():
             self.normData = norm
         self.bgndParams = np.array([])
 
+        if process:
+            self.process()
+
     def setFilenames(self, filenames = None, darkfilenames = None):
-        """Set the list of filenames and darkfilenames"""
+        """Set the list of filenames and darkfilenames
+
+        filenames     : list of strings
+           Set the list of filenames to process for the light images
+        darkfilenames : list of strings
+           Set the list of filenames to process the dark images
+        """
         self.filenames = filenames
-        self.darkfilenames = dar
+        self.darkfilenames = darkfilenames
 
     def setMeanMonitor(self, b):
         """Set if the images are normalized by the mean of the monitor
@@ -131,50 +147,6 @@ class FileProcessor():
         self.filenames     = scan.ccdFilenames
         self.darkfilenames = scan.ccdDarkFilenames
         self.normData      = scan.values[mon]
-
-    def _processBgnd(self, maskroi = None, mask = None):
-
-        bgndfunc = self._residualsLinear
-
-        x, y = np.meshgrid(range(self.images.shape[2]), 
-                           range(self.images.shape[1]))
-
-        if mask is None:
-            mask = np.ravel(np.ones(self.images.shape[1:]) == 1)
-            if maskroi is not None:
-                for m in maskroi:
-                    xmask = (x >= m[0]) & (x <= (m[0] + m[2]))
-                    ymask = (y >= m[1]) & (y <= (m[1] + m[3]))
-                    mask = mask & (np.ravel((xmask & ymask)) == False)
-
-        _x = np.ravel(x)[mask]
-        _y = np.ravel(y)[mask]
-        allplsq = np.array([])
-        for i in range(self.images.shape[0]):
-            guess = [1e-3, 1e-3, self.images[i].mean()]
-            z = np.ravel(self.images[i])[mask]
-            plsq = leastsq(bgndfunc, guess, args = (z, _y, _x))
-            self.images[i] = self.images[i] - x*plsq[0][0] - y*plsq[0][1] - plsq[0][2]
-            allplsq = np.concatenate((allplsq, plsq[0]))
-        allplsq = allplsq.reshape(-1, 3)
-        self.bgndParams = allplsq            
-
-    def _residualsLinear(self, p, z, x, y):
-        mx, my, c = p
-        err = z - (mx * x) - (my * y) - c
-        return err
-
-    def processBgnd(self, maskroi = None, mask = None):
-        """Process the background by fitting each image
-
-        maskroi : list of tuples
-           list of 4 element tuples or lists for ROI to mask
-        mask    : ndarray
-           (n x m) array for the background mask"""
-
-        print "---- Subtracting background from images"
-        self._processBgnd(maskroi = maskroi, mask = mask)
-        print "---- Done."
 
     def process(self, dark = True, norm = True, 
                 dtype = np.float, quiet = False):
@@ -607,11 +579,6 @@ class ImageProcessor():
         imFileNames   : filenames for each image
         darkFileNames : filenames of the dark images
         settingAngles : setting angles of the diffractometer at each image (data point)
-        intentNorm    : normalization factor (division) for each image
-        UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
-        setName       : name of the considered set, e.g. 'Scan #' in the spec case
-        setNum        : no. to determine the set, e.g. 244 in the spec case
-        setSize       : no. of images in the set, e.g. 81
 
         The file Processor processes the corresponding images"""
 
@@ -749,6 +716,27 @@ class ImageProcessor():
     # help function part
     #
 
+    def _calcBMatrix(self, angles):
+        """Calculate the B matrix from reciprocal space angles
+
+        anges: ndarray
+           Array of real space values, [a, b, c, alpha, beta, gamma]
+
+        returns B matrix as (3x3) ndarray.
+        """
+        B = np.ones((3,3))
+        B[0,0] = angles[0]
+        B[1,0] = 0
+        B[2,0] = 0
+        B[0,1] = angles[1] * cos(angles[5])
+        B[1,1] = angles[1] * sin(angles[5])
+        B[2,1] = 0
+        B[0,2] = angles[2] * cos(angles[4])
+        B[1,2] = -1.0 * angles[2] * sin(angles[4]) * cos(angles[3])
+        B[2,2] = 2 * np.pi / angles[2]
+
+        return B
+    
     def _setFromSpecScan(self):
         """Set the settings for the set from the considered pyspec scan object
 

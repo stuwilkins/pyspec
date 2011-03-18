@@ -10,6 +10,16 @@ Installing using easy_install
 
    easy_install pyspec
 
+To force an upgrade run (if ``pyspec`` is already installed)::
+
+   easy_install -U pyspec
+
+Note: you can install a user copy by running::
+
+   easy_install -U --user pyspec
+
+just remember to set your `PYTHONPATH` environmental variable!
+
 .. _PyPi: http://pypi.python.org/pypi/pyspec
 
 
