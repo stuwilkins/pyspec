@@ -184,6 +184,8 @@ class FileProcessor():
         if quiet:
             print "---- Reading Images"
 
+        
+
         for i, (iname, diname, normVal) in enumerate(zip(self.filenames, self.darkfilenames, normData)):
             if type(iname) == list:
                 _images = None
@@ -206,21 +208,22 @@ class FileProcessor():
                             print "---- Missing image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.filenames), j + 1, len(iname)),
                             sys.stdout.flush()
 
-                for j, _din in enumerate(diname):
-                    if os.path.exists(_din):
-                        darkimage =  self._getRawImage(_din).astype(dtype)
-                        if _darkimages is not None:
-                            _darkimages = _darkimages + darkimage
-                        else:
-                            _darkimages = darkimage
+                if dark:
+                    for j, _din in enumerate(diname):
+                        if os.path.exists(_din):
+                            darkimage =  self._getRawImage(_din).astype(dtype)
+                            if _darkimages is not None:
+                                _darkimages = _darkimages + darkimage
+                            else:
+                                _darkimages = darkimage
                         #_darkimages.append(darkimage)
-                        if not quiet:
-                            print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.darkfilenames), j + 1, len(diname)),
-                            sys.stdout.flush()
-                    else:
-                        if not quiet:
-                            print "---- Missing dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.darkfilenames), j + 1, len(diname)),
-                            sys.stdout.flush()
+                            if not quiet:
+                                print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.darkfilenames), j + 1, len(diname)),
+                                sys.stdout.flush()
+                            else:
+                                if not quiet:
+                                    print "---- Missing dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.darkfilenames), j + 1, len(diname)),
+                                    sys.stdout.flush()
 
                 image = _images
                 if _darkimages is not None:
@@ -422,14 +425,14 @@ class ImageProcessor():
         This function returns the X, Y and Z coordinates of the grid
         along with the intensity and standard error grids. For example::
 
-            >>>X, Y, Z, I, E = ip.getGrid()
+            >>>X, Y, Z, I, E, N = ip.getGrid()
 
         """
         X, Y, Z = self.getGridMesh()
         I = self.getGridData()
         E = self.getGridStdErr()
-        
-        return X, Y, Z, I, E
+        N = self.getGridOccu()
+        return X, Y, Z, I, E, N
 
     def getImageData(self):
         """Get the totat image data, transformed into Q"""
@@ -446,7 +449,11 @@ class ImageProcessor():
     def getGridStdDev(self):
         """Return the standard deviation grid"""
         return self.gridStdErr * sqrt(self.gridOccu)
-        
+    
+    def getGridOccu(self):
+        """Return the occupation of the grid"""
+        return self.gridOccu
+
     def setDetectorProp(self, detPixSizeX, detPixSizeY, detSizeX, detSizeY, detX0, detY0):
         """Set properties of used detector
 
@@ -653,11 +660,11 @@ class ImageProcessor():
         dQN  : ndarray
            No. of grid parts (bins)     [Nqx, Nqy, Nqz]"""
 
-        if Qmin:
+        if Qmin is not None:
             self.Qmin = np.array(Qmin)
-        if Qmax:
+        if Qmax is not None:
             self.Qmax = np.array(Qmax)
-        if dQN:
+        if dQN is not None:
             self.dQN  = np.array(dQN)
 
     def getGridSize(self):
@@ -899,11 +906,11 @@ class ImageProcessor():
             raise Exception("No set of (Qx, Qy, Qz, I). Cannot process grid.")
 
         # prepare min, max,... from defaults if not set
-        if not self.Qmin:
+        if self.Qmin is None:
             self.Qmin = np.array([ self.totSet[:,0].min(), self.totSet[:,1].min(), self.totSet[:,2].min() ])
-        if not self.Qmax:
+        if self.Qmax is None:
             self.Qmax = np.array([ self.totSet[:,0].max(), self.totSet[:,1].max(), self.totSet[:,2].max() ])
-        if not self.dQN:
+        if self.dQN is None:
             self.dQN = [100, 100, 100]
 
         # 3D grid of the data set 
@@ -930,7 +937,51 @@ class ImageProcessor():
 
     def makeGridData(self, *args, **kwargs):
         """Convinience to call makeGrid"""
-        self.makeGrid(*args, **kwargs)
+        self.process(*args, **kwargs)
+
+
+##################################################################################################################
+##                                                                                                              ##
+##  GridProcessorClass to perform cutting of grid                                                               ##
+##                                                                                                              ##
+##################################################################################################################
+
+class GridProcessor():
+    """Class to process grid data
+
+    This class is used to process grid data, and perform line and sum integration from the 
+    gridded data. 
+
+    This class assumes that you have processed the data using an ImageProcessor and requires 
+    the use of that when initializing the class."""
+
+    def __init__(ip = None):
+        if ip is None:
+            raise Exception("This class must be initialized with a valid ImageProcessor")
+        else:
+            self.ip = ip
+
+    def get1DCut(pos, axis):
+        """Make a 1D cut of the grid along a principal axis."""
+        ax = self._processAxis()
+
+    def _processAxis(axis):
+        if type(axis) == int:
+            return axis
+        else if type(axis) == str:
+            if axis.upper() == "X":
+                return 0
+            else if axis.upper() == "Y":
+                return 1
+            else if axis.upper() == "Z":
+                return 2
+            else:
+                raise Exception("Invalid string. Axis must be 'X', 'Y', or 'Z'.")
+        else:
+            raise Exception("Invalid type in axis. Must be integer or string")
+        return Null
+            
+        
     
 class CCDParamsConfigParser(ConfigParser):
     """Class to read config file which defines all CCD parameters"""

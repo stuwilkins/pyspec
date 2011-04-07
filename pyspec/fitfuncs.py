@@ -118,6 +118,9 @@ def lor2(x, p, mode='eval'):
     Function:
       :math:`f(x) = p_2\left(\\frac{1}{1 + \left(\\frac{x - p_0}{p_1}\\right)^2}\\right)^2`
 
+    The HWHM is related to the parameter :math:`\Gamma` by the relation:
+      :math:`\kappa = \sqrt{\sqrt{2} - 1}\Gamma`
+
     """
     if mode == 'eval':
         out = p[2] * (1 / (1 + ((x - p[0]) / p[1])**2))**2
