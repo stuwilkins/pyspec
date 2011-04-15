@@ -20,14 +20,29 @@
 # Part of the "pyspec" package
 #
 
-import numpy
+import numpy as np
 import time
+import struct
+
+from scipy import *
+from pylab import *
+
 
 __version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
+def LCLSdataformat(iname):
+    """function to read LCLS data.  no headers in this"""
+    print 'current image', iname
+    FH = open(iname, "rb")
+    data = np.array(struct.unpack("288000H", FH.read()))
+    FH.close()
+    return data
+
+
+    
 class PrincetonSPEFile():
     """Class to read SPE files from Princeton CCD cameras"""
 
