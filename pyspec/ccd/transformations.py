@@ -26,6 +26,7 @@ import gc
 #gc.set_debug(gc.DEBUG_LEAK | gc.DEBUG_STATS)
 import time
 import sys
+import struct
 import numpy as np
 from   scipy.optimize import leastsq
 import matplotlib.pyplot as plt
@@ -149,7 +150,7 @@ class FileProcessor():
         self.normData      = scan.values[mon]
 
     def process(self, dark = True, norm = True, 
-                dtype = np.float, quiet = False):
+                dtype = np.float, quiet = False, crop= False, BG = False):
         """Read in images and process into 3D array.
         
         dark  : bool
@@ -160,7 +161,7 @@ class FileProcessor():
            numpy datatype of processed array.
         quiet : bool
            If True, dont write to screen when reading images."""
-
+        
         images = []
         darkimages = []
 
@@ -184,21 +185,22 @@ class FileProcessor():
         if quiet:
             print "---- Reading Images"
 
-        
+        if len(self.darkfilenames) == 1:
+            self.darkfilenames = self.filenames
 
+        #print self.filenames
         for i, (iname, diname, normVal) in enumerate(zip(self.filenames, self.darkfilenames, normData)):
             if type(iname) == list:
                 _images = None
-                _darkimages = None
-                
+                _darkimages = None 
                 #Start reading the light images
-                for j, _in in enumerate(iname):
+                for j, _in in enumerate(iname): 
                     if os.path.exists(_in):
                         image = self._getRawImage(_in).astype(dtype)
                         if _images is not None:
                             _images = _images + image
                         else:
-                            _images = image
+                            _images = image    
                         #_images.append(image)
                         if not quiet:
                             print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames), j + 1, len(iname)),
@@ -229,17 +231,14 @@ class FileProcessor():
                 if _darkimages is not None:
                     darkimage = _darkimages
                     darkimages.append(darkimage)
-                #image = np.array(_images).sum(0)
-                #if len(_darkimages):
-                #    darkimage = np.array(_darkimages).sum(0)
-                #    darkimages.append(darkimage)
 
             else:
                 # Process only single image pair
                 image = self._getRawImage(iname).astype(dtype)
-                if os.path.exists(diname):
-                    darkimage =  self._getRawImage(diname).astype(dtype)
-                    darkimages.append(darkimage)
+
+                #if os.path.exists(diname):
+                #    darkimage =  self._getRawImage(diname)#.astype(dtype)
+                #    darkimages.append(darkimage)
                 if not quiet:
                     print "---- Reading image %-3d of %-3d\r" % (i, len(self.filenames)),
 
@@ -251,7 +250,31 @@ class FileProcessor():
             
             if norm:
                 image = image / normVal
+
+
+            if crop:
+                print "---- Cropping Image"
+                image=image[0:144000]
+
+            if BG:
+                print "---- Correcting for background"
+                image.resize(250,576)
+                TempIm=image.transpose()
+                BG = sum(TempIm[:,0:19], axis=1)/20
+                BG2= sum(TempIm[:,231:250], axis=1)/20
+                BGprofile = []
+                for i in range(0,576):
+                    for j in range(0,250):
+                            BGprofile.append(BG[i]+((BG2[i]-BG[i])/550*(j-10)))
+                    TempIm[i,:] = TempIm[i,:]-BGprofile
+                    BGprofile=[] 
+                image=TempIm#.transpose()
+                
+                
             images.append(image)
+        
+
+
 
         print "\n---- Processed %d images (%d dark images)" % (len(images), len(darkimages))
 
@@ -260,12 +283,17 @@ class FileProcessor():
         print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
                                                        self.images.nbytes / 1024**2) 
 
+        
+            
     def _getRawImage(self, iname):
         """Read raw image"""
         if self._format == 'SPE':
             return PrincetonSPEFile(iname).getBinnedData()
+        if self._format == 'LCLS':
+            return LCLSdataformat(iname)
         else:
             raise Exception("Unknown file format \"%s.\"" % self._format)
+        
 
     def _computeMeanImage(self):
         N = self.images.shape[0]
@@ -364,14 +392,15 @@ class ImageProcessor():
              
         # set parameters to configure the CCD setup
         # detector distance 30cm and detector pixel size 20um
-        self.setDetectorProp(0.020, 0.020, 1300, 1340, 650.0, 670.0)
+        self.setDetectorProp(0.020, 0.020, 1300, 1340, 650, 670)
         self.setDetectorPos(300, 0.0)
+        self.setDetectorMask()
         
         # Overide if a config file is used.
-        self.ccdname = ccdname
-        self.ccdConfigFile = configfile
-        if ccdname is not None:
-            self.readConfigFile(configfile)
+        #self.ccdname = ccdname
+        #self.ccdConfigFile = configfile
+        #if ccdname is not None:
+        #    self.readConfigFile(configfile)
         
         # Default to frame mode 1
         self.setFrameMode(1)
@@ -514,7 +543,16 @@ class ImageProcessor():
         detAng : float (deg)
            Detector miss alignement angle (rotation around incident beam)"""
         
-        return self.detDis, self.detAngle    
+        return self.detDis, self.detAngle
+
+    def setDetectorMask(self, mask = None):
+        """Set the detector mask, to exclude data points
+
+        mask : ndarray
+           Array of same form as CCD images, with 1's for valid data points
+
+        """
+        self.detMask = mask
 
     def setBins(self, binX = 1, binY = 1):
         """Set detector binning.
@@ -872,8 +910,9 @@ class ImageProcessor():
 
         if self.settingAngles is None:
             raise Exception("No setting angles specified.")
-                    
+        
         print "\n**** Converting to Q"
+        print self.settingAngles
         t1 = time.time()
         self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
                                     mode        = self.frameMode,
@@ -886,7 +925,14 @@ class ImageProcessor():
                                     **ccdToQkwArgs)
         t2 = time.time()
         print "---- DONE (Processed in %f seconds)" % (t2 - t1)
-        self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())
+        self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())  
+        if self.detMask is not None:
+            print "---- Masking data"
+            totMask = self.detMask.copy().ravel()
+            for i in range(1, self.settingAngles.shape[0]):
+                totMask = concatenate((totMask, self.detMask.ravel()))
+        
+            self.totSet =  self.totSet[(totMask == 1),:]
             
         # for info file
         #self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets (Took %f seconds)' % (self.totSet.shape[0], self.setEntLabel, (t2 - t1))
@@ -968,12 +1014,12 @@ class GridProcessor():
     def _processAxis(axis):
         if type(axis) == int:
             return axis
-        else if type(axis) == str:
+        elif type(axis) == str:
             if axis.upper() == "X":
                 return 0
-            else if axis.upper() == "Y":
+            elif axis.upper() == "Y":
                 return 1
-            else if axis.upper() == "Z":
+            elif axis.upper() == "Z":
                 return 2
             else:
                 raise Exception("Invalid string. Axis must be 'X', 'Y', or 'Z'.")
