@@ -1796,7 +1796,7 @@ class PlotGrid2():
         plot data and occupation as (yz), (xz), (xy) = (ax0, ax1) areas and histograms
         calcMode : select which calculated values are plotted, 'sum', 'cut', 'cutAv'
 
-        retrurns
+        returns
         fig2   : plt.figure object of the plotting window
         allax2 : list of plt.axes objects which carry the figures"""
         
