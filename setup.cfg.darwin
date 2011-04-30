@@ -9,7 +9,6 @@ verbose=1
 [ctrans]
 build = True
 usethreads = True
-max_threads = 2
 
 [sginfo]
 build = True

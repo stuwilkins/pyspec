@@ -21,6 +21,23 @@ ext_default  = {'include_dirs' : [np.get_include()],
 
 setup_files = ['setup.cfg.%s' % sys.platform, 'setup.cfg']
 
+def detectCPUs():
+    # Linux, Unix and MacOS:
+    if hasattr(os, "sysconf"):
+        if os.sysconf_names.has_key("SC_NPROCESSORS_ONLN"):
+            # Linux & Unix:
+            ncpus = os.sysconf("SC_NPROCESSORS_ONLN")
+            if isinstance(ncpus, int) and ncpus > 0:
+                return ncpus
+            else: # OSX:
+                return int(os.popen2("sysctl -n hw.ncpu")[1].read())
+    # Windows:
+    if os.environ.has_key("NUMBER_OF_PROCESSORS"):
+        ncpus = int(os.environ["NUMBER_OF_PROCESSORS"]);
+    if ncpus > 0:
+        return ncpus
+    return 1 # Default
+
 def parseExtensionSetup(name, config, default):
     default = copy.deepcopy(default)
     try: default['include_dirs'] = config.get(name, "include_dirs").split(os.pathsep)
@@ -57,7 +74,7 @@ if setupfile is not None:
     threads = False
     try: threads = config.getboolean("ctrans", "usethreads")
     except: pass
-    nthreads = 1
+    nthreads = detectCPUs() * 2
     try: nthreads = config.getint("ctrans", "max_threads")
     except: pass
     

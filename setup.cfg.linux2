@@ -15,7 +15,6 @@ libraries = lapack,f77blas,cblas,atlas,gcc_s
 [ctrans]
 build = True
 usethreads = True
-max_threads = 2
 
 [sginfo]
 build = True

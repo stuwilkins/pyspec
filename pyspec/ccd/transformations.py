@@ -1026,7 +1026,12 @@ class GridProcessor():
         else:
             raise Exception("Invalid type in axis. Must be integer or string")
         return Null
-            
+    
+##################################################################################################################
+##                                                                                                              ##
+##  CCD Config Parser, to read config file from disk                                                            ##
+##                                                                                                              ##
+##################################################################################################################        
         
     
 class CCDParamsConfigParser(ConfigParser):
