@@ -308,7 +308,7 @@ int calcDeltaGamma(_float *delgam, CCD *ccd, _float delCen, _float gamCen){
 } 
 
 static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs){
-  PyObject *gridout = NULL, *Nout = NULL, *stderr = NULL;
+  PyObject *gridout = NULL, *Nout = NULL, *standarderror = NULL;
   PyObject *gridI = NULL;
   PyObject *_I;
   
@@ -352,27 +352,27 @@ static PyObject* gridder_3D(PyObject *self, PyObject *args, PyObject *kwargs){
   if(!Nout){
     goto cleanup;
   }
-  stderr = PyArray_ZEROS(3, dims, NPY_DOUBLE, 0);
-  if(!stderr){
+  standarderror = PyArray_ZEROS(3, dims, NPY_DOUBLE, 0);
+  if(!standarderror){
     goto cleanup;
   }
   
   n_outside = c_grid3d(PyArray_DATA(gridout), PyArray_DATA(Nout), 
-		       PyArray_DATA(stderr), PyArray_DATA(gridI),
+		       PyArray_DATA(standarderror), PyArray_DATA(gridI),
 		       grid_start, grid_stop, data_size, grid_nsteps, norm_data);
   
   Py_XDECREF(gridI);
-  return Py_BuildValue("NNNl", gridout, Nout, stderr, n_outside); 
+  return Py_BuildValue("NNNl", gridout, Nout, standarderror, n_outside); 
   
  cleanup:
   Py_XDECREF(gridI);
   Py_XDECREF(gridout);
   Py_XDECREF(Nout);
-  Py_XDECREF(stderr);
+  Py_XDECREF(standarderror);
   return NULL;
 }
 
-unsigned long c_grid3d(double *dout, unsigned long *nout, double *stderr, double *data, 
+unsigned long c_grid3d(double *dout, unsigned long *nout, double *standarderror, double *data, 
 		       double *grid_start, double *grid_stop, int max_data, 
 		       int *n_grid, int norm_data){
   int i;
@@ -396,7 +396,7 @@ unsigned long c_grid3d(double *dout, unsigned long *nout, double *stderr, double
 
   // Allocate arrays for standard error calculation
   
-  if(stderr){
+  if(standarderror){
     Mk = (double*)malloc(sizeof(double) * grid_size);
     if(!Mk){
       return n_outside;
@@ -442,7 +442,7 @@ unsigned long c_grid3d(double *dout, unsigned long *nout, double *stderr, double
 
       // Calculate the standard deviation quantities
 
-      if(stderr){
+      if(standarderror){
 	if(nout[pos] == 1){
 	  Mk[pos] = *data_ptr;
 	  Qk[pos] = 0.0;
@@ -475,11 +475,11 @@ unsigned long c_grid3d(double *dout, unsigned long *nout, double *stderr, double
 
   // Calculate the sterror
   
-  if(stderr){
+  if(standarderror){
     for(i=0;i<grid_size;i++){
       if(nout[i] > 1){
 	// standard deviation of the sample distribution
-	stderr[i] = pow(Qk[pos] / (nout[i] - 1), 0.5) / pow(nout[i], 0.5);
+	standarderror[i] = pow(Qk[pos] / (nout[i] - 1), 0.5) / pow(nout[i], 0.5);
       }
     }
   }
