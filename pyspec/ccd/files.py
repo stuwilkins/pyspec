@@ -33,11 +33,11 @@ __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
 __date__      = "$LastChangedDate$"
 __id__        = "$Id$"
 
-def LCLSdataformat(iname):
+def LCLSdataformat(iname, dataFormat = "142500f"):
     """function to read LCLS data.  no headers in this"""
     print 'current image', iname
     FH = open(iname, "rb")
-    data = np.array(struct.unpack("288000H", FH.read()))
+    data = np.array(struct.unpack(dataFormat, FH.read()))
     FH.close()
     return data
 

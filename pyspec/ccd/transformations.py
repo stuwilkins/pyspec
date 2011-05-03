@@ -185,7 +185,7 @@ class FileProcessor():
         if quiet:
             print "---- Reading Images"
 
-        if len(self.darkfilenames) == 1:
+        if len(self.darkfilenames) == 0:
             self.darkfilenames = self.filenames
 
         #print self.filenames
@@ -254,16 +254,14 @@ class FileProcessor():
 
             if crop:
                 print "---- Cropping Image"
-                image=image[0:144000]
-
-            if BG:
+                #image=image[0:len(image)/2]
                 print "---- Correcting for background"
-                image.resize(250,576)
+                image.resize(250,570)
                 TempIm=image.transpose()
-                BG = sum(TempIm[:,0:19], axis=1)/20
+                BG = sum(TempIm[:,30:50], axis=1)/20
                 BG2= sum(TempIm[:,231:250], axis=1)/20
                 BGprofile = []
-                for i in range(0,576):
+                for i in range(0,570):
                     for j in range(0,250):
                             BGprofile.append(BG[i]+((BG2[i]-BG[i])/550*(j-10)))
                     TempIm[i,:] = TempIm[i,:]-BGprofile
@@ -910,9 +908,8 @@ class ImageProcessor():
 
         if self.settingAngles is None:
             raise Exception("No setting angles specified.")
-        
+
         print "\n**** Converting to Q"
-        print self.settingAngles
         t1 = time.time()
         self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
                                     mode        = self.frameMode,
@@ -926,14 +923,19 @@ class ImageProcessor():
         t2 = time.time()
         print "---- DONE (Processed in %f seconds)" % (t2 - t1)
         self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())  
+       
         if self.detMask is not None:
             print "---- Masking data"
             totMask = self.detMask.copy().ravel()
             for i in range(1, self.settingAngles.shape[0]):
                 totMask = concatenate((totMask, self.detMask.ravel()))
-        
-            self.totSet =  self.totSet[(totMask == 1),:]
+
+            print "---- Mask size ", totMask.shape
+            print "---- totSet size ", self.totSet.shape
             
+            self.totSet =  self.totSet[(totMask != 0),:]   
+            print "---- totSet size ", self.totSet.shape
+
         # for info file
         #self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets (Took %f seconds)' % (self.totSet.shape[0], self.setEntLabel, (t2 - t1))
 
