@@ -653,19 +653,19 @@ class SpecScan:
         if self.data.shape[0] > 0:
             for i in range(len(self.cols)):
                 if len(self.data.shape) == 2:
-                    self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
+                    self.scandata.setValue(self.cols[i], self.data[:,i])
                 else:
-                    self.scandata.setValue(removeIllegals(self.cols[i]), array([self.data[i]]))
+                    self.scandata.setValue(self.cols[i], array([self.data[i]]))
+            self.values = self.scandata.values
 
         # Now set the variables into the scan class from the data
 
             if self.setkeys:
                 for i in self.scandata.values.keys():
+                    iri = removeIllegals(i)
                     if __verbose__ & 0x02:
-                        print "oooo Setting variable %s" % i
-                    setattr(self,i , self.scandata.values[i])
-                self.values = self.scandata.values
-
+                        print "oooo Setting variable %s (%s)" % (i, iri) 
+                    setattr(self,iri, self.scandata.values[i])
 
     def concatenate(self, a):
         # Could put check in here for cols matching ?!?
