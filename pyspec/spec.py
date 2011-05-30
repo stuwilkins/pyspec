@@ -128,12 +128,11 @@ except:
 
 def removeIllegals(key):
     """Remove illegal character from string"""
-    illegal = ['/', '-', ' ']
-    for j in illegal:
-        key = key.replace(j,'')
+    illegal = [('/', ''), ('-', 'm'), ('+', 'p'), (' ', '')]
+    for j,i in illegal:
+        key = key.replace(j,i)
     if key[0].isalpha() == False:
         key = "X" + key
-
     return key
 
 def splitSpecString(ips):
@@ -387,6 +386,10 @@ class SpecDataFile:
         rval = []
         n = 0
         for i,m in zip(items, mask):
+            if i < 0:
+                _items = self.findex.keys()
+                _items.sort()
+                i = _items[i]
             if __verbose__:
                     print "**** Reading scan/item %s" % i
             if (self.scandata.has_key(i) is False) or (reread is True):
@@ -843,9 +846,9 @@ class SpecPlot:
 
     def show(self,  xcol = None, ycol = None, mcol = None,
              norm = True, doplot = True, errors = True,
-             fmt = 'ro', new = True,
-             xint = 200, yint = 200,
-             notitles = False, log = False, twodtype = 'contour'):
+             check_errorbars = True, fmt = 'ro', new = True,
+             xint = 200, yint = 200, notitles = False, log = False,
+             twodtype = 'contour'):
         """Plot and display the scan
 
         'xcol', 'ycol' and 'mcol' can be either numbers (negative count from end)
@@ -856,6 +859,7 @@ class SpecPlot:
         'norm = False' will suppress normalization of the data
         'doplot = False' will suppress the plotting of the figure
         'errors = False' will suppress the plotting of errorbars
+        'check_errorbars = True' will suppress errorbar checking 
         'fmt' is the format string passed onto the plot command
         'new = True' will create a new figure
         'xint = 200' will set the x size of the 2D grid to 200 pts
@@ -936,6 +940,8 @@ class SpecPlot:
             self.ploty = self.scan.data[:,ycol]
             self.plote = sqrt(self.ploty)
             yl = self.scan.cols[ycol]
+            if type(errors) == type(''):
+                self.plote = self.scan.data[:, self.scan.cols.index(errors)]
             if __verbose__:
                 print "---- y  = %s" % self.scan.cols[ycol]
         if log == True:
@@ -979,15 +985,22 @@ class SpecPlot:
                     xlabel(self.scan.cols[xcol])
                     ylabel(self.scan.cols[x2col])
             else:
+                # Check for stupid error bars:
                 dy = max(self.ploty) - min(self.ploty)
                 mde = mean(self.plote)
-                if (mde > dy) | isnan(mde) :
+                if ((mde > dy) | isnan(mde)) & (check_errorbars) :
                     errors = False
                     print "---- Errorbars disabled due to large errors"
+                
                 if errors:
                     hold(True) # Needed for errorbar plots
-                    self.plt = errorbar(    self.plotx, self.ploty, self.plote,
-                                                            ecolor = 'red', fmt = fmt)
+                    # Set errorbar color
+                    if fmt[0] in ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']:
+                        col = fmt[0]
+                    else:
+                        col = 'r'
+                    self.plt = errorbar(self.plotx, self.ploty, self.plote,
+                                        ecolor = col, fmt = fmt)
                 else:
                     self.plt = plot(self.plotx, self.ploty, fmt)
 
@@ -1000,7 +1013,8 @@ class SpecPlot:
                 xlim((min(self.plotx), max(self.plotx)))
 
             if not notitles:
-                title("%s [%d]\n%s" % (self.scan.datafile.file.name, self.scan.scan, self.scan.scan_command))
+                title("%s %s\n%s" % (self.scan.datafile.filename, self.scan.scan.__repr__(), self.scan.scan_command))
+                #title("%s [%d]\n%s" % (self.scan.datafile.file.name, self.scan.scan, self.scan.scan_command))
             self.plotted = True
         else:
             self.plotted = False
