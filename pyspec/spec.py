@@ -177,6 +177,8 @@ class SpecDataFile:
             # Set any keyword args into the base class
             setattr(self, arg, kwargs[arg])
 
+        self.fileLastAccess = -1
+
         self._loadSpecFile()
         return
 
@@ -189,6 +191,11 @@ class SpecDataFile:
         print self.getStats()
 
         self.scandata = {}
+
+        self.fileStats = os.stat(self.filename)
+        print self.fileStats
+        self.fileLastAccess = self.fileStats.st_mtime
+
         return
 
     def __getstate__(self):
@@ -382,7 +389,19 @@ class SpecDataFile:
         if len(mask) != len(items):
             raise Exception("The mask list should be the same size as the items list")
 
+        
+        self.fileStats = os.stat(self.filename)
+
+        # Check here if file needs to be re-read
+
+        if self.fileLastAccess < self.fileStats.st_mtime:
+            # Re-read file.
+            if __verbose__:
+                print "**** File has changed on disk. Re-reading SPEC file."
+            self._loadSpecFile()
+
         self.file = open(self.filename, 'rb')
+        
         rval = []
         n = 0
         for i,m in zip(items, mask):
@@ -392,6 +411,9 @@ class SpecDataFile:
                 i = _items[i]
             if __verbose__:
                     print "**** Reading scan/item %s" % i
+            # Check if scan is in datafile
+            
+                    
             if (self.scandata.has_key(i) is False) or (reread is True):
                 self._moveto(i)
                 self.scandata[i] = SpecScan(self, i, setkeys, mask = m, **kwargs)
