@@ -519,7 +519,7 @@ class Crystal(object):
         
         return False
             
-    def isAtomAt(self, r, occ = 1., tol = 5e-6):
+    def isAtomAt(self, r, occ = 1., tol = 5e-5):
         """Looks to see if there is an atom at a given location
 
         Returns a list of the atoms which are at the location specified
@@ -537,6 +537,19 @@ class Crystal(object):
         out = self.showCrystal()
         out = out + '\n'
         out = out + self.showAtoms()
+        out = out + '\n'
+        out = out + self.showOccupancy()
+        return out
+
+    def showOccupancy(self):
+        out =  "--------------------------------------------------------------------------------\n"
+        occsum = 0.0
+        
+        for a in self.atoms:
+            occsum += a.getOccupancy()
+
+        out += "No of atoms in crystal : %5d\n" % len(self.atoms)
+        out += "Sum of occupancy : %5.3f\n" % occsum
         return out
 
     def showAtoms(self):
@@ -583,7 +596,7 @@ class Crystal(object):
         out = out + fmte % ("Critical Angle", 180 * self.alpha_c / pi, "Deg")
         out = out + fmte % ("Delta", self.delta, "")
         out = out + fmte % ("Beta", self.beta, "")
-        out = out + fmte % ("Ref. Index", self.n, "")
+        #out = out + fmte % ("Ref. Index", self.n, "")
         out = out + fmte % ("mu", self.mu, "Angstroms^-1")
         
         return out
