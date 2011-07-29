@@ -1,9 +1,45 @@
 import time
 import sys
 import os
+import h5py
 from numpy import *
 from scipy import *
 from pylab import *
+
+class gdanxs:
+	def __init__(self, prefix, scannumber):
+		"""
+		Read scan data and set variables
+		from nexus file format
+		"""
+		
+		self.prefix = prefix
+		self.scannumber = scannumber
+		sc = str(self.scannumber)
+		self.suffix = ".nxs"
+		self.filename = ''.join([self.prefix,sc,self.suffix])
+		self.nexus=h5py.File(self.filename,"r")
+		self.readdata()
+		
+		return
+		
+	def readdata(self):
+		# all this data is in the self.nexus tree, but 
+		#extract some for ease of use.
+		
+		# read scan command
+		self.command = self.nexus['entry1/scan_command'][0]
+		
+		# extract counters
+		for each_key in self.nexus['entry1/instrument'].keys():
+			if each_key != ('name'):
+				if each_key != ('source'):
+					for sub_keys in self.nexus[''.join(['entry1/instrument/',each_key])].keys():
+						if sub_keys == (each_key):
+							setattr(self, each_key, self.nexus[''.join(['entry1/instrument/',each_key,'/',each_key])][:])
+						if sub_keys == ('data'):
+							setattr(self, each_key, self.nexus[''.join(['entry1/instrument/',each_key,'/data'])][:])
+		return
 
 class gdaScan:
 	def __init__(self, scannumber):
