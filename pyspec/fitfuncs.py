@@ -295,3 +295,34 @@ def power(x, p, mode = 'eval'):
         out = []
 
     return out
+
+
+def stokes(x, p, mode='eval'):
+	if mode == 'eval':
+		out = p[0] * 0.5 * (1 + (p[1]*numpy.cos(x*numpy.pi/90)) + (p[2]*numpy.sin(x*numpy.pi/90)))
+	elif mode == 'params':
+		out = ['int', 'P1', 'P2']
+	elif mode == 'name':
+		out = "Stokes"
+	elif mode == 'guess':
+		g = peakguess(x, p)
+		out = g[0:3]
+	else:
+		out = []
+
+	return out	
+
+
+def stokes_rot(x, p, mode='eval'):
+	# ASSUMES COMPLETELY LINEAR LIGHT! (P1^2+P2^2 = 1)
+	if mode == 'eval':
+		out = p[1]*(1+numpy.cos((x-p[0])*numpy.pi/90))
+	elif mode == 'params':
+		out = ['Rotation','S0']
+	elif mode == 'name':
+		out = "Stokes (assuming entirely linear)"
+	elif mode == 'guess':
+		out = [1,2]
+	else:
+		out = []
+	return out
