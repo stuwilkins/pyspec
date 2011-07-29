@@ -577,7 +577,7 @@ class fit:
 
         if x.ndim == 1:
             if nxpts is not None:
-                step = ( x.max() - x.min() ) / nxpts
+                step = float( x.max() - x.min() ) / nxpts
                 x = arange(x.min(), x.max(), step)
 
         f = self._evalfunc(x = x, p = p)
