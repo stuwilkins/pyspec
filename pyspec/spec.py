@@ -295,7 +295,7 @@ class SpecDataFile:
         pos = self.file.tell()
         line = self.file.readline()
         while line != "":
-            if line[0:2] == "#S":
+            if line[0:3] == "#S ":
                 a = line.split()
                 s = int(a[1])
                 if (s % 5) is 0:
