@@ -353,7 +353,7 @@ def fitdata(funcs, ax = None, showguess = False, xdata=None, ydata=None *args, *
 	
 	if xdata==None:             
 		xdata = l[n].get_xdata()
-    if ydata=None:
+    if ydata==None:
 	    ydata = l[n].get_ydata()
 
     f = fit(x = xdata, y = ydata, funcs = funcs, *args, **kwargs)
