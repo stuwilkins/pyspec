@@ -314,7 +314,7 @@ class FitPlotCmd(cmd.Cmd):
     def do_EOF(self, line):
         return True
 
-def fitdata(funcs, ax = None, showguess = False, xdata=None, ydata=None *args, **kwargs):
+def fitdata(funcs, ax = None, showguess = False, xdata=None, ydata=None, *args, **kwargs):
     """Force fitting of a function to graphed data
 
     Parameters
