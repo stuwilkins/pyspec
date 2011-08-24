@@ -28,7 +28,8 @@ the image processor to process a spec scan one can call::
 
    >>>sf = SpecDataFile('myfile.01')
    >>>scan = sf[101]
-   >>>fp = FileProcessor(spec = scan)
+   >>>fp = FileProcessor()
+   >>>fp.setFromSpec(scan)
 
 In order to process the data set, the function ``process()`` is called::
 

@@ -31,6 +31,7 @@ import numpy as np
 from   scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from   pyspec import fit, fitfuncs
+from   pyspec.ccd import utils as ccdutils
 from   pyspec.diffractometer import Diffractometer
 
 try:
@@ -103,6 +104,9 @@ class FileProcessor():
         self.normData = None
         self.meanMonitor = False
 
+        self._cropOnRead = None
+        self._binOnRead = None
+        
         if spec is not None:
             self.setFromSpec(spec)
         if norm is not None:
@@ -111,6 +115,35 @@ class FileProcessor():
 
         if process:
             self.process()
+
+    def setCropOnRead(self, roi = None):
+        """Sets the portion of the image to crop on loading each image.
+
+        This function sets the region of interest which will be taken from
+        each image after reading from disk and before placing in the
+        image processor object. This can be used to reduce the size of an image
+        stack.
+
+        roi : None or tuple
+            The ROI. If None use whole image. The tuple should be formated
+            as (xstart, ystart, ystop, ystop). Please note, this uses python
+            standard indexing. The stop values are NOT included in the crop.
+
+        """
+
+        self._cropOnRead = roi
+
+    def setCropOnRead(self,bins = None):
+        """Sets the portion of the image to bin on loading each image.
+
+        This function will bin the images before loading them into the image processor
+        
+        bins : None or tuple
+               The number of bins in the x and y directions. If None use (1x1) binning.
+               The tuple should be formated as (xbins, ybins).
+        """
+
+        self._binOnRead = bins
 
     def setFilenames(self, filenames = None, darkfilenames = None):
         """Set the list of filenames and darkfilenames
@@ -150,7 +183,8 @@ class FileProcessor():
         self.normData      = scan.values[mon]
 
     def process(self, dark = True, norm = True, 
-                dtype = np.float, quiet = False, crop= False, BG = False):
+                dtype = np.float, quiet = False,
+                crop = False, BG = False):
         """Read in images and process into 3D array.
         
         dark  : bool
@@ -188,7 +222,6 @@ class FileProcessor():
         if len(self.darkfilenames) == 0:
             self.darkfilenames = self.filenames
 
-        #print self.filenames
         for i, (iname, diname, normVal) in enumerate(zip(self.filenames, self.darkfilenames, normData)):
             if type(iname) == list:
                 _images = None
@@ -267,12 +300,8 @@ class FileProcessor():
                     TempIm[i,:] = TempIm[i,:]-BGprofile
                     BGprofile=[] 
                 image=TempIm#.transpose()
-                
-                
+
             images.append(image)
-        
-
-
 
         print "\n---- Processed %d images (%d dark images)" % (len(images), len(darkimages))
 
@@ -280,19 +309,24 @@ class FileProcessor():
 
         print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
                                                        self.images.nbytes / 1024**2) 
-
-        
             
     def _getRawImage(self, iname):
         """Read raw image"""
         if self._format == 'SPE':
-            return PrincetonSPEFile(iname).getBinnedData()
+            img = PrincetonSPEFile(iname).getBinnedData()
         if self._format == 'LCLS':
-            return LCLSdataformat(iname)
+            img = LCLSdataformat(iname)
         else:
             raise Exception("Unknown file format \"%s.\"" % self._format)
-        
 
+        if self._cropOnRead is not None:
+            img = img[self._cropOnRead[0]:self._cropOnRead[2],
+                      self._cropOnRead[1]:self._cropOnRead[3]]
+        if self._binOnRead is not None:
+            img = ccdutils.binArray(img, self._binOnRead)
+
+        return img
+    
     def _computeMeanImage(self):
         N = self.images.shape[0]
         self.mean = self.images.sum(0) / N
@@ -358,6 +392,10 @@ class FileProcessor():
         obj = np.load(filename)
         self.images = obj['images']
         self.normData = obj['normData']
+
+    def __str__(self):
+        """Return text string of FileProcessor stats"""
+        
 
 #
 # image processor class
