@@ -386,6 +386,8 @@ class SpecDataFile:
         if mask is None:
             mask = [None for i in items]
 
+        print len(mask)
+        print len(items)
         if len(mask) != len(items):
             raise Exception("The mask list should be the same size as the items list")
 

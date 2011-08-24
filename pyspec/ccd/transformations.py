@@ -909,7 +909,10 @@ class ImageProcessor():
         if self.settingAngles is None:
             raise Exception("No setting angles specified.")
 
-        print "\n**** Converting to Q"
+        print "\n"
+        print "---- Setting angle size :", self.settingAngles.shape
+        print "---- CCD Size :", (self.detSizeX, self.detSizeY)
+        print "**** Converting to Q"
         t1 = time.time()
         self.totSet = ctrans.ccdToQ(angles      = self.settingAngles * np.pi / 180.0, 
                                     mode        = self.frameMode,
@@ -922,6 +925,7 @@ class ImageProcessor():
                                     **ccdToQkwArgs)
         t2 = time.time()
         print "---- DONE (Processed in %f seconds)" % (t2 - t1)
+        print "---- Setsize is %d" % self.totSet.shape[0]
         self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())  
        
         if self.detMask is not None:
