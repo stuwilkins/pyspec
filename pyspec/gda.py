@@ -1,7 +1,12 @@
 import time
 import sys
 import os
-import h5py
+
+try:
+	import h5py
+except ImportError:
+	warnings.warn("There is no h5py package.")
+	
 from numpy import *
 from scipy import *
 from pylab import *
