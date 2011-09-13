@@ -193,7 +193,6 @@ class SpecDataFile:
         self.scandata = {}
 
         self.fileStats = os.stat(self.filename)
-        print self.fileStats
         self.fileLastAccess = self.fileStats.st_mtime
 
         return
