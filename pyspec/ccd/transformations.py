@@ -312,12 +312,13 @@ class FileProcessor():
             
     def _getRawImage(self, iname):
         """Read raw image"""
+        
         if self._format == 'SPE':
             img = PrincetonSPEFile(iname).getBinnedData()
-        if self._format == 'LCLS':
+        elif self._format == 'LCLS':
             img = LCLSdataformat(iname)
         else:
-            raise Exception("Unknown file format \"%s.\"" % self._format)
+            raise Exception("Unknown file format \"%s\"" % self._format)
 
         if self._cropOnRead is not None:
             img = img[self._cropOnRead[0]:self._cropOnRead[2],

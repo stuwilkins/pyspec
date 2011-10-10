@@ -546,8 +546,11 @@ class SpecScan:
 
             elif line[0:2] == "#D":
                 try:
-                    self.scandate = strptime(line[2:].strip())
+                    self.scandate = time.strptime(line[2:].strip())
+                    self.Date = time.asctime(self.scandate)
                 except:
+                    for a in sys.exc_info():
+                        print "**** : ", a
                     self.scandate = None
             elif line[0:3] == "#G4":
                 try:
