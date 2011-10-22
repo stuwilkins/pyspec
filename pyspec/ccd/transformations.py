@@ -28,6 +28,7 @@ import time
 import sys
 import struct
 import numpy as np
+import operator
 from   scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from   pyspec import fit, fitfuncs
@@ -113,6 +114,9 @@ class FileProcessor():
             self.normData = norm
         self.bgndParams = np.array([])
 
+        self.processed = False
+        self.currentFrame = 0
+
         if process:
             self.process()
 
@@ -182,9 +186,42 @@ class FileProcessor():
         self.darkfilenames = scan.ccdDarkFilenames
         self.normData      = scan.values[mon]
 
+    def __iter__(self):
+        return self
+
+    def next(self):
+        a = self.pop(quiet = True)
+        if not a:
+            raise StopIteration
+        else:
+            return self.images
+
+    def pop(self, *args, **kwargs):
+        """Process the next image in the sequence
+
+        This routine will call process() on the next image
+        in a sequence (stack) of images. It will return true if an image
+        was processed and false if we are at the end of the stack.
+
+        For arguments, see the process() function.
+        """
+
+        if self.currentFrame == len(self.filenames):
+            # We are at the end
+            return False
+        else:
+            self.process(frames = self.currentFrame, *args, **kwargs)
+            return True
+
+    def __getitem__(self, index):
+        """Convinience function to process and get an image"""
+        self.process(frames = index, quiet = True)
+
     def process(self, dark = True, norm = True, 
                 dtype = np.float, quiet = False,
-                crop = False, BG = False):
+                crop = False, BG = False,
+                frames = None,
+                keepdark = False):
         """Read in images and process into 3D array.
         
         dark  : bool
@@ -194,11 +231,20 @@ class FileProcessor():
         dtype : datatype 
            numpy datatype of processed array.
         quiet : bool
-           If True, dont write to screen when reading images."""
-        
+           If True, dont write to screen when reading images.
+        frames : list/int
+           If not none, only process the frames passed to the 
+           variable frames.
+        keepdark : bool
+           If true keep an array of all dark images. If false
+           only store the latest in an array of darkimages"""
+   
         images = []
-        darkimages = []
 
+        if not self.processed:
+            self.darkimages = []
+            self.processed = True
+        
         if norm:
             if self.normData is None:
                 normData = np.ones(len(self.filenames))
@@ -206,23 +252,52 @@ class FileProcessor():
             else:
                 if self.meanMonitor:
                     normData = np.ones(len(self.filenames)) * self.normData.mean()
-                    print "---- Normalizing data (using mean value)."
+                    if not quiet:
+                        print "---- Normalizing data (using mean value)."
                 else:
                     normData = self.normData
-                    print "---- Normalizing data."
+                    if not quiet:
+                        print "---- Normalizing data."
         else:
             normData = np.ones(len(self.filenames))
-
-        if dark:
+            
+        if dark and not quiet:
             print "---- Correcting for dark current"
 
-        if quiet:
+        if not quiet:
             print "---- Reading Images"
 
         if len(self.darkfilenames) == 0:
             self.darkfilenames = self.filenames
 
-        for i, (iname, diname, normVal) in enumerate(zip(self.filenames, self.darkfilenames, normData)):
+        if frames is None:
+            self.framesToProcess = range(0, len(self.filenames))
+            if not quiet:
+                print "---- Processing all frames (%d)" % len(self.framesToProcess)
+        else:
+            if type(frames) != list:
+                frames = [frames]
+            self.framesToProcess = frames
+            if not quiet:
+                print "---- Processing %d frames" % len(self.framesToProcess)
+
+        normIterator = operator.itemgetter(*self.framesToProcess)(normData.tolist())
+        if type(normIterator) != tuple:
+            normIterator = [normIterator]
+
+        # Loop over all frames to process
+
+        for (i, iname, diname, normVal) in zip(self.framesToProcess,
+                                               operator.itemgetter(*self.framesToProcess)(self.filenames), 
+                                               operator.itemgetter(*self.framesToProcess)(self.darkfilenames), 
+                                               normIterator):
+
+            # Store current frame number
+
+            self.currentFrame = i + 1
+
+            # Now choose if we have multiple acquisitions
+
             if type(iname) == list:
                 _images = None
                 _darkimages = None 
@@ -263,21 +338,27 @@ class FileProcessor():
                 image = _images
                 if _darkimages is not None:
                     darkimage = _darkimages
-                    darkimages.append(darkimage)
-
+                    if keepdark:
+                        self.darkimages.append(darkimage)
+                    else:
+                        self.darkimages = [darkimage]
             else:
                 # Process only single image pair
                 image = self._getRawImage(iname).astype(dtype)
 
-                #if os.path.exists(diname):
-                #    darkimage =  self._getRawImage(diname)#.astype(dtype)
-                #    darkimages.append(darkimage)
+                if os.path.exists(diname):
+                    darkimage =  self._getRawImage(diname)#.astype(dtype)
+                    if keepdark:
+                        self.darkimages.append(darkimage)
+                    else:
+                        self.darkimages = [darkimage]
+
                 if not quiet:
                     print "---- Reading image %-3d of %-3d\r" % (i, len(self.filenames)),
 
             if dark:
-                if len(darkimages):
-                    image = image - darkimages[-1]
+                if len(self.darkimages):
+                    image = image - self.darkimages[-1]
                 else:
                     print "XXXX Unable to dark currect correct. No Image found"
             
@@ -303,11 +384,12 @@ class FileProcessor():
 
             images.append(image)
 
-        print "\n---- Processed %d images (%d dark images)" % (len(images), len(darkimages))
+        if not quiet:
+            print "\n---- Processed %d images (%d dark images)" % (len(images), len(self.darkimages))
 
         self.images = np.array(images)
-
-        print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
+        if not quiet:
+            print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
                                                        self.images.nbytes / 1024**2) 
             
     def _getRawImage(self, iname):
