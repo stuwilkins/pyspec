@@ -232,7 +232,7 @@ class PrincetonSPEFile():
         vxdim = self._readAtNumpy(14, 1, numpy.int16)[0]
         vydim = self._readAtNumpy(16, 1, numpy.int16)[0]
         dt = numpy.int16(self._readAtNumpy(108, 1, numpy.int16)[0])
-        data_types = (numpy.float, numpy.int32, numpy.int16, numpy.uint16)
+        data_types = (numpy.float32, numpy.int32, numpy.int16, numpy.uint16)
         if (dt > 3) or (dt < 0):
             raise Exception("Unknown data type")
         self._dataType = data_types[dt]

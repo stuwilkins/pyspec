@@ -1,4 +1,3 @@
-
 #
 # transformations.py (c) Stuart B. Wilkins 2010 and (c) Sven Partzsch 2010
 #
@@ -28,12 +27,14 @@ import time
 import sys
 import struct
 import numpy as np
+import numpy.ma as ma
 import operator
 from   scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from   pyspec import fit, fitfuncs
 from   pyspec.ccd import utils as ccdutils
 from   pyspec.diffractometer import Diffractometer
+import h5py
 
 try:
     from   pyspec.ccd.files import *
@@ -104,6 +105,9 @@ class FileProcessor():
         self.darkfilenames = darkfilenames
         self.normData = None
         self.meanMonitor = False
+
+        self.images = None
+        self.mask = None
 
         self._cropOnRead = None
         self._binOnRead = None
@@ -180,11 +184,22 @@ class FileProcessor():
         scan    : SpecScan instance
            SpecScan to use for data
         mon     : String
-           Name of monitor in SpecScan instance"""
+           Name of monitor in SpecScan instance
+
+        Note: If scan is a list of spec scans, then the filenames and 
+        normalization data will be concatenated to make a single 
+        ImageProcessor module from all the data."""
         
-        self.filenames     = scan.ccdFilenames
-        self.darkfilenames = scan.ccdDarkFilenames
-        self.normData      = scan.values[mon]
+        if type(scan) != list:
+            scan = [scan]
+
+        self.filenames = []
+        self.darkfilenames = []
+        self.normData = np.array([])
+        for s in scan:
+            self.filenames += s.ccdFilenames
+            self.darkfilenames += s.ccdDarkFilenames
+            self.normData = np.concatenate((self.normData, s.values[mon]))
 
     def __iter__(self):
         return self
@@ -216,6 +231,7 @@ class FileProcessor():
     def __getitem__(self, index):
         """Convinience function to process and get an image"""
         self.process(frames = index, quiet = True)
+        return self.images
 
     def process(self, dark = True, norm = True, 
                 dtype = np.float, quiet = False,
@@ -240,6 +256,8 @@ class FileProcessor():
            only store the latest in an array of darkimages"""
    
         images = []
+        stdevs = []
+        darkstdevs = []
 
         if not self.processed:
             self.darkimages = []
@@ -301,15 +319,14 @@ class FileProcessor():
             if type(iname) == list:
                 _images = None
                 _darkimages = None 
+                _darkstdev = None
+                _stdev = None
                 #Start reading the light images
                 for j, _in in enumerate(iname): 
                     if os.path.exists(_in):
                         image = self._getRawImage(_in).astype(dtype)
-                        if _images is not None:
-                            _images = _images + image
-                        else:
-                            _images = image    
-                        #_images.append(image)
+                        _images, _stdev = self._binImageWithStdev(_images, _stdev, image)    
+                        
                         if not quiet:
                             print "---- Reading image %-3d of %-3d (sub image %-3d of %-3d)     \r" % (i + 1, len(self.filenames), j + 1, len(iname)),
                             sys.stdout.flush()
@@ -322,11 +339,8 @@ class FileProcessor():
                     for j, _din in enumerate(diname):
                         if os.path.exists(_din):
                             darkimage =  self._getRawImage(_din).astype(dtype)
-                            if _darkimages is not None:
-                                _darkimages = _darkimages + darkimage
-                            else:
-                                _darkimages = darkimage
-                        #_darkimages.append(darkimage)
+                            _darkimages, _darkstdev = self._binImageWithStdev(_darkimages, _darkstdev, darkimage)
+                        
                             if not quiet:
                                 print "---- Reading dark image %-3d of %-3d (sub image %-3d of %-3d)\r" % (i + 1, len(self.darkfilenames), j + 1, len(diname)),
                                 sys.stdout.flush()
@@ -347,7 +361,7 @@ class FileProcessor():
                 image = self._getRawImage(iname).astype(dtype)
 
                 if os.path.exists(diname):
-                    darkimage =  self._getRawImage(diname)#.astype(dtype)
+                    darkimage =  self._getRawImage(diname).astype(dtype)
                     if keepdark:
                         self.darkimages.append(darkimage)
                     else:
@@ -365,10 +379,8 @@ class FileProcessor():
             if norm:
                 image = image / normVal
 
-
             if crop:
                 print "---- Cropping Image"
-                #image=image[0:len(image)/2]
                 print "---- Correcting for background"
                 image.resize(250,570)
                 TempIm=image.transpose()
@@ -383,15 +395,37 @@ class FileProcessor():
                 image=TempIm#.transpose()
 
             images.append(image)
+            stdevs.append(np.sqrt(_stdev[1] / _stdev[2]))
+            darkstdevs.append(np.sqrt(_darkstdev[1] / _darkstdev[2]))
 
         if not quiet:
             print "\n---- Processed %d images (%d dark images)" % (len(images), len(self.darkimages))
-
+            
+        
         self.images = np.array(images)
+        self.stdevs = np.array(stdevs)
+        self.darkstdevs = np.array(darkstdevs)
         if not quiet:
             print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
                                                        self.images.nbytes / 1024**2) 
             
+    def _binImageWithStdev(self, images, stdev, newimage):
+        """Bin the images and provide a stdev of all bins"""
+        newstdev = [None,None,None]
+
+        # Note stdev[0] is M_k and stdev[1] is Q_k
+        if stdev is None:
+            newstdev = [newimage, zeros(newimage.shape), 1]
+        else:
+            newstdev[2] = stdev[2] + 1
+            newstdev[1] = stdev[1] + ((newstdev[2] - 1) * pow(newimage - stdev[0],2) / newstdev[2])
+            newstdev[0] = stdev[0] + ((newimage - stdev[0]) / stdev[2])
+
+        if images is not None:
+            return (newimage + images), newstdev
+        else:
+            return newimage, newstdev
+
     def _getRawImage(self, iname):
         """Read raw image"""
         
@@ -415,6 +449,31 @@ class FileProcessor():
         self.mean = self.images.sum(0) / N
         self.stderr = (self.images - self.mean)**2
 
+    def maskImageWithStdev(self, light = None, dark = None, quiet = False):
+        """Mask the image with thresholds of the stdev
+
+        light : float
+                Threshold (stdev) for light images
+        dark  : float
+                Threshold (stdev) for dark images
+        quiet : bool
+                Don't output anything to console
+                
+        If dark or light are none then the mask will not be 
+        computed for that threshold
+
+        Note: The mask values are TRUE is they are BAD"""
+
+        self.mask = np.zeros(self.stdevs.shape, dtype = np.bool)
+
+        if light is not None:
+            self.mask = self.mask | (self.stdevs > light)
+        if dark is not None:
+            self.mask = self.mask | (self.darkstdevs > dark)
+
+        if not quiet:
+            print "---- Masked data. (%d masked values)" % (self.mask.sum())
+
     def getMeanImage(self):
         """Return the mean image after processing.
 
@@ -433,6 +492,22 @@ class FileProcessor():
             return self.images
         else:
             return self.images[n]
+
+    def getMask(self, n = None):
+        """Return the mask of the image data
+
+        n : int or None
+           Image mask to return. If None, return all masks."""
+
+        if self.mask is None:
+            self.mask = np.zeros(self.images.shape, dtype = np.bool)
+
+        if n is None:
+            return self.mask
+        else:
+            return self.mask[n]
+        
+        
 
     def saveImage(self, filename, inum = None, dtype = np.float32):
         """Save image to binary file of specified datatype
@@ -481,6 +556,64 @@ class FileProcessor():
         
 
 #
+# HDF5 FileProcessor
+#
+
+class FileProcessorHDF5():
+    def __init__(self, filename = None, quiet = False):
+        """Initialize Class"""
+        self.quiet = quiet
+        if filename is not None:
+            self.setFilename(filename)
+            self._read()
+
+    def setFilename(self, filename):
+        """Set the filename of the HDF5 file"""
+        if type(filename) != list:
+            self.filename = [filename]
+        else:
+            self.filename = filename
+    
+    def process(self):
+        """Process (read in) the data"""
+        self._read()
+
+    def _read(self):
+        """Read the HDF5 Container"""
+        if not self.quiet:
+            print "**** Reading data from %s" % self.filename
+
+        self._h5data = h5py.File(self.filename, 'r')
+        self.images = array(self._h5data['entry']['instrument']['detector']['data'])
+        
+        n = self.images.shape[0]
+        
+        angles = self._h5data['entry']['instrument']['NDAttributes']
+        self.sixcAngles = ones((n,6))
+        self.sixcAngles[:,0] = array(angles['Delta'])[0:n]
+        self.sixcAngles[:,1] = array(angles['Gamma'])[0:n]
+        self.sixcAngles[:,2] = array(angles['Theta'])[0:n]
+        self.sixcAngles[:,3] = array(angles['Chi'])[0:n]
+        self.sixcAngles[:,4] = array(angles['Phi'])[0:n]
+        self.sixcAngles[:,5] = array(angles['Mu'])[0:n]
+        self.monitor = angles['Monitor'][:n]
+        #self.images = np.inner(self.images, ( 1 / self.monitor ))
+        if not self.quiet:
+            print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
+                                                           self.images.nbytes / 1024**2) 
+    
+    def getImage(self, n = None):
+        """Get image data"""
+        if n is None:
+            return self.images
+        else:
+            return self.images[n]
+
+    def getSIXCAngles(self):
+        """Get the diffractometer setting angles"""
+        return self.sixcAngles
+
+#
 # image processor class
 #
 
@@ -506,8 +639,6 @@ class ImageProcessor():
                      Spec Scan used to obtain information on current set"""
         
         # file processor to provied the needed images
-        if fP is not None:
-            self.setFileProcessor(fP)
              
         # set parameters to configure the CCD setup
         # detector distance 30cm and detector pixel size 20um
@@ -531,12 +662,14 @@ class ImageProcessor():
         self.gridOut    = None
         self.gridStdErr = None
 
-        self.maskData   = None
-        self.maskOccu   = None
-
         self.Qmin  = None
         self.Qmax  = None
         self.dQN   = None
+
+        self._mask = None
+
+        if fP is not None:
+            self.setFileProcessor(fP)
 
     def readConfigFile(self, filename):
         """Read config file and set detector parameters
@@ -587,20 +720,42 @@ class ImageProcessor():
         return self.totSet
 
     def getGridData(self):
-        """Return the intensity grid"""
-        return self.gridData
+        """Return the intensity grid
+
+        This function will mask the data if previously
+        set to be masked"""
+        # Here we check for mask
+        if self._mask is not None:
+            return ma.masked_array(self.gridData, mask = self._mask)
+        else:
+            return self.gridData
 
     def getGridStdErr(self):
         """Return the standard error grid"""
-        return self.gridStdErr
+        if self._mask is not None:
+            return ma.masked_array(self.gridStdErr, mask = self._mask)
+        else:
+            return self.gridStdErr
 
     def getGridStdDev(self):
         """Return the standard deviation grid"""
-        return self.gridStdErr * sqrt(self.gridOccu)
+        st = self.gridStdErr * sqrt(self.gridOccu)
+        if self._mask is not None:
+            return ma.masked_array(st, mask = self._mask)
+        else:
+            return st
     
     def getGridOccu(self):
         """Return the occupation of the grid"""
         return self.gridOccu
+
+    def setGridMaskOnOccu(self, thresh = 10):
+        """Set grid mask from bin occupation
+
+        thresh : int
+            Threshold for grid occupation"""
+
+        self._mask = self.gridOccu <= thresh
 
     def setDetectorProp(self, detPixSizeX, detPixSizeY, detSizeX, detSizeY, detX0, detY0):
         """Set properties of used detector
@@ -735,16 +890,14 @@ class ImageProcessor():
     def setSpecScan(self, conScan):
         """Set the settings for the set from the considered pyspec scan object
 
-        conScan : pyspec scan object which contains the needed information
-
         The set settings are:
         waveLen       : wavelength of the X-rays  (float in Angstrom)
         energy        : photon energy             (float in eV)
-        imFileNames   : filenames for each image
-        darkFileNames : filenames of the dark images
         settingAngles : setting angles of the diffractometer at each image (data point)
-
-        The file Processor processes the corresponding images"""
+        UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
+        
+        Note: If the scans are a list, then they will be constructed from that list from all angles.
+        The first scan will be used for the wavelength and UB matrix."""
 
         self.conScan = conScan
         self._setFromSpecScan()
@@ -902,33 +1055,30 @@ class ImageProcessor():
         return B
     
     def _setFromSpecScan(self):
-        """Set the settings for the set from the considered pyspec scan object
+        """See setFromSpecScan"""
 
-        The set settings are:
-        waveLen       : wavelength of the X-rays  (float in Angstrom)
-        energy        : photon energy             (float in eV)
-        imFileNames   : filenames for each image
-        darkFileNames : filenames of the dark images
-        settingAngles : setting angles of the diffractometer at each image (data point)
-        intentNorm    : normalization factor (division) for each image
-        UBmat         : UB matrix (orientation matrix) to transform the HKL-values into the sample-frame (phi-frame)
-        setName       : name of the considered set, e.g. 'Scan #' in the spec case
-        setNum        : no. to determine the set, e.g. 244 in the spec case
-        setSize       : no. of images in the set, e.g. 81"""
+        if type(self.conScan) != list:
+            scan = [self.conScan]
+        else:
+            scan = self.conScan
 
-        self.waveLen       = self.conScan.wavelength  # in Angstrom
-        self.energy        = Diffractometer.hc_over_e / self.conScan.wavelength # in eV
-        self.imFileNames   = self.conScan.ccdFilenames
-        self.darkFileNames = self.conScan.ccdDarkFilenames
-        self.settingAngles = self.conScan.getSIXCAngles()
-        self.intentNorm    = self.conScan.Ring
-        self.UBmat         = self.conScan.UB
-        self.setName       = 'Scan #'
-        self.setNum        = self.conScan.scan
-        self.setSize       = self.settingAngles.shape[0]
-        self.procImSelect  = range(self.setSize)
+        self.waveLen       = scan[0].wavelength  # in Angstrom
+        self.energy        = Diffractometer.hc_over_e / scan[0].wavelength # in eV
+        self.settingAngles = scan[0].getSIXCAngles()
+        for s in scan[1:]:
+            self.settingAngles = np.concatenate((self.settingAngles,s.getSIXCAngles()))
         
-    
+        self.UBmat         = scan[0].UB
+        
+
+    def _setFromFileProcessor(self):
+        """Set Values from the ImageProcessor"""
+        self.waveLen = self.fileProcessor.getWavelength()
+        self.energy = Diffractometer.hc_over_e / self.waveLen
+        self.settingAngles = self.fileProcessor.getSIXCAngles()
+        self.UBMat = self.fileProcessor.getUB()
+        
+
     def _XYCorrect(self, xVal, yVal):
         """Correct the miss alignement of the CCD camera
 
@@ -1049,21 +1199,20 @@ class ImageProcessor():
         print "---- Setsize is %d" % self.totSet.shape[0]
         self.totSet[:,3] = np.ravel(self.fileProcessor.getImage())  
        
+        if self.detMask is None:
+            m = self.fileProcessor.getMask()
+            if m is not None:
+                if m.sum():
+                    self.detMask = m 
+
         if self.detMask is not None:
             print "---- Masking data"
-            totMask = self.detMask.copy().ravel()
-            for i in range(1, self.settingAngles.shape[0]):
-                totMask = concatenate((totMask, self.detMask.ravel()))
-
-            print "---- Mask size ", totMask.shape
-            print "---- totSet size ", self.totSet.shape
+            totMask = self.detMask.ravel()
+            self.totSet = self.totSet[totMask == False,:]
             
-            self.totSet =  self.totSet[(totMask != 0),:]   
-            print "---- totSet size ", self.totSet.shape
-
-        # for info file
-        #self.opProcInfo += '\n\n**** Image Set processed to %.2e %s sets (Took %f seconds)' % (self.totSet.shape[0], self.setEntLabel, (t2 - t1))
-
+            print "---- New setsize is %d " % self.totSet.shape[0]
+            
+                    
     def process(self):
         """Convinience function to perform all processing"""
         self.processToQ()
@@ -1103,10 +1252,6 @@ class ImageProcessor():
         self.gridOccu   = gridOccu
         self.gridOut    = gridOut
         self.gridStdErr = gridStdErr
-
-        # masks for the data and occupation no.
-        self.maskData = (gridData == 0)
-        self.maskOccu = (gridOccu == 0)
 
     def makeGridData(self, *args, **kwargs):
         """Convinience to call makeGrid"""

@@ -341,3 +341,31 @@ def writeString(filename, string, append = True):
 
     f.close()
 
+class MultiPlot:
+    def __init__(self,dims = (2,2)):
+        """Initialize class"""
+        self.dims = dims
+        self.pos = 1
+        self.figs = []
+        self.figsArgs = ()
+        self.figsKwargs = {}
+    def setDims(self, dims):
+        """Set number of plots per fig"""
+        self.dims = dims
+    def getDims(self):
+        """Get number of plots per fig"""
+        return self.dims
+    def setFigureProp(self, *args, **kwargs):
+        """Set the options for each new fig"""
+        self.figsArgs = args
+        self.figsKwargs = kwargs
+    def getAxis(self):
+        """Return a new axis on a plot"""
+        if self.pos == 1 or self.figs == []:
+            self.figs.append(pl.figure(*self.figsArgs, **self.figsKwargs))
+        ax = self.figs[-1].add_subplot(self.dims[0], self.dims[1], self.pos)
+        if self.pos == (self.dims[0] * self.dims[1]):
+            self.pos = 1
+        else:
+            self.pos += 1
+        return ax

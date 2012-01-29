@@ -29,16 +29,20 @@ class CCDSpecExtension(SpecExtension):
         self.ccddark = "-DARK"
         self.ccdpath = None
         self.ccdtail = ".spe"
+        self.ccdhdf5file = None
     def initSpec(self, object):
         object.ccdpath = self.ccdpath
         object.ccddark = self.ccddark
         object.ccdtail = self.ccdtail
+        object.ccdhdf5file = self.ccdhdf5file
     def initSpecScan(self, object):
         object.ccdAcquireTime = 0.0
         object.ccdAcquirePeriod = 0.0
         object.ccdNumExposures = 1
         object.ccdNumImages = 1
         object.ccdNumAcquisitions = 1
+        object.ccdpath = None
+        object.ccdhdf5file = None
     def getName(self):
         return "SPEC / EPICS CCD Extension"
     def parseSpecScanHeader(self, object, line):
@@ -60,7 +64,36 @@ class CCDSpecExtension(SpecExtension):
                 object.ccdNumAcquisitions = object.ccdSubImages
             else:
                 object.ccdNumAcquisitions = int(pos[4])
-            
+        if line[0:6] == "#UCCD5":
+            # The "Local File Path
+            try:
+                filep = line.partition('"')[2].partition('"')[0]
+                print "---- FilePath = ", filep
+                if object.ccdpath is None:
+                    object.ccdpath = filep
+            except:
+                print "**** Unable to parse CCDdata (UCCD5)"
+                return
+
+        if line[0:6] == "#UCCD6":
+            # The HDF5 file
+            try:
+                filep = line.partition('"')[2].partition('"')[0]
+                print "---- HDF5 Format = ", filep
+                object.ccdhdf5format = filep
+            except:
+                print "**** Unable to parse CCDdata (UCCD6)"
+                return
+        if line[0:6] == "#UCCD7":
+            # The HDF5 file
+            try:
+                filep = line.partition('"')[2].partition('"')[0]
+                print "---- HDF5 File = ", filep
+                if object.ccdhdf5format is not None:
+                    object.ccdhdf5file = object.ccdhdf5format % (object.ccdpath + os.sep, filep,0)
+            except:
+                print "**** Unable to parse CCDdata (UCCD7)"
+                return
         return
 
     def concatenateSpecScan(self, object, a):
@@ -83,8 +116,14 @@ class CCDSpecExtension(SpecExtension):
 
         #Define CCD Filenames
 
+        if object.ccdhdf5file is not None:
+            if object.ccdpath is not None:
+                object.ccdhdf5file = object.ccdpath + os.sep + object.ccdhdf5file
+
         if object.datafile.ccdpath is not None:
             _path = object.datafile.ccdpath + os.sep
+        elif object.ccdpath is not None:
+            _path = object.ccdpath + os.sep
         else:
             _path = ""
 

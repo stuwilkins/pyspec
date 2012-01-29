@@ -54,10 +54,6 @@ try:
     import pyspec.mpfit as mpfit
 except ImportError:
     warnings.warn("ERROR: NO mpfit package ... unable to use MPFIT regression module")
-try:
-    import pyspec.pylevmar as levmar
-except ImportError:
-    warnings.warn("NO levmar package ... unable to use LEVMAR regression module")
 
 __version__   = "$Revision$"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
@@ -537,11 +533,6 @@ class fit:
         """Model function for ODR"""
         return(self._evalfunc(self._toFullParams(p), x = self._datax))
 
-    def _modelLEVMAR(self, estimate = None, measurement = None, data = None):
-        """Model function for LEVMAR"""
-        f = ravel(self._evalfunc(self._toFullParams(estimate), x = self._datax))
-        return f
-
     def _toFullParams(self, p):
         """Return the full parameter list
 
@@ -688,26 +679,6 @@ class fit:
         self._leastsq = plsq
         self._niter = plsq[2]['nfev']
 
-    def _run_levmar(self):
-        """Run a pylavmar regression"""
-        #opts = array([1e-3, 1e-5, 1e-5, 1e-5, 1e-3])
-        result, covar, iterations, run_info = levmar.ddif(self._modelLEVMAR,
-                                                          self._guess,
-                                                          ravel(self._datay), 10000)
-
-        if result is not None:
-            self._result = result
-            self._covar = covar
-            self._stdev = sqrt(diag(covar))
-        else:
-            self._result = self._guess.copy()
-            self._stdev = zeros(len(self._result))
-            self._covar = zeros((len(self._result), len(self._result)))
-
-        self._niter = iterations
-        self._levmar_run_info = run_info
-        print "Finished LEVMAR"
-
 ##
 ## Run the optimization
 ##
@@ -776,8 +747,6 @@ class fit:
             self._run_mpfit()
         elif self.optimizer == 'leastsq':
             self._run_leastsq()
-        elif self.optimizer == 'levmar':
-            self._run_levmar()
         else:
             raise Exception("Unknown fitting optimizer '%s'" % self.optimizer)
 
@@ -888,10 +857,7 @@ class fit:
         elif self.optimizer == 'leastsq':
             p += "Fitted with 'scipy' leastsq\n"
             p += "----------------------------\n"
-        elif self.optimizer == 'levmar':
-            p += "Fitted with 'pylevmar' LEVMAR module\n"
-            p += "------------------------------------\n"
-
+        
         ## Put in here the x limits
 
         p += "Fit results to function(s)\n"
@@ -951,11 +917,7 @@ class fit:
             p += 'MPFIT Status = %s\n' % self._mpfit.statusNiceText[self._mpfit.status]
             p += 'MPFIT Warning = %s\n' % self._mpfit.errmsg
             p += 'MPFIT computed in %d iterations\n' % self._mpfit.niter
-        if self.optimizer == 'levmar':
-            p += "\nLEVMAR Output :\n"
-            p += sep
-            for x in self._levmar_run_info.iteritems():
-                p += 'LEVMAR %-20s : %g\n' % x
+        
 
         if self._lastRunTime is not None:
             p += "\nRuntime\n"

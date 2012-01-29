@@ -131,6 +131,7 @@ def removeIllegals(key):
     illegal = [('/', ''), ('-', 'm'), ('+', 'p'), (' ', '')]
     for j,i in illegal:
         key = key.replace(j,i)
+    
     if key[0].isalpha() == False:
         key = "X" + key
     return key
@@ -138,7 +139,7 @@ def removeIllegals(key):
 def splitSpecString(ips):
     """Split a spec string which is formated with two spaces"""
     ops = []
-    for o in ips.split('  '):
+    for o in ips.rstrip().split('  '):
         if o != '':
             ops.append(o.strip())
 
@@ -385,8 +386,8 @@ class SpecDataFile:
         if mask is None:
             mask = [None for i in items]
 
-        print len(mask)
-        print len(items)
+        #print len(mask)
+        #print len(items)
         if len(mask) != len(items):
             raise Exception("The mask list should be the same size as the items list")
 
@@ -537,7 +538,12 @@ class SpecScan:
                 # Motor positions
                 pos = line.strip().split()
                 for i in range(1,len(pos)):
-                    self.scandata.setValue(removeIllegals(specfile.motors[x]), array([float(pos[i])]))
+                    if x < len(specfile.motors):
+                        self.scandata.setValue(removeIllegals(specfile.motors[x]), array([float(pos[i])]))
+                    else:
+                        print "**** WARNING : There are more motors in the scan than defiled"
+                        print "****           in the scan header. Someone change the motor order without updating the file."
+                        print "****           CHECK that assignments are correct."
                     x += 1
 
             elif line[0:2] == "#C":
@@ -657,9 +663,9 @@ class SpecScan:
         if self.data.shape[0] > 0:
             for i in range(len(self.cols)):
                 if len(self.data.shape) == 2:
-                    self.scandata.setValue(self.cols[i], self.data[:,i])
+                    self.scandata.setValue(removeIllegals(self.cols[i]), self.data[:,i])
                 else:
-                    self.scandata.setValue(self.cols[i], array([self.data[i]]))
+                    self.scandata.setValue(removeIllegals(self.cols[i]), array([self.data[i]]))
             self.values = self.scandata.values
 
         # Now set the variables into the scan class from the data
