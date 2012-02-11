@@ -120,11 +120,12 @@ class gdaScan:
 			dataline = self.line.split('\t')
 			dataline[-1]=dataline[-1].rstrip('\n')
 			dataArray=zeros((len(dataline)))
-			for ii in range (0,len(dataline)):
-				jj=ii
-				if dataline[ii]=="":
+			jj=0
+			for ii in range (0,len(self.cols)):
+				if dataline[jj]=="":
 					jj=jj+1
 				dataArray[ii] = float(dataline[jj])
+				jj=jj+1
 			if self.data==[]:
 				self.data =dataArray
 			else:
