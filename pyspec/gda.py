@@ -121,7 +121,10 @@ class gdaScan:
 			dataline[-1]=dataline[-1].rstrip('\n')
 			dataArray=zeros((len(dataline)))
 			for ii in range (0,len(dataline)):
-				dataArray[ii] = float(dataline[ii])
+				jj=ii
+				if dataline[ii]=="":
+					jj=jj+1
+				dataArray[ii] = float(dataline[jj])
 			if self.data==[]:
 				self.data =dataArray
 			else:
