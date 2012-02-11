@@ -48,7 +48,7 @@ class gdanxs:
 		return
 
 class gdaScan:
-	def __init__(self, scannumber):
+	def __init__(self, prefix, scannumber):
 		"""
 		Read scan data and set variables
 		to all the data contained in the scan
@@ -58,7 +58,8 @@ class gdaScan:
 		# Modified from SpecScan
 		
 		scan="%05d" %(scannumber)
-		self.filename = ''.join([scan,'.dat'])
+		self.prefix = prefix
+		self.filename = ''.join([self.prefix, scan,'.dat'])
 		
 		self.scandata = gdaData()
 		self.data = []	
