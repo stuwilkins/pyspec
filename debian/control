@@ -1,0 +1,12 @@
+Source: python-pyspec
+Maintainer: Stuart B. Wilkins (swilkins)
+Priority: optional
+Standards-Version: 3.9.1
+
+Package: python-pyspec
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends}
+Description: Python bindings for x-ray data analysis
+ Python routines for x-ray data anlysis of CCD images 
+
+

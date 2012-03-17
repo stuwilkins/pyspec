@@ -4,6 +4,7 @@
 #
 include setup.cfg*
 include setupext.py
+include setup.py
 recursive-include tests *.py *.spe *.dat
 recursive-include examples *.py
 recursive-include src *.c *.h
