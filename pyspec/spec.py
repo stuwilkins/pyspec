@@ -1045,7 +1045,7 @@ class SpecPlot:
                 xlim((min(self.plotx), max(self.plotx)))
 
             if not notitles:
-                title("%s %s\n%s" % (self.scan.datafile.filename, self.scan.scan.__repr__(), self.scan.scan_command))
+                title("%s %s %s %s\n%s" % (self.scan.datafile.filename, self.scan.scan.__repr__(),'  -  ', time.asctime(self.scan.scandate), self.scan.scan_command))
                 #title("%s [%d]\n%s" % (self.scan.datafile.file.name, self.scan.scan, self.scan.scan_command))
             self.plotted = True
         else:
