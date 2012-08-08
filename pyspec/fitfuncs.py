@@ -247,7 +247,7 @@ def pvoight(x, p, mode='eval'):
         out = "Pseudo Voight"
     elif mode == 'guess':
         g = peakguess(x, p)
-        out = g[0:3]
+        out = g[0:4]
         out[3] = 1.0
     else:
         out = []
@@ -317,6 +317,20 @@ def stokes_rot(x, p, mode='eval'):
 	# ASSUMES COMPLETELY LINEAR LIGHT! (P1^2+P2^2 = 1)
 	if mode == 'eval':
 		out = p[1]*(1+numpy.cos((x-p[0])*numpy.pi/90))
+	elif mode == 'params':
+		out = ['Rotation','S0']
+	elif mode == 'name':
+		out = "Stokes (assuming entirely linear)"
+	elif mode == 'guess':
+		out = [1,2]
+	else:
+		out = []
+	return out
+
+def sin_beam(x, p, mode='eval'):
+	# ASSUMES COMPLETELY LINEAR LIGHT! (P1^2+P2^2 = 1)
+	if mode == 'eval':
+		out = p[1]*(numpy.cos((x-p[0])*numpy.pi/90))
 	elif mode == 'params':
 		out = ['Rotation','S0']
 	elif mode == 'name':
