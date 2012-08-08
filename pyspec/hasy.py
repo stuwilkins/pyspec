@@ -111,13 +111,18 @@ class HasyScanFile:
 				self.header = self.header + line
 				# Find sampling time - only appears to be in header
 				if line[0:5]==" Name":
-					time = line.split("sampling")
-					self.time = float(time[1].split("s")[0])
+					if 'sampling' in line:
+						time = line.split("sampling")
+						self.time = float(time[1].split("s")[0])
+				if 'st:' in line:
+					time = line.split("st:")
+					self.time = float(time[1])
 				# Do same for lattice parameters
 				if line[0:12]==" lattice-par":
 					self.lattice = [float(s) for s in line[14:-1].split("  ")]
 					
 			line = self.file.readline()
+
 
 		# move to next line to read motor positions
 		line = self.file.readline()
