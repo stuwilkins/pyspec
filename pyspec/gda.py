@@ -124,7 +124,10 @@ class gdaScan:
 			for ii in range (0,len(self.cols)):
 				if dataline[jj]=="":
 					jj=jj+1
-				dataArray[ii] = float(dataline[jj])
+				try:
+					dataArray[ii] = float(dataline[jj])
+				except:
+					dataArray[ii] = -1
 				jj=jj+1
 			if self.data==[]:
 				self.data =dataArray
