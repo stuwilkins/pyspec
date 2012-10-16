@@ -31,6 +31,33 @@ from matplotlib.ticker import MultipleLocator, MaxNLocator, FormatStrFormatter
 # Some constants
 golden_mean = (np.sqrt(5)-1.0)/2.0
 
+def rebin(a, nsize, factor = True, norm = False):
+    '''rebin ndarray data into a smaller ndarray of the same rank whose dimensions
+    are factors of the original dimensions. eg. An array with 6 columns and 4 rows
+    can be reduced to have 6,3,2 or 1 columns and 4,2 or 1 rows. If norm is ture then
+    normalize by area of rebinning. If factor is true binning rate is used.
+    example usages:
+    >>> a=rand(6,4); b=rebin(a,3,2)
+    >>> a=rand(6); b=rebin(a,2)
+    '''
+    shape = a.shape
+    lenShape = len(shape)
+    if factor:
+        factor = np.asarray(nsize)
+        nsize = np.asarray(shape) / factor
+    else:
+        factor = np.asarray(shape)/np.asarray(nsize)
+    
+    evList = ['a.reshape('] + \
+             ['nsize[%d],factor[%d],'%(i,i) for i in range(lenShape)] + \
+             [')'] + ['.sum(%d)'%(i+1) for i in range(lenShape)]
+    if norm:
+        evList.append(['/factor[%d]'%i for i in range(lenShape)])
+    print ''.join(evList)
+
+    return eval(''.join(evList))
+
+
 def printAll(fname = "Plot", hc = False, small = True, lpcommand = 'lp'):
     """Print all figures"""
     for x in range(1, pl.gcf().number + 1):

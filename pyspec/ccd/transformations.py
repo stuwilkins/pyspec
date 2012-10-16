@@ -35,6 +35,7 @@ from   pyspec import fit, fitfuncs
 from   pyspec.ccd import utils as ccdutils
 from   pyspec.diffractometer import Diffractometer
 import h5py
+import scipy.io.numpyio
 
 try:
     from   pyspec.ccd.files import *
@@ -84,7 +85,8 @@ class FileProcessor():
     def __init__(self, filenames = None, 
                  darkfilenames = None, 
                  norm = None, format = 'SPE',
-                 spec = None, process = False):
+                 spec = None, process = False,
+                 spoolpath = None):
         """Initialize the class
 
         filenames      : list of strings.
@@ -99,6 +101,8 @@ class FileProcessor():
            Data file format. 'SPE' princeton format.
         process        : Bool.
            If True, then process the images once class is initialized.
+        spoolpath      : String
+           Path of directories to spool data to upon processing.
         """
         self._format = format
         self.filenames = filenames
@@ -112,10 +116,20 @@ class FileProcessor():
         self._cropOnRead = None
         self._binOnRead = None
         
+        self.spoolFilename = None
+        self.spoolfd = None
+        self.spoolfdin = None
+
         if spec is not None:
+            if spoolpath is not None:
+                self.setFromSpec(spec, spoolpath = spoolpath, spool = True)
+            else:
+                self.setFromSpec(spec)
             self.setFromSpec(spec)
+
         if norm is not None:
             self.normData = norm
+
         self.bgndParams = np.array([])
 
         self.processed = False
@@ -172,7 +186,7 @@ class FileProcessor():
         
         self.meanMonitor = b
 
-    def setFromSpec(self, scan, mon = 'Monitor'):
+    def setFromSpec(self, scan, mon = 'Monitor', spool = False, spoolpath = ''):
         """Set the filenames from a SpecScan instance
 
         This function sets the following from a SpecScan instance:
@@ -185,6 +199,8 @@ class FileProcessor():
            SpecScan to use for data
         mon     : String
            Name of monitor in SpecScan instance
+        spoolpath : String
+           Path to use for spool file.
 
         Note: If scan is a list of spec scans, then the filenames and 
         normalization data will be concatenated to make a single 
@@ -200,6 +216,58 @@ class FileProcessor():
             self.filenames += s.ccdFilenames
             self.darkfilenames += s.ccdDarkFilenames
             self.normData = np.concatenate((self.normData, s.values[mon]))
+
+        # set spool path
+
+        if spool:
+            sn = ''.join(['_%d' % s.scanno[0] for s in scan])
+            self.setSpoolFile(spoolpath + os.sep + scan[0].datafile.filename.split(os.sep)[-1] + sn)
+            self.setSpool()
+
+    def setSpoolFile(self, filename = None):
+        """Set the intermediary spool (process) file
+
+        filename : filename (with path) of process file"""
+
+        self.spoolFilename = filename
+        
+
+    def setSpoolOut(self, spool = True):
+        """Set the fileprocessor to spool the images out to disk"""
+        if spool:
+            self.spoolfd = open(self.spoolFilename, 'wb')
+        else:
+            self.spoolfd = None
+
+    def setSpoolIn(self, spool = True):
+        """Set the fileprocessor to spool the images from disk"""
+        if spool:
+            self.spoolfdin = open(self.spoolFilename, 'rb')
+        else:
+            self.spoolfdin = None
+
+    def setSpool(self, write = False):
+        """Set the use of the spool file.
+
+        If the spool file set by FileProcessor.setSpoolFile exists
+        then use that to read when used with an iterator. If the
+        file doesn't exist then the images are spooled to the given file
+        
+        Please note this is fragile. This is intended for use to speed up
+        internal processing NOT for saving data.
+
+        If write is True then writing is forced"""
+
+        print "---- Spool Filename = %s" % self.spoolFilename
+        if self.spoolFilename is not None:
+            if os.path.exists(self.spoolFilename):
+                self.setSpoolIn(True)
+                self.setSpoolOut(False)
+                print "---- Reading from spool file"
+            else:
+                self.setSpoolOut(True)
+                self.setSpoolIn(False)
+                print "---- Writing to spool file"
 
     def __iter__(self):
         return self
@@ -221,6 +289,10 @@ class FileProcessor():
         For arguments, see the process() function.
         """
 
+        if self.spoolfdin is not None:
+            # We have a valid spool file
+            return self._readSpoolImage()
+
         if self.currentFrame == len(self.filenames):
             # We are at the end
             return False
@@ -230,7 +302,11 @@ class FileProcessor():
 
     def __getitem__(self, index):
         """Convinience function to process and get an image"""
-        self.process(frames = index, quiet = True)
+        if self.spoolfdin is not None:
+            self._readSpoolImage(index)
+        else:
+            self.process(frames = index, quiet = True)
+
         return self.images
 
     def process(self, dark = True, norm = True, 
@@ -357,6 +433,8 @@ class FileProcessor():
                     else:
                         self.darkimages = [darkimage]
             else:
+                _darkstdev = None
+                _stdev = None
                 # Process only single image pair
                 image = self._getRawImage(iname).astype(dtype)
 
@@ -379,24 +457,22 @@ class FileProcessor():
             if norm:
                 image = image / normVal
 
-            if crop:
-                print "---- Cropping Image"
-                print "---- Correcting for background"
-                image.resize(250,570)
-                TempIm=image.transpose()
-                BG = sum(TempIm[:,30:50], axis=1)/20
-                BG2= sum(TempIm[:,231:250], axis=1)/20
-                BGprofile = []
-                for i in range(0,570):
-                    for j in range(0,250):
-                            BGprofile.append(BG[i]+((BG2[i]-BG[i])/550*(j-10)))
-                    TempIm[i,:] = TempIm[i,:]-BGprofile
-                    BGprofile=[] 
-                image=TempIm#.transpose()
-
             images.append(image)
-            stdevs.append(np.sqrt(_stdev[1] / _stdev[2]))
-            darkstdevs.append(np.sqrt(_darkstdev[1] / _darkstdev[2]))
+
+            # Write out the image to the spool file if present
+
+            if self.spoolfd is not None:
+                self._writeSpoolImage(image)
+
+            if _stdev is not None:
+                stdevs.append(np.sqrt(_stdev[1] / _stdev[2]))
+            else:
+                stdevs.append(zeros(image.shape))
+
+            if _darkstdev is not None:
+                darkstdevs.append(np.sqrt(_darkstdev[1] / _darkstdev[2]))
+            else:
+                darkstdevs.append(zeros(image.shape))
 
         if not quiet:
             print "\n---- Processed %d images (%d dark images)" % (len(images), len(self.darkimages))
@@ -407,7 +483,39 @@ class FileProcessor():
         self.darkstdevs = np.array(darkstdevs)
         if not quiet:
             print "---- Done. Array size %s (%.3f Mb)." % (str(self.images.shape), 
-                                                       self.images.nbytes / 1024**2) 
+                                                           self.images.nbytes / 1024**2) 
+    
+    def _writeSpoolImage(self, image):
+        """Write out spool image"""
+        if self.spoolfd is not None:
+            if self.spoolfd.tell() == 0:
+                # Start of file, write out image size
+                self.spoolfd.write("%d,%d,%s\n" % (image.shape[0], image.shape[1], str(image.dtype)))
+            scipy.io.numpyio.fwrite(self.spoolfd, image.size, image, 'f')
+
+    def _readSpoolImage(self, imageno = None):
+        """Read Spool Image"""
+        if self.spoolfdin is not None:
+            if self.spoolfdin.tell() == 0:
+                # Read Parameters
+                d = self.spoolfdin.readline().strip('\n')
+                d = d.split(',')
+                self.spoolImageSize = (int(d[0]), int(d[1]))
+                self.spoolImageType = d[2]
+            if imageno is not None:
+                # Seek to find place in file
+                self.spoolfdin.seek(4 * self.spoolImageSize[0] * self.spoolImageSize[1] * imageno)
+            image = scipy.io.numpyio.fread(self.spoolfdin, 
+                                           self.spoolImageSize[0] * self.spoolImageSize[1],
+                                           'f')
+            if len(image):
+                image = image.reshape(1,self.spoolImageSize[0],self.spoolImageSize[1])
+                self.images = image
+                return True
+            else:
+                return False
+        else:
+            return False
             
     def _binImageWithStdev(self, images, stdev, newimage):
         """Bin the images and provide a stdev of all bins"""
