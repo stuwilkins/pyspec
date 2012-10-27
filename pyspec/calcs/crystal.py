@@ -149,7 +149,6 @@ class Atom(object):
         """
         self.f0p = sfact.getF0Params(self.Z + self.charge)
         self.f1, self.f2 = sfact.getF1F2(self.Z)
-        print self.f1
         if energy is not None:
             self.f1f2 = self.f1(energy) + (1j*self.f2(energy))
         else:
@@ -488,7 +487,6 @@ class Crystal(object):
             m = m + a.getAtomicConstants()[3] 
 
         # Unit cell volume
-        print m
         self.rho = m / (self.cellVolume * (1e-30))
         self.rho = self.rho / self.N_A
         self.rho = self.rho * 1e-6 # Convert to g.cm^3
