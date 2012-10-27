@@ -34,8 +34,10 @@ import matplotlib.pyplot as plt
 from   pyspec import fit, fitfuncs
 from   pyspec.ccd import utils as ccdutils
 from   pyspec.diffractometer import Diffractometer
-import h5py
-import scipy.io.numpyio
+try:
+    import h5py
+except:
+    pass
 
 try:
     from   pyspec.ccd.files import *

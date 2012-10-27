@@ -29,6 +29,7 @@ import os.path
 
 F0 = {}
 F1F2 = {}
+AtomicConstants = {}
 
 def getF0Params(element = None):
     """Returns parameters for caluclating F0
@@ -71,7 +72,7 @@ def getF0Params(element = None):
                 a = data[0:4]
                 b = data[4]
                 c = data[5:9]
-                F0[thisElement] = (scipy.array(a), b, scipy.array(c))
+                F0[thisElement] = (np.array(a), b, np.array(c))
                 if thisElement == element:
                     infile.close()
                     return F0[thisElement]
@@ -164,11 +165,64 @@ def calcF0(params, k = 0):
 def getF1F2(element):
     """Returns F1F2 Params"""
     return F1F2[element]
-    
+
+def getAtomicConstants(element = None):
+    """Returns Atomic Constant for given element
+
+    Array is in format:
+    0 = Atomic Number
+    1 = Atomic Radius [A]
+    2 = CovalentRadius [A]
+    3 = AtomicMass
+    4 = BoilingPoint [K]
+    5 = MeltingPoint [K]
+    6 = Density [g/ccm]
+    7 = Atomic Volume
+    8 = CoherentScatteringLength [1E-12cm]
+    9 = IncoherentX-section [barn]
+    10 = Absorption@1.8A [barn]
+    11 = DebyeTemperature [K]
+    12 = ThermalConductivity [W/cmK]
+
+    """
+    return AtomicConstants[element]
+
+def getAtomicConstantsParams(element = None):
+    """Returns Atomic Constants
+
+    Array is in format:
+    0 = Atomic Number
+    1 = Atomic Radius [A]
+    2 = CovalentRadius [A]
+    3 = AtomicMass
+    4 = BoilingPoint [K]
+    5 = MeltingPoint [K]
+    6 = Density [g/ccm]
+    7 = Atomic Volume
+    8 = CoherentScatteringLength [1E-12cm]
+    9 = IncoherentX-section [barn]
+    10 = Absorption@1.8A [barn]
+    11 = DebyeTemperature [K]
+    12 = ThermalConductivity [W/cmK]
+
+    """
+    global AtomicConstants
+    with open(os.path.join(datadir, 'AtomicConstants.dat'),'r') as infile:
+        for line in infile:
+            if line.split()[0] == '#S':
+                s = line.split()
+                thisElement = s[2]
+                thisZ = np.array([s[1]]).astype('float32')
+            elif line[0] == '#':
+                continue
+            else:
+                data = np.array(line.split()).astype('float32')
+                AtomicConstants[thisElement] = np.concatenate((thisZ, data))
+                
 def getF1F2Params(element = None):
     """Returns f1 and f2 scattering factors"""
 
-    alldata = scipy.array([])
+    alldata = np.array([])
     global F1F2
 
     with open(os.path.join(datadir, 'f1f2_Henke.dat'),'r') as infile:
@@ -186,17 +240,17 @@ def getF1F2Params(element = None):
                 thisElement = s[2]
                 thisZ = int(s[1])
 
-                alldata = scipy.array([])
+                alldata = np.array([])
 
             elif line[0] == '#':
                 continue
             else:
-                data = scipy.array(line.split()).astype('float32')
+                data = np.array(line.split()).astype('float32')
                 if not len(alldata):
                     alldata = data
                 else:
-                    alldata = scipy.vstack((alldata, data))
-
+                    alldata = np.vstack((alldata, data))
+    return alldata
 
 # Now read into global variables
 
@@ -210,4 +264,5 @@ else:
     datadir = os.path.join(os.path.dirname(__file__), 'data')
     getF0Params()
     getF1F2Params()
+    getAtomicConstantsParams()
 

@@ -168,12 +168,14 @@ class PrincetonSPEFile():
         else:
             return self._comments[n]
 
-    def _readAtNumpy(self, pos, size, ntype):
-        self._fid.seek(pos)
+    def _readAtNumpy(self, pos = None, size, ntype):
+        if pos is not None:
+            self._fid.seek(pos)
         return numpy.fromfile(self._fid, ntype, size)
 
-    def _readAtString(self, pos, size):
-        self._fid.seek(pos)
+    def _readAtString(self, pos = None, size):
+        if pos is not None:
+            self._fid.seek(pos)
         return self._fid.read(size).rstrip(chr(0))
 
     def _readInt(self, pos):

@@ -11,19 +11,10 @@ n = 1 - \delta + i\Beta
 
 import scipy
 import sfact
-import rod
 import spacegroup
-import structures
 import copy as _copy
 import numpy as np
 import numpy.ma as masked
-
-try:
-    import psyco
-except ImportError:
-    pass
-else:
-    psyco.profile()
 
 import pylab
 from pylab import *
@@ -158,9 +149,9 @@ class Atom(object):
         """
         self.f0p = sfact.getF0Params(self.Z + self.charge)
         self.f1, self.f2 = sfact.getF1F2(self.Z)
-
+        print self.f1
         if energy is not None:
-            self.f1f2 = complex(self.f1(energy), self.f2(energy))
+            self.f1f2 = self.f1(energy) + (1j*self.f2(energy))
         else:
             self.f1f2 = None
     
@@ -199,6 +190,12 @@ class Atom(object):
             
         return self.f
 
+    def getAtomicConstants(self):
+        """Obtain the atomic constants for the atom
+
+        These parameters are obtained from the """
+        return sfact.getAtomicConstants(self.Z)
+
     def getElectronDensity(self, x = 0.):
         """Calculates and returns the electron density dist. for the atom"""
         return sfact.getRealF0(self.Z + self.charge, x)
@@ -216,7 +213,7 @@ class Crystal(object):
     and will generate all atoms from a given space group.
 
     """
-    N_A = 6.02214179e-23 
+    N_A = 6.02214179e23
     R_0 = 2.8179402894e-5 # Angstroms 
     def __init__(self, 
                  a = None, b = None, c = None,
@@ -426,9 +423,8 @@ class Crystal(object):
         refindex = complex(0,0)
         for a in self.atoms:
             a.calc(energy = self.energy)
-            
             r = a.getScatLen(q = scipy.array([0]))
-            refindex = refindex + complex(r.real, -1.0 * r.imag)
+            refindex = refindex + r.real - (1j * r.imag)
         refindex = (refindex * self.R_0 * 2 * pi / (pow(self.k,2) * self.cellVolume))
 
         self.delta = refindex.real
@@ -439,25 +435,45 @@ class Crystal(object):
         self.mu = 2.0 * self.beta * self.k
 
     def getTransmittivity(self, alpha):
-        """Returns the ampltiude transmittivity"""
-        alpha_prime = sqrt(pow(alpha, 2) - pow(self.alpha_c, 2) + complex(0, 2* self.beta))
-        t = 2 * alpha / (alpha + alpha_prime)
+        """Returns the ampltiude transmittivity
+        
+        r = 2 * kiz / (kiz + kit)
 
-        return t
+        Where:
 
-    def getReflectivity(self, alpha):
-        """Returns the amplitude reflectivity"""
-        alpha_prime = sqrt(pow(alpha, 2) - pow(self.alpha_c, 2) + complex(0, 2* self.beta))
-        r = (alpha - alpha_prime) / (alpha + alpha_prime)
-        return r
+        kiz = sin(theta)
+        kit = sqrt(n^2 - cos^2(theta))"""
+        kiz = sin(scipy.pi * theta / 180.0)
+        ktz = sqrt(self.n**2 - cos(scipy.pi * theta / 180.0)**2)
+        return (2 * kiz) / (kiz + ktz)
+
+    def getReflectivity(self, theta):
+        """Returns the amplitude reflectivity
+
+        r = (kiz - kit) / (kiz + kit)
+
+        Where:
+
+        kiz = sin(theta)
+        kit = sqrt(n^2 - cos^2(theta))
+        """
+        kiz = sin(scipy.pi * theta / 180.0)
+        ktz = sqrt(self.n**2 - cos(scipy.pi * theta / 180.0)**2)
+        return (kiz - ktz) / (kiz + ktz)
 
     def getMu(self):
+        """Return absorption coefficient"""
         return self.mu
+
+    def getN(self):
+        """Return refractive index"""
+        return self.n
 
     def setHKL(self, hkl):
         self.hkl = hkl
 
     def calcPenetrationDepth(self, alpha):
+        """Calculate and return penetration depth"""
         q = alpha / self.alpha_c
         b_mu = pow(2 * self.k / (2 * self.k * self.alpha_c), 2) * self.beta 
         q_prime = pow(pow(q,2) - 1 + complex(0,2 * b_mu), 0.5)
@@ -465,6 +481,19 @@ class Crystal(object):
         self.pdepth = self.pdepth / (2 * self.k * self.alpha_c)
         return self.pdepth
 
+    def getDensity(self):
+        """Calculate the density of the crystal and return"""
+        m = 0.0
+        for a in self.atoms:
+            m = m + a.getAtomicConstants()[3] 
+
+        # Unit cell volume
+        print m
+        self.rho = m / (self.cellVolume * (1e-30))
+        self.rho = self.rho / self.N_A
+        self.rho = self.rho * 1e-6 # Convert to g.cm^3
+        return self.rho
+        
     def setSpaceGroup(self, name):
         """Sets the spacegroup of the crystal"""
         self.sg = spacegroup.Spacegroup(name)
@@ -584,6 +613,7 @@ class Crystal(object):
         out = out + fmtf % ("alpha", self.lattice[3], "Angstroms")
         out = out + fmtf % ("beta", self.lattice[4], "Angstroms")
         out = out + fmtf % ("gamma", self.lattice[5], "Angstroms")
+        out = out + fmtf % ("volume", self.cellVolume, "Angstroms^3")
         out = out + "\n"
 
         out = out + "Spacegroup:\n"
@@ -598,6 +628,7 @@ class Crystal(object):
         out = out + fmte % ("Beta", self.beta, "")
         #out = out + fmte % ("Ref. Index", self.n, "")
         out = out + fmte % ("mu", self.mu, "Angstroms^-1")
+        out = out + fmte % ("rho", self.getDensity(), "g.cm^-3")
         
         return out
 
