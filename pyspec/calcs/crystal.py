@@ -21,6 +21,8 @@ from pylab import *
 
 __verbose__ = True
 
+hc_over_e = 12.3984193 
+
 class Atom(object):
     """Class defining a single scatterer in a crystal (atom)
 
@@ -256,7 +258,7 @@ class Crystal(object):
 
     def calcRLattice(self):
         """Calculate reciprocal lattice parameters"""
-        self.rlattice = 2 * scipy.pi / self.lattice[0:3]
+        self.rlattice = 2 * np.pi / self.lattice[0:3]
 
     def getLattice(self):
         """Returns array of direct-space lattice""" 
@@ -282,14 +284,14 @@ class Crystal(object):
 
         Parameters
         ----------
-        e   : [float] energy in keV
+        e   : [float, ndarray] energy in keV
 
         Calcuates |k| along with energy.
         Note: The magnitude of k is defined as 
         |k| = 2 * pi * e / 12.39
         """
-        self.k = 2.0 * scipy.pi * e / 12.390
-        self.energy = e * 1000
+        self.k = 2.0 * np.pi * e / hc_over_e
+        self.energy = e * 1000.0
         
     def setLambda(self, l):
         """Set the wavelength of incident x-rays
@@ -299,12 +301,12 @@ class Crystal(object):
         l   : [float] wavelength in Angstroms
 
         """
-        self.k = 2 * scipy.pi / l
-        self.energy = 12390 / l
+        self.k = 2 * np.pi / l
+        self.energy = 1000.0 * hc_over_e / l
     
     def getLambda(self):
         """Get the wavelength of the incident x-rays"""
-        return 12390./self.energy
+        return 1000.0 * hc_over_e / self.energy
 
     def setAtoms(self, a):
         """ Set the atom names and positions as a tuple.
@@ -442,8 +444,8 @@ class Crystal(object):
 
         kiz = sin(theta)
         kit = sqrt(n^2 - cos^2(theta))"""
-        kiz = sin(scipy.pi * theta / 180.0)
-        ktz = sqrt(self.n**2 - cos(scipy.pi * theta / 180.0)**2)
+        kiz = sin(np.pi * theta / 180.0)
+        ktz = sqrt(self.n**2 - cos(np.pi * theta / 180.0)**2)
         return (2 * kiz) / (kiz + ktz)
 
     def getReflectivity(self, theta):
@@ -456,8 +458,8 @@ class Crystal(object):
         kiz = sin(theta)
         kit = sqrt(n^2 - cos^2(theta))
         """
-        kiz = sin(scipy.pi * theta / 180.0)
-        ktz = sqrt(self.n**2 - cos(scipy.pi * theta / 180.0)**2)
+        kiz = sin(np.pi * theta / 180.0)
+        ktz = sqrt(self.n**2 - cos(np.pi * theta / 180.0)**2)
         return (kiz - ktz) / (kiz + ktz)
 
     def getMu(self):
@@ -621,11 +623,23 @@ class Crystal(object):
 
         out = out + "Calculated Parameters:\n"
         out = out + sep
-        out = out + fmte % ("Critical Angle", 180 * self.alpha_c / pi, "Deg")
-        out = out + fmte % ("Delta", self.delta, "")
-        out = out + fmte % ("Beta", self.beta, "")
-        #out = out + fmte % ("Ref. Index", self.n, "")
-        out = out + fmte % ("mu", self.mu, "Angstroms^-1")
+        if type(self.energy) == np.ndarray:
+            out = out + fmte % ("Energy", self.energy[0], "eV")
+            out = out + fmte % ("Wavelength", self.getLambda()[0], "Angstroms")
+            out = out + sep
+            out = out + fmte % ("Critical Angle", 180 * self.alpha_c[0] / pi, "Deg")
+            out = out + fmte % ("Delta", self.delta[0], "")
+            out = out + fmte % ("Beta", self.beta[0], "")
+            out = out + fmte % ("mu", self.mu[0], "Angstroms^-1")
+        else:
+            out = out + fmte % ("Energy", self.energy, "eV")
+            out = out + fmte % ("Wavelength", self.getLambda(), "Angstroms")
+            out = out + sep
+            out = out + fmte % ("Critical Angle", 180 * self.alpha_c / pi, "Deg")
+            out = out + fmte % ("Delta", self.delta, "")
+            out = out + fmte % ("Beta", self.beta, "")
+            out = out + fmte % ("mu", self.mu, "Angstroms^-1")
+            
         out = out + fmte % ("rho", self.getDensity(), "g.cm^-3")
         
         return out
