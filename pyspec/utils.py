@@ -1,8 +1,8 @@
 #
 # utils.py (c) Stuart B. Wilkins 2008
 #
-# $Id$
-# $HeadURL$
+# $Id: utils.py 238 2012-10-16 13:15:42Z stuwilkins $
+# $HeadURL: https://pyspec.svn.sourceforge.net/svnroot/pyspec/trunk/pyspec/utils.py $
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -30,84 +30,6 @@ from matplotlib.ticker import MultipleLocator, MaxNLocator, FormatStrFormatter
 
 # Some constants
 golden_mean = (np.sqrt(5)-1.0)/2.0
-
-class MultiPlot():
-    def __init__(self, shape, prefuncs = [], postfuncs = []):
-        """Initialize the class
-
-        shape : (tuple) Size of subplots
-        """
-
-        self._shape = shape
-        self._currentAxis = 1
-        self._figures = []
-        
-        if type(prefuncs) != list:
-            self._preFuncs = [prefuncs]
-        else:
-            self._preFuncs = prefuncs
-            
-        if type(postfuncs) != list:
-            self._postFuncs = [postfuncs]
-        else:
-            self._postFuncs = postfuncs
-        return
-
-    def saveAll(self, fileformat, *args, **kwargs):
-        """Save all figures to files
-
-        This routine saves all figures to files. The fileformat
-        should be a valid filename with a standard python string
-        with place for an integer for the figure number. For example:
-
-             MultiPlot.saveAll('Plot%d.png')
-
-        Any further arguments are passed directly to the savefig function.
-
-        """
-        for n,f in enumerate(self._figures):
-            figure(f)
-            savefig(fileformat % n, *args, **kwargs)
-        
-    def getAxis(self):
-        """Return the next axis"""
-        # First check if we have to create a new figure
-        if self._figures == []:
-            self._figures.append(pl.figure())
-            
-        if (self._currentAxis - 1) == (self._shape[0] * self._shape[1]):
-            self._currentAxis = 1
-            self._figures.append(pl.figure())
-        ax = self._figures[-1].add_subplot(self.shape[0], self.shape[1], self.currentAxis)
-        self._currentAxis = self._currentAxis + 1
-        return ax
-
-    def getFigure(self):
-        """Return the handle to the current figure"""
-        return self._figures[-1]
-
-    def getAllFigures(self):
-        """Return all figures as a list"""
-        return self._figures
-
-def makeDataSquare(grids, sz = 0, ax = 0, verbose = False):
-    """Make the nearest square from size"""
-  
-    # Note SZ [0] is the inner size
-  
-    if sz == 0:
-        # Guess the split using differential
-        x = abs(diff(grids[ax]))
-        t = where(x > (0.25 * x.max()))[0]
-        sz = int(t[0] + 1)
-
-    l = int(grids[0].size / sz)
-  
-    new_grids = []
-    for g in grids:
-        new_grids.append(g[0:sz * l].reshape(l, sz))
-    return new_grids
-    
 
 def rebin(a, nsize, factor = True, norm = False):
     '''rebin ndarray data into a smaller ndarray of the same rank whose dimensions
@@ -446,3 +368,31 @@ def writeString(filename, string, append = True):
 
     f.close()
 
+class MultiPlot:
+    def __init__(self,dims = (2,2)):
+        """Initialize class"""
+        self.dims = dims
+        self.pos = 1
+        self.figs = []
+        self.figsArgs = ()
+        self.figsKwargs = {}
+    def setDims(self, dims):
+        """Set number of plots per fig"""
+        self.dims = dims
+    def getDims(self):
+        """Get number of plots per fig"""
+        return self.dims
+    def setFigureProp(self, *args, **kwargs):
+        """Set the options for each new fig"""
+        self.figsArgs = args
+        self.figsKwargs = kwargs
+    def getAxis(self):
+        """Return a new axis on a plot"""
+        if self.pos == 1 or self.figs == []:
+            self.figs.append(pl.figure(*self.figsArgs, **self.figsKwargs))
+        ax = self.figs[-1].add_subplot(self.dims[0], self.dims[1], self.pos)
+        if self.pos == (self.dims[0] * self.dims[1]):
+            self.pos = 1
+        else:
+            self.pos += 1
+        return ax

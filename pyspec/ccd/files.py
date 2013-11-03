@@ -1,8 +1,8 @@
 #
 # files.py (c) Stuart B. Wilkins 2010
 #
-# $Id$
-# $HeadURL$
+# $Id: files.py 229 2012-01-29 21:52:35Z stuwilkins $
+# $HeadURL: https://pyspec.svn.sourceforge.net/svnroot/pyspec/trunk/pyspec/ccd/files.py $
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -28,10 +28,10 @@ from scipy import *
 from pylab import *
 
 
-__version__   = "$Revision$"
+__version__   = "$Revision: 229 $"
 __author__    = "Stuart B. Wilkins <stuwilkins@mac.com>"
-__date__      = "$LastChangedDate$"
-__id__        = "$Id$"
+__date__      = "$LastChangedDate: 2012-01-29 16:52:35 -0500 (Sun, 29 Jan 2012) $"
+__id__        = "$Id: files.py 229 2012-01-29 21:52:35Z stuwilkins $"
 
 def LCLSdataformat(iname, dataFormat = "142500f"):
     """function to read LCLS data.  no headers in this"""
@@ -168,14 +168,12 @@ class PrincetonSPEFile():
         else:
             return self._comments[n]
 
-    def _readAtNumpy(self, pos = None, size, ntype):
-        if pos is not None:
-            self._fid.seek(pos)
+    def _readAtNumpy(self, pos, size, ntype):
+        self._fid.seek(pos)
         return numpy.fromfile(self._fid, ntype, size)
 
-    def _readAtString(self, pos = None, size):
-        if pos is not None:
-            self._fid.seek(pos)
+    def _readAtString(self, pos, size):
+        self._fid.seek(pos)
         return self._fid.read(size).rstrip(chr(0))
 
     def _readInt(self, pos):
