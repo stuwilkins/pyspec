@@ -259,7 +259,7 @@ class SpecDataFile:
         self.motors = []
         self.file.seek(0,0)
         line = self.file.readline()
-        while line[0:2] != "#S":
+        while (line[0:2] != "#S") and (line != ""):
             if line[0:2] == "#O":
                 self.motors = self.motors + splitSpecString(line[4:])
             else:
