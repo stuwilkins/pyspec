@@ -40,6 +40,11 @@ except:
     pass
 
 try:
+    from PIL import Image as PILImage
+except:
+    pass
+
+try:
     from   pyspec.ccd.files import *
 except:
     pass
@@ -543,6 +548,8 @@ class FileProcessor():
             img = PrincetonSPEFile(iname).getBinnedData()
         elif self._format == 'LCLS':
             img = LCLSdataformat(iname)
+        elif self._format == 'TIFF':
+            img = np.array(PILImage.open(iname)).sum(-1)
         else:
             raise Exception("Unknown file format \"%s\"" % self._format)
 
