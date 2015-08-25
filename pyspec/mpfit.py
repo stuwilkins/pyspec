@@ -410,7 +410,7 @@ Perform Levenberg-Marquardt least-squares minimization, based on MINPACK-1.
 
 import numpy
 import types
-import scipy.lib.blas
+import scipy.linalg.blas
 
 #	 Original FORTRAN documentation
 #	 **********
@@ -606,7 +606,7 @@ class mpfit:
                        7 : 'xtol is too small. No further improvement in the approximate solution x is possible.',
                        8 : 'gtol is too small. fvec is orthogonal to the columns of the jacobian to machine percision.'}
 
-	blas_enorm, = scipy.lib.blas.get_blas_funcs(['nrm2'])
+	blas_enorm, = scipy.linalg.blas.get_blas_funcs(['nrm2'])
 
 
 	def __init__(self, fcn, xall=None, functkw={}, parinfo=None,
