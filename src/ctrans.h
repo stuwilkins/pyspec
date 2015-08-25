@@ -34,7 +34,7 @@
 #endif
 
 #ifndef NTHREADS
-#defile NTHREADS 2
+#define NTHREADS 2
 #endif
 
 typedef double _float;
