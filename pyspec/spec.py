@@ -541,7 +541,7 @@ class SpecScan:
                     if x < len(specfile.motors):
                         self.scandata.setValue(removeIllegals(specfile.motors[x]), array([float(pos[i])]))
                     else:
-                        print "**** WARNING : There are more motors in the scan than defiled"
+                        print "**** WARNING : There are more motors in the scan than defined"
                         print "****           in the scan header. Someone change the motor order without updating the file."
                         print "****           CHECK that assignments are correct."
                     x += 1

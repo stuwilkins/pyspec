@@ -1032,7 +1032,7 @@ class ImageProcessor():
         mode : Integer
            Mode (see below)
 
-        The image processor uses a number of modes which defile the
+        The image processor uses a number of modes which define the
         coordinates of the final grid. These are:
 
         mode 1 : 'theta'    : Theta axis frame.  
